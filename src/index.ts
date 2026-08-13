@@ -11,6 +11,7 @@ import { formulaIrSchema } from './ir-schema.ts'
 import type { ColumnTable } from './ir.ts'
 import { llmTextFromContext } from './llm.ts'
 import { repairWorkbookFile } from './repair.ts'
+import { detectTableFromCells } from './tables.ts'
 import { validate } from './validator.ts'
 import { visionTextFromContext } from './vision.ts'
 import { readWorkbookCells, validateWorkbookFile } from './workbook.ts'
@@ -140,6 +141,10 @@ export function apply(ctx: Context) {
         type: 'boolean',
         description: 'Ask the configured LLM to repair anomalies the deterministic generator cannot fix.',
       },
+      autoTable: {
+        type: 'boolean',
+        description: 'Detect the header row from cell content when no table schema is provided (uses the first row with two or more text cells).',
+      },
       provider: {
         type: 'string',
         description: 'LLM provider route (default "deepseek").',
@@ -151,7 +156,7 @@ export function apply(ctx: Context) {
       table: {
         type: 'object',
         additionalProperties: true,
-        description: 'Table schema { sheet, columns } for LLM repair compilation. Required when useLlm is true.',
+        description: 'Table schema { sheet, columns } for LLM repair compilation. Required when useLlm is true unless autoTable is enabled.',
       },
     },
     output: {
@@ -160,15 +165,28 @@ export function apply(ctx: Context) {
     },
     async execute(args, exec) {
       if (args.useLlm) {
-        if (!args.table || !args.model) {
-          throw new Error('table and model are required when useLlm is true')
+        if (!args.model) {
+          throw new Error('model is required when useLlm is true')
+        }
+        let table = args.table as unknown as ColumnTable | undefined
+        let cells: Record<string, string> | undefined
+        if (!table) {
+          if (!args.autoTable) {
+            throw new Error('table (or autoTable: true) is required when useLlm is true')
+          }
+          cells = await readWorkbookCells(await readFile(args.path))
+          const detected = detectTableFromCells(cells)
+          if (!detected) {
+            throw new Error('autoTable could not detect a header row; provide table explicitly')
+          }
+          table = detected
         }
         const advisor = createLlmRepairAdvisor(
           llmTextFromContext(ctx, args.provider ?? 'deepseek', args.model),
-          args.table as unknown as ColumnTable,
+          table,
           exec.signal,
         )
-        return await repairWorkbookFile(args.path, advisor) as unknown as JsonRecord
+        return await repairWorkbookFile(args.path, advisor, cells) as unknown as JsonRecord
       }
       return await repairWorkbookFile(args.path) as unknown as JsonRecord
     },

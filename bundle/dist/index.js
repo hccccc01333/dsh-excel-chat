@@ -9,6 +9,7 @@ import { diffWorkbookFiles } from './diff.js';
 import { formulaIrSchema } from './ir-schema.js';
 import { llmTextFromContext } from './llm.js';
 import { repairWorkbookFile } from './repair.js';
+import { detectTableFromCells } from './tables.js';
 import { validate } from './validator.js';
 import { visionTextFromContext } from './vision.js';
 import { readWorkbookCells, validateWorkbookFile } from './workbook.js';
@@ -134,6 +135,10 @@ export function apply(ctx) {
                 type: 'boolean',
                 description: 'Ask the configured LLM to repair anomalies the deterministic generator cannot fix.',
             },
+            autoTable: {
+                type: 'boolean',
+                description: 'Detect the header row from cell content when no table schema is provided (uses the first row with two or more text cells).',
+            },
             provider: {
                 type: 'string',
                 description: 'LLM provider route (default "deepseek").',
@@ -145,7 +150,7 @@ export function apply(ctx) {
             table: {
                 type: 'object',
                 additionalProperties: true,
-                description: 'Table schema { sheet, columns } for LLM repair compilation. Required when useLlm is true.',
+                description: 'Table schema { sheet, columns } for LLM repair compilation. Required when useLlm is true unless autoTable is enabled.',
             },
         },
         output: {
@@ -154,11 +159,24 @@ export function apply(ctx) {
         },
         async execute(args, exec) {
             if (args.useLlm) {
-                if (!args.table || !args.model) {
-                    throw new Error('table and model are required when useLlm is true');
+                if (!args.model) {
+                    throw new Error('model is required when useLlm is true');
                 }
-                const advisor = createLlmRepairAdvisor(llmTextFromContext(ctx, args.provider ?? 'deepseek', args.model), args.table, exec.signal);
-                return await repairWorkbookFile(args.path, advisor);
+                let table = args.table;
+                let cells;
+                if (!table) {
+                    if (!args.autoTable) {
+                        throw new Error('table (or autoTable: true) is required when useLlm is true');
+                    }
+                    cells = await readWorkbookCells(await readFile(args.path));
+                    const detected = detectTableFromCells(cells);
+                    if (!detected) {
+                        throw new Error('autoTable could not detect a header row; provide table explicitly');
+                    }
+                    table = detected;
+                }
+                const advisor = createLlmRepairAdvisor(llmTextFromContext(ctx, args.provider ?? 'deepseek', args.model), table, exec.signal);
+                return await repairWorkbookFile(args.path, advisor, cells);
             }
             return await repairWorkbookFile(args.path);
         },

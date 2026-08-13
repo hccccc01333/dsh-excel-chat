@@ -25,7 +25,12 @@
 - `src/patch.ts` — 最小补丁抽象：apply / revert / 写回 workbook。
 - `src/repair.ts` — 从验证结果生成确定性修复，写出 `.repaired.xlsx` 并复验。
 - `src/workbook.ts` — ExcelJS-based workbook reader: `.xlsx` → cell-content map, and `validateWorkbookFile(path)`.
-- `src/index.ts` — dsh plugin entry exposing five tools（validate / compile / repair / diff / charts）。
+- `src/tables.ts` — `detectTableFromCells`：从单元格内容推断 `{ sheet, columns }`，
+  供 `excel_repair_formulas` 的 `autoTable` 自动识别表头。
+- `src/score.ts` — `scoreWorkbookAgainstOracle`：oracle 单元格级判分，容忍公式
+  大小写/空白与数字格式差异，输出准确率与 mismatch 明细。
+- `src/benchmark.ts` — Pass@1 benchmark：确定性修复 → LLM 修复，与 oracle 对比判分。
+- `src/index.ts` — dsh plugin entry exposing seven tools（validate / compile / repair / diff / chart structure / chart export / chart visual）。
 - `bundle/` — 可发布 dsh bundle：manifest + cordis.patch.yml + 编译产物。
 
 ## Run tests
@@ -46,12 +51,22 @@ node --test tests/chart-visual.test.ts
 node --test tests/pack-bundle.test.ts
 node --test tests/vision-wiring.test.ts
 node --test tests/deepseek.test.ts
+node --test tests/tables.test.ts
+node --test tests/score.test.ts
+node --test tests/benchmark.test.ts
 ```
 
 真实模型端到端：
 
 ```sh
 node tests/invoke-real-llm.ts
+```
+
+Pass@1 benchmark（确定性修复 + 可选 LLM）：
+
+```sh
+node tests/invoke-benchmark.ts                 # 仅确定性路线
+VERA_BENCH_LLM=1 node tests/invoke-benchmark.ts # 接真实 DeepSeek
 ```
 
 构建并安装 bundle：

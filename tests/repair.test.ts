@@ -3,11 +3,15 @@ import assert from 'node:assert/strict'
 import ExcelJS from 'exceljs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { createLlmRepairAdvisor, type LlmText } from '../src/advisor.ts'
 import { generateRepairs, repairWorkbookFile } from '../src/repair.ts'
+import { detectTableFromCells } from '../src/tables.ts'
 import { validate } from '../src/validator.ts'
+import { readWorkbookCells } from '../src/workbook.ts'
 
 const fixturePath = fileURLToPath(new URL('../fixtures/silent-error.xlsx', import.meta.url))
 const repairedPath = fileURLToPath(new URL('../fixtures/silent-error.repaired.xlsx', import.meta.url))
+const autoTablePath = fileURLToPath(new URL('../fixtures/auto-table.xlsx', import.meta.url))
 
 async function writeFixture(): Promise<void> {
   const workbook = new ExcelJS.Workbook()
@@ -44,4 +48,86 @@ test('repairWorkbookFile writes a repaired copy that re-validates clean', async 
   assert.equal(repair.after.anomalies.filter((a) => a.kind === 'reference-offset').length, 0)
   const data = await readFile(repairedPath)
   assert.ok(data.length > 0)
+})
+
+test('generateRepairs fixes a range tail reference (SUM(B4:C3) -> SUM(B4:C4))', () => {
+  const cells = {
+    D2: '=SUM(B2:C2)',
+    D3: '=SUM(B3:C3)',
+    D4: '=SUM(B4:C3)',
+    D5: '=SUM(B5:C5)',
+  }
+  const repairs = generateRepairs(cells, validate(cells))
+  assert.deepEqual(repairs, [{
+    id: 'D4',
+    kind: 'formula',
+    oldValue: '=SUM(B4:C3)',
+    newValue: '=SUM(B4:C4)',
+  }])
+})
+
+test('generateRepairs rebuilds both range endpoints when both deviate', () => {
+  const cells = {
+    D2: '=SUM(B2:C2)',
+    D3: '=SUM(B3:C3)',
+    D4: '=SUM(B3:C3)',
+    D5: '=SUM(B5:C5)',
+  }
+  const repairs = generateRepairs(cells, validate(cells))
+  assert.deepEqual(repairs, [{
+    id: 'D4',
+    kind: 'formula',
+    oldValue: '=SUM(B3:C3)',
+    newValue: '=SUM(B4:C4)',
+  }])
+})
+
+test('generateRepairs keeps absolute modifiers on the untouched range endpoint', () => {
+  const cells = {
+    D2: '=SUM($B$4:C2)',
+    D3: '=SUM($B$4:C3)',
+    D4: '=SUM($B$4:C3)',
+    D5: '=SUM($B$4:C5)',
+  }
+  const repairs = generateRepairs(cells, validate(cells))
+  assert.deepEqual(repairs, [{
+    id: 'D4',
+    kind: 'formula',
+    oldValue: '=SUM($B$4:C3)',
+    newValue: '=SUM($B$4:C4)',
+  }])
+})
+
+test('auto-detected table schema feeds the LLM repair route', async () => {
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Sheet1')
+  sheet.getCell('B1').value = 'Revenue'
+  sheet.getCell('C1').value = 'Cost'
+  sheet.getCell('D2').value = { formula: 'B2-C2', result: 40 }
+  sheet.getCell('D3').value = { formula: 'SUM(B3:C3)', result: 80 }
+  sheet.getCell('D4').value = { formula: 'B4-C4', result: 80 }
+  await writeFile(autoTablePath, await workbook.xlsx.writeBuffer())
+
+  const cells = await readWorkbookCells(await readFile(autoTablePath))
+  const table = detectTableFromCells(cells)
+  assert.deepEqual(table, { sheet: 'Sheet1', columns: { Revenue: 'B', Cost: 'C' } })
+
+  const fakeLlm: LlmText = async () => JSON.stringify({
+    repairs: [{
+      id: 'D3',
+      baseCell: 'D3',
+      ir: {
+        operation: 'binary',
+        left: { kind: 'column', column: 'Revenue' },
+        right: { kind: 'column', column: 'Cost' },
+        operator: '-',
+      },
+    }],
+  })
+  const advisor = createLlmRepairAdvisor(fakeLlm, table)
+  const repair = await repairWorkbookFile(autoTablePath, advisor, cells)
+  assert.equal(repair.repairs.length, 0)
+  assert.equal(repair.llmRepairs.length, 1)
+  assert.equal(repair.llmRepairs[0]!.newValue, '=B3-C3')
+  assert.equal(repair.after.anomalies.length, 0)
 })

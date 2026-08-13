@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.10.0 — 2026-08-14
+
+- 范围尾引用修复：确定性 repair 现在覆盖 `=SUM(B4:C3)` 这类 range.end 偏移异常；
+  两个端点同时偏移时一次重建整段范围，未偏移端点保留原文本（含 `$` 绝对修饰）。
+- 自动表头检测：`detectTableFromCells` 从单元格内容推断 `{ sheet, columns }`；
+  `excel_repair_formulas` 新增 `autoTable` 参数，`useLlm` 时无需手写 table schema。
+- Oracle 判分：`scoreWorkbookAgainstOracle` 按单元格对比候选与标准 workbook，
+  容忍公式大小写/空白与数字格式差异，输出准确率与 mismatch 明细。
+- Pass@1 Benchmark：`runBenchmark` 按“确定性修复 → LLM 修复”真实流程执行任务，
+  与 oracle 对比给出 Pass@1 与平均准确率；`tests/invoke-benchmark.ts` 可接真实 DeepSeek。
+- 测试规模 56+ 增至 75+，覆盖自动表头、范围修复、判分与 benchmark。
+
 ## v0.9.0 — 2026-08-14
 
 - 包名确定为 `dsh-excel-vera-plugin`（dsh 生态前缀 + Excel 品牌），

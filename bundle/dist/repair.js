@@ -1,9 +1,19 @@
 import { readFile } from 'node:fs/promises';
-import { columnToNumber, numberToColumn, parseCellId, parseFormula } from './formula.js';
+import { columnToNumber, numberToColumn, parseCellId, parseFormula, } from './formula.js';
 import { applyPatchesToWorkbook } from './patch.js';
 import { validate } from './validator.js';
 import { readWorkbookCells } from './workbook.js';
 export function generateRepairs(cells, result) {
+    const anomaliesByCell = new Map();
+    for (const column of result.columns) {
+        for (const anomaly of column.anomalies) {
+            if (anomaly.kind !== 'reference-offset' || !anomaly.slot || !anomaly.expectedOffsets)
+                continue;
+            if (!anomaliesByCell.has(anomaly.cell))
+                anomaliesByCell.set(anomaly.cell, []);
+            anomaliesByCell.get(anomaly.cell).push(anomaly);
+        }
+    }
     const repairs = [];
     const repairedCells = new Set();
     for (const column of result.columns) {
@@ -16,23 +26,17 @@ export function generateRepairs(cells, result) {
             if (!trimmed || !trimmed.startsWith('=') || trimmed.includes('"'))
                 continue;
             const parsed = parseFormula(trimmed);
-            const [refIndexText, role] = anomaly.slot.split('.');
-            if (role !== 'start')
-                continue;
-            const ref = parsed.references[Number(refIndexText)];
-            if (!ref || ref.end)
+            const refIndex = Number(anomaly.slot.split('.')[0]);
+            const ref = parsed.references[refIndex];
+            if (!ref)
                 continue;
             const base = parseCellId(anomaly.cell);
-            const offsets = anomaly.expectedOffsets;
-            if (offsets.colOffset === null || offsets.rowOffset === null)
-                continue;
-            const columnLetter = numberToColumn(columnToNumber(base.column) + offsets.colOffset);
-            const row = base.row + offsets.rowOffset;
-            if (!columnLetter || row < 1)
-                continue;
-            const sheetPrefix = ref.start.sheet && ref.start.sheet !== base.sheet ? `${ref.start.sheet}!` : '';
-            const replacement = `${sheetPrefix}${columnLetter}${row}`;
             const formula = trimmed.slice(1);
+            const replacement = ref.end
+                ? rebuildRangeText(formula.slice(ref.range.start, ref.range.end), ref, base, anomaliesByCell.get(anomaly.cell) ?? [], refIndex)
+                : pointReplacement(ref.start, base, anomaly.expectedOffsets, true);
+            if (!replacement)
+                continue;
             const rebuilt = `${formula.slice(0, ref.range.start)}${replacement}${formula.slice(ref.range.end)}`;
             repairs.push({
                 id: anomaly.cell,
@@ -45,11 +49,46 @@ export function generateRepairs(cells, result) {
     }
     return repairs;
 }
-export async function repairWorkbookFile(path, llmAdvisor) {
-    const cells = await readWorkbookCells(await readFile(path));
-    const before = validate(cells);
-    const repairs = generateRepairs(cells, before);
-    const llmRepairs = llmAdvisor ? await llmAdvisor(cells, before) : [];
+function pointReplacement(point, base, offsets, includeSheetPrefix) {
+    if (offsets.colOffset === null || offsets.rowOffset === null)
+        return null;
+    const columnLetter = numberToColumn(columnToNumber(base.column) + offsets.colOffset);
+    const row = base.row + offsets.rowOffset;
+    if (!columnLetter || row < 1)
+        return null;
+    const sheetPrefix = includeSheetPrefix && point.sheet && point.sheet !== base.sheet ? `${point.sheet}!` : '';
+    return `${sheetPrefix}${columnLetter}${row}`;
+}
+/**
+ * Rebuild a range reference (e.g. B4:C3) so every deviating endpoint follows
+ * the column pattern. An endpoint without an anomaly keeps its original text,
+ * including any absolute or sheet prefix.
+ */
+function rebuildRangeText(rangeText, ref, base, cellAnomalies, refIndex) {
+    const colon = rangeText.indexOf(':');
+    if (colon < 0 || !ref.end)
+        return null;
+    const startToken = rangeText.slice(0, colon);
+    const endToken = rangeText.slice(colon + 1);
+    const startAnomaly = cellAnomalies.find((a) => a.slot === `${refIndex}.start` && a.expectedOffsets);
+    const endAnomaly = cellAnomalies.find((a) => a.slot === `${refIndex}.end` && a.expectedOffsets);
+    if (!startAnomaly && !endAnomaly)
+        return null;
+    const newStart = startAnomaly
+        ? pointReplacement(ref.start, base, startAnomaly.expectedOffsets, true)
+        : startToken;
+    const newEnd = endAnomaly
+        ? pointReplacement(ref.end, base, endAnomaly.expectedOffsets, endToken.includes('!'))
+        : endToken;
+    if (!newStart || !newEnd)
+        return null;
+    return `${newStart}:${newEnd}`;
+}
+export async function repairWorkbookFile(path, llmAdvisor, cells) {
+    const cellMap = cells ?? (await readWorkbookCells(await readFile(path)));
+    const before = validate(cellMap);
+    const repairs = generateRepairs(cellMap, before);
+    const llmRepairs = llmAdvisor ? await llmAdvisor(cellMap, before) : [];
     const covered = new Set(repairs.map((patch) => patch.id));
     const extraLlmRepairs = llmRepairs.filter((patch) => !covered.has(patch.id));
     const allRepairs = [...repairs, ...extraLlmRepairs];
@@ -57,7 +96,7 @@ export async function repairWorkbookFile(path, llmAdvisor) {
     if (allRepairs.length > 0) {
         await applyPatchesToWorkbook(path, allRepairs, repairedPath);
     }
-    const afterCells = allRepairs.length > 0 ? await readWorkbookCells(await readFile(repairedPath)) : cells;
+    const afterCells = allRepairs.length > 0 ? await readWorkbookCells(await readFile(repairedPath)) : cellMap;
     const after = validate(afterCells);
     return { repairs, llmRepairs: extraLlmRepairs, before, after, repairedPath };
 }
