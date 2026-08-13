@@ -16,6 +16,8 @@
 - `src/ir-schema.ts` — Formula IR 的 dsh 工具 DSL schema（严格 oneOf 校验）。
 - `src/compiler.ts` — `compileFormula(ir, { baseCell, table })` 编译为 Excel 公式。
 - `src/advisor.ts` — LLM 修复顾问：异常 + 表结构 → prompt → IR 修复 → Patch。
+- `src/llm.ts` — `llmTextFromContext`：把 `ctx.llm` 流式服务接入修复顾问（可选注入）。
+- `src/diff.ts` — Workbook Diff 与 Patch Log：diff / apply / rollback。
 - `src/patch.ts` — 最小补丁抽象：apply / revert / 写回 workbook。
 - `src/repair.ts` — 从验证结果生成确定性修复，写出 `.repaired.xlsx` 并复验。
 - `src/workbook.ts` — ExcelJS-based workbook reader: `.xlsx` → cell-content map, and `validateWorkbookFile(path)`.
@@ -31,6 +33,8 @@ node --test tests/patch.test.ts
 node --test tests/repair.test.ts
 node --test tests/ir-schema.test.ts
 node --test tests/advisor.test.ts
+node --test tests/llm-wiring.test.ts
+node --test tests/diff.test.ts
 ```
 
 通过真实执行管线调用工具：

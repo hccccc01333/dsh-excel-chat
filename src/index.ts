@@ -1,7 +1,10 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { createLlmRepairAdvisor } from './advisor.ts'
 import { compileFormula } from './compiler.ts'
+import { diffWorkbookFiles } from './diff.ts'
 import { formulaIrSchema } from './ir-schema.ts'
+import { llmTextFromContext } from './llm.ts'
 import { repairWorkbookFile } from './repair.ts'
 import { validate } from './validator.ts'
 import { validateWorkbookFile } from './workbook.ts'
@@ -12,13 +15,18 @@ export const inject = ['tools']
 export function apply(ctx: Context) {
   console.log('[vera-formula-validator] plugin loaded')
   ctx.tools.register(defineTool({
-    name: 'excel_repair_formulas',
-    description: 'Validate an .xlsx file, generate deterministic repairs for reference-pattern anomalies, write a .repaired.xlsx copy, and re-validate the repaired copy.',
+    name: 'excel_diff_workbook',
+    description: 'Compare two .xlsx files cell by cell and return added/removed/changed cells. Useful as a workbook git diff.',
     parameters: {
-      path: {
+      beforePath: {
         type: 'string',
         required: true,
-        description: 'Absolute path to an .xlsx file.',
+        description: 'Absolute path to the original .xlsx file.',
+      },
+      afterPath: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to the modified .xlsx file.',
       },
     },
     output: {
@@ -26,6 +34,52 @@ export function apply(ctx: Context) {
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     },
     async execute(args) {
+      return { entries: await diffWorkbookFiles(args.beforePath, args.afterPath) }
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_repair_formulas',
+    description: 'Validate an .xlsx file, generate deterministic repairs for reference-pattern anomalies, optionally ask an LLM to repair remaining anomalies via Formula IR, write a .repaired.xlsx copy, and re-validate.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      useLlm: {
+        type: 'boolean',
+        description: 'Ask the configured LLM to repair anomalies the deterministic generator cannot fix.',
+      },
+      provider: {
+        type: 'string',
+        description: 'LLM provider route (default "deepseek").',
+      },
+      model: {
+        type: 'string',
+        description: 'LLM model id. Required when useLlm is true.',
+      },
+      table: {
+        type: 'object',
+        additionalProperties: true,
+        description: 'Table schema { sheet, columns } for LLM repair compilation. Required when useLlm is true.',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args, exec) {
+      if (args.useLlm) {
+        if (!args.table || !args.model) {
+          throw new Error('table and model are required when useLlm is true')
+        }
+        const advisor = createLlmRepairAdvisor(
+          llmTextFromContext(ctx, args.provider ?? 'deepseek', args.model),
+          args.table,
+          exec.signal,
+        )
+        return await repairWorkbookFile(args.path, advisor)
+      }
       return await repairWorkbookFile(args.path)
     },
   }))

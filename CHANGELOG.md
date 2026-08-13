@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.0 — 2026-08-14
+
+- `ctx.llm` 接线：`llmTextFromContext` 把 dsh 流式 LLM 服务包装成修复顾问的 `LlmText`，
+  `excel_repair_formulas` 新增 `useLlm` / `provider` / `model` / `table` 参数，
+  可选注入（`ctx.get('llm')`），无 LLM 服务时确定性修复照常工作。
+- Workbook Diff：`diffCellMaps` / `diffWorkbookFiles` 输出 added / removed / changed 单元格，
+  新工具 `excel_diff_workbook`（给 Excel 的 Git Diff）。
+- Patch Log：`writePatchLog` / `readPatchLog` / `applyPatchLog` / `rollbackPatchLog`，
+  修复可审计、可回滚。
+- LLM 接线测试使用假 adapter 走完整 `ctx.llm.stream` 管线，无需 API key。
+
 ## v0.3.0 — 2026-08-14
 
 - Formula IR JSON Schema：`excel_compile_formula` 的 `ir` 参数改用严格 `oneOf` schema，

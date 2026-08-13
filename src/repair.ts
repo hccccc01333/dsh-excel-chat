@@ -4,6 +4,8 @@ import { applyPatchesToWorkbook, type CellPatch } from './patch.ts'
 import { validate, type ValidationResult } from './validator.ts'
 import { readWorkbookCells } from './workbook.ts'
 
+export type RepairAdvisor = (cells: Record<string, string>, result: ValidationResult) => Promise<CellPatch[]>
+
 export function generateRepairs(cells: Record<string, string>, result: ValidationResult): CellPatch[] {
   const repairs: CellPatch[] = []
   const repairedCells = new Set<string>()
@@ -42,20 +44,28 @@ export function generateRepairs(cells: Record<string, string>, result: Validatio
 
 export interface RepairResult {
   repairs: CellPatch[]
+  llmRepairs: CellPatch[]
   before: ValidationResult
   after: ValidationResult
   repairedPath: string
 }
 
-export async function repairWorkbookFile(path: string): Promise<RepairResult> {
+export async function repairWorkbookFile(
+  path: string,
+  llmAdvisor?: RepairAdvisor,
+): Promise<RepairResult> {
   const cells = await readWorkbookCells(await readFile(path))
   const before = validate(cells)
   const repairs = generateRepairs(cells, before)
+  const llmRepairs = llmAdvisor ? await llmAdvisor(cells, before) : []
+  const covered = new Set(repairs.map((patch) => patch.id))
+  const extraLlmRepairs = llmRepairs.filter((patch) => !covered.has(patch.id))
+  const allRepairs = [...repairs, ...extraLlmRepairs]
   const repairedPath = path.replace(/\.xlsx$/i, '.repaired.xlsx')
-  if (repairs.length > 0) {
-    await applyPatchesToWorkbook(path, repairs, repairedPath)
+  if (allRepairs.length > 0) {
+    await applyPatchesToWorkbook(path, allRepairs, repairedPath)
   }
-  const afterCells = repairs.length > 0 ? await readWorkbookCells(await readFile(repairedPath)) : cells
+  const afterCells = allRepairs.length > 0 ? await readWorkbookCells(await readFile(repairedPath)) : cells
   const after = validate(afterCells)
-  return { repairs, before, after, repairedPath }
+  return { repairs, llmRepairs: extraLlmRepairs, before, after, repairedPath }
 }
