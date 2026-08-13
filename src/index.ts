@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { compileFormula } from './compiler.ts'
+import { formulaIrSchema } from './ir-schema.ts'
 import { repairWorkbookFile } from './repair.ts'
 import { validate } from './validator.ts'
 import { validateWorkbookFile } from './workbook.ts'
@@ -33,8 +34,7 @@ export function apply(ctx: Context) {
     description: 'Compile a semantic Formula IR into a deterministic Excel formula. IR operations: binary (left/right operands with operator), ratio (numerator/denominator), aggregate (metric, function, filters with value_from cell/column/constant). Table schema: { sheet, columns: { logicalName: columnLetter } }.',
     parameters: {
       ir: {
-        type: 'object',
-        additionalProperties: true,
+        ...formulaIrSchema,
         required: true,
         description: 'Formula IR object.',
       },

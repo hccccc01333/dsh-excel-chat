@@ -13,7 +13,9 @@
 - `src/patterns.ts` — per-column reference-pattern analysis: offset anomalies, structure mismatches, hardcode breaks, empty gaps.
 - `src/validator.ts` — `validate(cells)` entry point returning graph + column reports + anomalies.
 - `src/ir.ts` — Formula IR 类型（binary / ratio / aggregate）。
+- `src/ir-schema.ts` — Formula IR 的 dsh 工具 DSL schema（严格 oneOf 校验）。
 - `src/compiler.ts` — `compileFormula(ir, { baseCell, table })` 编译为 Excel 公式。
+- `src/advisor.ts` — LLM 修复顾问：异常 + 表结构 → prompt → IR 修复 → Patch。
 - `src/patch.ts` — 最小补丁抽象：apply / revert / 写回 workbook。
 - `src/repair.ts` — 从验证结果生成确定性修复，写出 `.repaired.xlsx` 并复验。
 - `src/workbook.ts` — ExcelJS-based workbook reader: `.xlsx` → cell-content map, and `validateWorkbookFile(path)`.
@@ -27,6 +29,8 @@ node --test tests/compiler.test.ts
 node --test tests/workbook-reader.test.ts
 node --test tests/patch.test.ts
 node --test tests/repair.test.ts
+node --test tests/ir-schema.test.ts
+node --test tests/advisor.test.ts
 ```
 
 通过真实执行管线调用工具：

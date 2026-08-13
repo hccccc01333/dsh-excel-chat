@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.0 — 2026-08-14
+
+- Formula IR JSON Schema：`excel_compile_formula` 的 `ir` 参数改用严格 `oneOf` schema，
+  模型输出非法 IR 时在参数校验阶段即被拒绝。
+- LLM 修复顾问：`createLlmRepairAdvisor` 把 workbook 摘录 + 异常列表 + 表结构组装成 prompt，
+  让 LLM 返回 IR 修复，再走 Compiler → Patch → 复验；LLM 以函数注入，无 API key 也可完整测试。
+
 ## v0.2.0 — 2026-08-14
 
 - Formula Patch 抽象：apply / revert / 写回 workbook，带前置条件校验。
