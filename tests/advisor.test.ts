@@ -69,3 +69,29 @@ test('LLM advisor strips markdown code fences', async () => {
   const patches = await advisor(cells, result)
   assert.equal(patches.length, 1)
 })
+
+test('LLM advisor resolves sheet-qualified cell ids from bare ids', async () => {
+  const sheetCells = {
+    'Sheet1!D2': '=B2-C2',
+    'Sheet1!D3': '=SUM(B3:C3)',
+    'Sheet1!D4': '=B4-C4',
+  }
+  const result = validate(sheetCells)
+  const fakeLlm: LlmText = async () => JSON.stringify({
+    repairs: [{
+      id: 'D3',
+      baseCell: 'D3',
+      ir: {
+        operation: 'binary',
+        left: { kind: 'column', column: 'revenue' },
+        right: { kind: 'column', column: 'cost' },
+        operator: '-',
+      },
+    }],
+  })
+  const advisor = createLlmRepairAdvisor(fakeLlm, table)
+  const patches = await advisor(sheetCells, result)
+  assert.equal(patches.length, 1)
+  assert.equal(patches[0]!.id, 'Sheet1!D3')
+  assert.equal(patches[0]!.newValue, '=B3-C3')
+})

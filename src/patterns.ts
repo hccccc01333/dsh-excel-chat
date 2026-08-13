@@ -136,14 +136,18 @@ export function detectPatternAnomalies(cells: Record<string, string>): ColumnPat
       for (const entry of normalized) {
         const value = entry.slots.get(slotKey)
         if (!value) {
-          anomalies.push({
-            kind: 'structure-mismatch',
-            cell: entry.id,
-            message: `missing slot ${slotKey}; column expects ${expected[slotKey]}`,
-            expected: expected[slotKey],
-            actual: null,
-            confidence: total > 0 ? majority.count / total : null,
-          })
+          // Only cells that miss a majority-shaped slot are anomalies; a slot
+          // carried by fewer than half the cells belongs to a minority shape.
+          if (total >= Math.ceil(normalized.length / 2)) {
+            anomalies.push({
+              kind: 'structure-mismatch',
+              cell: entry.id,
+              message: `missing slot ${slotKey}; column expects ${expected[slotKey]}`,
+              expected: expected[slotKey],
+              actual: null,
+              confidence: total > 0 ? majority.count / total : null,
+            })
+          }
         } else if (normalizedKey(value) !== normalizedKey(majority.value)) {
           anomalies.push({
             kind: 'reference-offset',

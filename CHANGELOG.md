@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.8.0 — 2026-08-14
+
+- 真实 DeepSeek 模型端到端：`deepseekChatCompletion` / `deepseekLlmTextFromEnv` 直接调用
+  chat completions（读 `DEEPSEEK_API_KEY`），接到修复顾问后完成 读取 → 验证 → LLM 生成 IR →
+  编译 → Patch → 复验 全流程；`invoke-real-llm` 已用真实 API 跑通
+  （`Sheet1!D3: =SUM(B3:C3) → =B3-C3`，复验异常归零）。
+- 结构异常检测改进：只标记缺少“多数派槽位”的单元格，D2/D4 正常、D3 异常时不再误报多数派。
+- LLM 输出容错：operand 裸字符串自动归一化为 cell/column；裸单元格 id 自动匹配
+  sheet 限定键（`D3` → `Sheet1!D3`）；prompt 内置 IR 示例和“只修真正偏离的单元格”约束。
+
 ## v0.7.0 — 2026-08-14
 
 - 视觉评审接入真实模型链路：`visionTextFromContext` 用 `ctx.attachments` 上传图表 PNG、
