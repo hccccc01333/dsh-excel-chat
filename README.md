@@ -20,6 +20,7 @@
 - `src/diff.ts` — Workbook Diff 与 Patch Log：diff / apply / rollback。
 - `src/charts.ts` / `src/chart-validator.ts` — xlsx 图表 XML 解析与结构校验。
 - `src/chart-visual.ts` — Excel COM 图表导出 + 可注入视觉评审（VLM 接口）。
+- `src/vision.ts` — `visionTextFromContext`：把 `ctx.attachments` + `ctx.llm` 接成视觉评审。
 - `src/patch.ts` — 最小补丁抽象：apply / revert / 写回 workbook。
 - `src/repair.ts` — 从验证结果生成确定性修复，写出 `.repaired.xlsx` 并复验。
 - `src/workbook.ts` — ExcelJS-based workbook reader: `.xlsx` → cell-content map, and `validateWorkbookFile(path)`.
@@ -42,6 +43,7 @@ node --test tests/chart-validator.test.ts
 node --test tests/load-bundle.test.ts
 node --test tests/chart-visual.test.ts
 node --test tests/pack-bundle.test.ts
+node --test tests/vision-wiring.test.ts
 ```
 
 构建并安装 bundle：

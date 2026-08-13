@@ -10,11 +10,51 @@ import { formulaIrSchema } from './ir-schema.js';
 import { llmTextFromContext } from './llm.js';
 import { repairWorkbookFile } from './repair.js';
 import { validate } from './validator.js';
+import { visionTextFromContext } from './vision.js';
 import { readWorkbookCells, validateWorkbookFile } from './workbook.js';
+import { createVisionCritic } from './chart-visual.js';
 export const name = 'vera-formula-validator';
 export const inject = ['tools'];
 export function apply(ctx) {
     console.log('[vera-formula-validator] plugin loaded');
+    ctx.tools.register(defineTool({
+        name: 'excel_validate_charts_visual',
+        description: 'Export all charts from an .xlsx file to PNG using local Excel, then ask the configured vision-capable LLM to check visual quality (title, legend, labels, axes, crowding, trend readability).',
+        parameters: {
+            path: {
+                type: 'string',
+                required: true,
+                description: 'Absolute path to an .xlsx file.',
+            },
+            model: {
+                type: 'string',
+                required: true,
+                description: 'Vision-capable LLM model id.',
+            },
+            provider: {
+                type: 'string',
+                description: 'LLM provider route (default "deepseek").',
+            },
+            outDir: {
+                type: 'string',
+                description: 'Output directory for PNG files (default: <path>.charts).',
+            },
+        },
+        output: {
+            schema: { type: 'object', additionalProperties: true },
+            render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+        },
+        async execute(args, exec) {
+            const outDir = args.outDir ?? `${args.path.replace(/\.xlsx$/i, '')}.charts`;
+            const images = await exportChartsWithExcel(args.path, outDir, exec.signal);
+            const critic = createVisionCritic(visionTextFromContext(ctx, args.provider ?? 'deepseek', args.model));
+            const reports = [];
+            for (const image of images) {
+                reports.push(await critic(image, exec.signal));
+            }
+            return { images, reports };
+        },
+    }));
     ctx.tools.register(defineTool({
         name: 'excel_export_charts',
         description: 'Export all charts from an .xlsx file to PNG images using local Microsoft Excel (Windows only).',

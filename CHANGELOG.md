@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.0 — 2026-08-14
+
+- 视觉评审接入真实模型链路：`visionTextFromContext` 用 `ctx.attachments` 上传图表 PNG、
+  构造带图片块的用户消息、走 `ctx.llm.stream`；新工具 `excel_validate_charts_visual`。
+- 测试用假 attachment store + 假 adapter 验证完整链路（图片块确实随消息发出）。
+
 ## v0.6.0 — 2026-08-14
 
 - Chart Visual Validator 骨架：`exportChartsWithExcel` 用本地 Excel COM 把图表导出为 PNG；
