@@ -1,19 +1,45 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { readFile } from 'node:fs/promises'
 import { createLlmRepairAdvisor } from './advisor.ts'
+import { validateCharts } from './chart-validator.ts'
+import { readChartInfos } from './charts.ts'
 import { compileFormula } from './compiler.ts'
 import { diffWorkbookFiles } from './diff.ts'
 import { formulaIrSchema } from './ir-schema.ts'
+import type { ColumnTable } from './ir.ts'
 import { llmTextFromContext } from './llm.ts'
 import { repairWorkbookFile } from './repair.ts'
 import { validate } from './validator.ts'
-import { validateWorkbookFile } from './workbook.ts'
+import { readWorkbookCells, validateWorkbookFile } from './workbook.ts'
+
+type JsonRecord = Record<string, any>
 
 export const name = 'vera-formula-validator'
 export const inject = ['tools']
 
 export function apply(ctx: Context) {
   console.log('[vera-formula-validator] plugin loaded')
+  ctx.tools.register(defineTool({
+    name: 'excel_validate_charts',
+    description: 'Validate chart structure inside an .xlsx file: chart type, series references, missing cells, two-dimensional ranges, and unsorted date categories.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      const cells = await readWorkbookCells(await readFile(args.path))
+      const charts = await readChartInfos(args.path)
+      return { charts, reports: validateCharts(charts, cells) } as unknown as JsonRecord
+    },
+  }))
   ctx.tools.register(defineTool({
     name: 'excel_diff_workbook',
     description: 'Compare two .xlsx files cell by cell and return added/removed/changed cells. Useful as a workbook git diff.',
@@ -34,7 +60,7 @@ export function apply(ctx: Context) {
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     },
     async execute(args) {
-      return { entries: await diffWorkbookFiles(args.beforePath, args.afterPath) }
+      return { entries: await diffWorkbookFiles(args.beforePath, args.afterPath) } as unknown as JsonRecord
     },
   }))
   ctx.tools.register(defineTool({
@@ -75,12 +101,12 @@ export function apply(ctx: Context) {
         }
         const advisor = createLlmRepairAdvisor(
           llmTextFromContext(ctx, args.provider ?? 'deepseek', args.model),
-          args.table,
+          args.table as unknown as ColumnTable,
           exec.signal,
         )
-        return await repairWorkbookFile(args.path, advisor)
+        return await repairWorkbookFile(args.path, advisor) as unknown as JsonRecord
       }
-      return await repairWorkbookFile(args.path)
+      return await repairWorkbookFile(args.path) as unknown as JsonRecord
     },
   }))
   ctx.tools.register(defineTool({
@@ -109,7 +135,12 @@ export function apply(ctx: Context) {
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     },
     async execute(args) {
-      return { formula: compileFormula(args.ir, { baseCell: args.baseCell, table: args.table }) }
+      return {
+        formula: compileFormula(args.ir, {
+          baseCell: args.baseCell,
+          table: args.table as unknown as ColumnTable,
+        }),
+      } as unknown as JsonRecord
     },
   }))
   ctx.tools.register(defineTool({
@@ -137,13 +168,13 @@ export function apply(ctx: Context) {
         throw new Error('exactly one of path or cells must be provided')
       }
       if (hasPath) {
-        return await validateWorkbookFile(args.path!)
+        return await validateWorkbookFile(args.path!) as unknown as JsonRecord
       }
       const normalized: Record<string, string> = {}
       for (const [id, content] of Object.entries(args.cells)) {
         normalized[id] = typeof content === 'string' ? content : String(content)
       }
-      return validate(normalized)
+      return validate(normalized) as unknown as JsonRecord
     },
   }))
 }

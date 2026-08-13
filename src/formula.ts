@@ -72,17 +72,17 @@ function toParsedRef(match: RegExpExecArray, patternIndex: number): ParsedRef {
   switch (patternIndex) {
     case 0:
     case 1:
-      return { start: makePoint(match[1], match[2] + match[3], match[4] + match[5]), end: null }
+      return { start: makePoint(match[1], match[2] + match[3], match[4] + match[5]), end: null, range: { start: 0, end: 0 } }
     case 2:
-      return { start: makePoint(null, match[1] + match[2], match[3] + match[4]), end: null }
+      return { start: makePoint(null, match[1] + match[2], match[3] + match[4]), end: null, range: { start: 0, end: 0 } }
     case 3:
     case 4: {
       const start = makePoint(match[1], match[2] + match[3], null)
-      return { start, end: match[5] ? makePoint(match[1], match[4] + match[5], null) : null }
+      return { start, end: match[5] ? makePoint(match[1], match[4] + match[5], null) : null, range: { start: 0, end: 0 } }
     }
     case 5: {
       const start = makePoint(null, match[1] + match[2], null)
-      return { start, end: match[4] ? makePoint(null, match[3] + match[4], null) : null }
+      return { start, end: match[4] ? makePoint(null, match[3] + match[4], null) : null, range: { start: 0, end: 0 } }
     }
     default:
       throw new Error(`unknown pattern index: ${patternIndex}`)

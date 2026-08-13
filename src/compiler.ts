@@ -93,7 +93,7 @@ function assertIr(ir: FormulaIR): void {
       assertOperand(ir.denominator)
       return
     default:
-      throw new Error(`unsupported IR operation: ${ir.operation}`)
+      throw new Error(`unsupported IR operation: ${(ir as { operation?: string }).operation}`)
   }
 }
 
@@ -112,6 +112,6 @@ function assertOperand(operand: OperandIR): void {
       if (typeof operand.value !== 'number' || !Number.isFinite(operand.value)) throw new Error('constant operand requires finite number')
       return
     default:
-      throw new Error(`unsupported operand kind: ${operand.kind}`)
+      throw new Error(`unsupported operand kind: ${(operand as { kind?: string }).kind}`)
   }
 }

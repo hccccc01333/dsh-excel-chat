@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "../src",
+    "outDir": "dist",
+    "rewriteRelativeImportExtensions": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"],
+    "strict": false,
+    "skipLibCheck": true,
+    "declaration": false
+  },
+  "include": [
+    "../src/index.ts"
+  ]
+}

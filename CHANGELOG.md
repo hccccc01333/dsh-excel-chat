@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.5.0 — 2026-08-14
+
+- Chart Semantic Validator：直接解析 xlsx 内的 chart XML（fflate），结构校验包括
+  图表类型、系列引用存在性、缺失单元格、二维范围、日期未排序；新工具 `excel_validate_charts`。
+- 可发布 bundle：`bundle/` 目录包含 `dsh.bundle` 清单、`cordis.patch.yml` 和 tsc 编译产物，
+  `dsh plugin --profile <name> add ./bundle` 可直接安装；git 安装时 `prepare` 自动构建。
+- 全部工具汇总：`excel_validate_formulas` / `excel_compile_formula` / `excel_repair_formulas` /
+  `excel_diff_workbook` / `excel_validate_charts`。
+
 ## v0.4.0 — 2026-08-14
 
 - `ctx.llm` 接线：`llmTextFromContext` 把 dsh 流式 LLM 服务包装成修复顾问的 `LlmText`，

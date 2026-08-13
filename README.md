@@ -18,10 +18,12 @@
 - `src/advisor.ts` — LLM 修复顾问：异常 + 表结构 → prompt → IR 修复 → Patch。
 - `src/llm.ts` — `llmTextFromContext`：把 `ctx.llm` 流式服务接入修复顾问（可选注入）。
 - `src/diff.ts` — Workbook Diff 与 Patch Log：diff / apply / rollback。
+- `src/charts.ts` / `src/chart-validator.ts` — xlsx 图表 XML 解析与结构校验。
 - `src/patch.ts` — 最小补丁抽象：apply / revert / 写回 workbook。
 - `src/repair.ts` — 从验证结果生成确定性修复，写出 `.repaired.xlsx` 并复验。
 - `src/workbook.ts` — ExcelJS-based workbook reader: `.xlsx` → cell-content map, and `validateWorkbookFile(path)`.
-- `src/index.ts` — dsh plugin entry exposing `excel_validate_formulas`, `excel_compile_formula`, and `excel_repair_formulas`.
+- `src/index.ts` — dsh plugin entry exposing five tools（validate / compile / repair / diff / charts）。
+- `bundle/` — 可发布 dsh bundle：manifest + cordis.patch.yml + 编译产物。
 
 ## Run tests
 
@@ -35,6 +37,15 @@ node --test tests/ir-schema.test.ts
 node --test tests/advisor.test.ts
 node --test tests/llm-wiring.test.ts
 node --test tests/diff.test.ts
+node --test tests/chart-validator.test.ts
+node --test tests/load-bundle.test.ts
+```
+
+构建并安装 bundle：
+
+```sh
+npm run build:bundle
+dsh plugin --profile demo add ./bundle
 ```
 
 通过真实执行管线调用工具：

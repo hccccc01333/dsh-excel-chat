@@ -17,9 +17,9 @@ export function cellContent(cell: ExcelJS.Cell): string | null {
   return String(value)
 }
 
-export async function readWorkbookCells(data: Buffer): Promise<Record<string, string>> {
+export async function readWorkbookCells(data: Uint8Array): Promise<Record<string, string>> {
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(data)
+  await workbook.xlsx.load(data as any)
   const cells: Record<string, string> = {}
   workbook.eachSheet((sheet) => {
     sheet.eachRow({ includeEmpty: false }, (row) => {
