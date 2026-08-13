@@ -1,0 +1,29 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import { promisify } from 'node:util'
+
+const execFileAsync = promisify(execFile)
+
+test('npm pack dry-run includes dist, patch, README, and LICENSE', async () => {
+  const manifest = JSON.parse(await readFile('D:/vera/bundle/package.json', 'utf8')) as {
+    name: string
+    version: string
+  }
+  const { stdout } = await execFileAsync('npm.cmd', ['pack', '--dry-run', '--json'], {
+    cwd: 'D:/vera/bundle',
+    shell: true,
+  })
+  const [result] = JSON.parse(stdout) as Array<{
+    name: string
+    version: string
+    files: Array<{ path: string }>
+  }>
+  const paths = result.files.map((file) => file.path)
+  for (const expected of ['dist/index.js', 'cordis.patch.yml', 'README.md', 'LICENSE']) {
+    assert.ok(paths.includes(expected), `tarball missing ${expected}`)
+  }
+  assert.equal(result.name, manifest.name)
+  assert.equal(result.version, manifest.version)
+})

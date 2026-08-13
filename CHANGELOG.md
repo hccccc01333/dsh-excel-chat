@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.0 — 2026-08-14
+
+- Chart Visual Validator 骨架：`exportChartsWithExcel` 用本地 Excel COM 把图表导出为 PNG；
+  `createVisionCritic` 把视觉 checklist（标题截断 / 图例遮挡 / 标签重叠 / 坐标轴 / 拥挤 / 趋势可读性）
+  交给可注入的视觉函数，假实现可完整测试。新工具 `excel_export_charts`。
+- bundle 发布准备：MIT LICENSE、bundle README、移除 private；`npm pack --dry-run` 验证
+  tarball 包含 `dist/`、`cordis.patch.yml`、README、LICENSE。
+
 ## v0.5.0 — 2026-08-14
 
 - Chart Semantic Validator：直接解析 xlsx 内的 chart XML（fflate），结构校验包括

@@ -1,7 +1,8 @@
 {
   "name": "dsh-vera-plugin",
-  "version": "0.5.0",
-  "private": true,
+  "version": "0.6.0",
+  "description": "VERA - Verified Excel Reasoning Agent dsh plugin: formula validation, IR compilation, repair, diff, and chart validation.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "files": [

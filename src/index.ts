@@ -3,6 +3,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { readFile } from 'node:fs/promises'
 import { createLlmRepairAdvisor } from './advisor.ts'
 import { validateCharts } from './chart-validator.ts'
+import { exportChartsWithExcel } from './chart-visual.ts'
 import { readChartInfos } from './charts.ts'
 import { compileFormula } from './compiler.ts'
 import { diffWorkbookFiles } from './diff.ts'
@@ -20,6 +21,29 @@ export const inject = ['tools']
 
 export function apply(ctx: Context) {
   console.log('[vera-formula-validator] plugin loaded')
+  ctx.tools.register(defineTool({
+    name: 'excel_export_charts',
+    description: 'Export all charts from an .xlsx file to PNG images using local Microsoft Excel (Windows only).',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      outDir: {
+        type: 'string',
+        description: 'Output directory for PNG files (default: <path>.charts).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args, exec) {
+      const outDir = args.outDir ?? `${args.path.replace(/\.xlsx$/i, '')}.charts`
+      return { images: await exportChartsWithExcel(args.path, outDir, exec.signal) } as unknown as JsonRecord
+    },
+  }))
   ctx.tools.register(defineTool({
     name: 'excel_validate_charts',
     description: 'Validate chart structure inside an .xlsx file: chart type, series references, missing cells, two-dimensional ranges, and unsorted date categories.',
