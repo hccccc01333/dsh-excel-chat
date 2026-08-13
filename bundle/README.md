@@ -1,4 +1,4 @@
-# dsh-vera-plugin
+# dsh-excel-vera-plugin
 
 VERA（Verified Excel Reasoning Agent）的 dsh 插件 bundle。
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.9.0 — 2026-08-14
+
+- 包名确定为 `dsh-excel-vera-plugin`（dsh 生态前缀 + Excel 品牌），
+  `cordis.patch.yml` 与 bundle README 同步更新，发布前改名。
+
 ## v0.8.0 — 2026-08-14
 
 - 真实 DeepSeek 模型端到端：`deepseekChatCompletion` / `deepseekLlmTextFromEnv` 直接调用
