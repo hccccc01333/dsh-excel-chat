@@ -1,4 +1,5 @@
 node_modules/
 *.log
 fixtures/
+*.tgz
 .DS_Store
