@@ -14,8 +14,10 @@
 - `src/validator.ts` — `validate(cells)` entry point returning graph + column reports + anomalies.
 - `src/ir.ts` — Formula IR 类型（binary / ratio / aggregate）。
 - `src/compiler.ts` — `compileFormula(ir, { baseCell, table })` 编译为 Excel 公式。
+- `src/patch.ts` — 最小补丁抽象：apply / revert / 写回 workbook。
+- `src/repair.ts` — 从验证结果生成确定性修复，写出 `.repaired.xlsx` 并复验。
 - `src/workbook.ts` — ExcelJS-based workbook reader: `.xlsx` → cell-content map, and `validateWorkbookFile(path)`.
-- `src/index.ts` — dsh plugin entry exposing `excel_validate_formulas` and `excel_compile_formula`.
+- `src/index.ts` — dsh plugin entry exposing `excel_validate_formulas`, `excel_compile_formula`, and `excel_repair_formulas`.
 
 ## Run tests
 
@@ -23,6 +25,8 @@
 node --test tests/formula-validator.test.ts
 node --test tests/compiler.test.ts
 node --test tests/workbook-reader.test.ts
+node --test tests/patch.test.ts
+node --test tests/repair.test.ts
 ```
 
 通过真实执行管线调用工具：
@@ -31,6 +35,7 @@ node --test tests/workbook-reader.test.ts
 node --import tsx tests/invoke-plugin.ts
 node --import tsx tests/invoke-compiler.ts
 node --import tsx tests/invoke-workbook.ts
+node --import tsx tests/invoke-repair.ts
 ```
 
 挂进 Web UI（可选，两种方式）：

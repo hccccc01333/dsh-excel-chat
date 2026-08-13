@@ -14,6 +14,9 @@ export interface PatternAnomaly {
   expected: string | null
   actual: string | null
   confidence: number | null
+  slot?: string
+  expectedOffsets?: { colOffset: number | null; rowOffset: number | null }
+  actualOffsets?: { colOffset: number | null; rowOffset: number | null }
 }
 
 export interface ColumnPatternReport {
@@ -149,6 +152,9 @@ export function detectPatternAnomalies(cells: Record<string, string>): ColumnPat
             expected: expected[slotKey],
             actual: formatNormalized(value),
             confidence: total > 0 ? majority.count / total : null,
+            slot: slotKey,
+            expectedOffsets: { colOffset: majority.value.colOffset, rowOffset: majority.value.rowOffset },
+            actualOffsets: { colOffset: value.colOffset, rowOffset: value.rowOffset },
           })
         }
       }

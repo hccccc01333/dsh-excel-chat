@@ -9,6 +9,8 @@ export interface RefPoint {
 export interface ParsedRef {
   start: RefPoint
   end: RefPoint | null
+  /** Text range of the reference inside the formula (without the leading "="). */
+  range: { start: number; end: number }
 }
 
 export interface ParsedFormula {
@@ -114,6 +116,7 @@ export function parseFormula(input: string): ParsedFormula {
             index += extension[0].length
           }
         }
+        ref.range = { start: match.index, end: index }
         matched = true
         break
       }

@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs'
 import { readFile } from 'node:fs/promises'
 import { validate, type ValidationResult } from './validator.ts'
 
-function cellContent(cell: ExcelJS.Cell): string | null {
+export function cellContent(cell: ExcelJS.Cell): string | null {
   if (cell.formula) return `=${cell.formula}`
   const value = cell.value
   if (value === null || value === undefined) return null

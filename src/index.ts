@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { compileFormula } from './compiler.ts'
+import { repairWorkbookFile } from './repair.ts'
 import { validate } from './validator.ts'
 import { validateWorkbookFile } from './workbook.ts'
 
@@ -9,6 +10,24 @@ export const inject = ['tools']
 
 export function apply(ctx: Context) {
   console.log('[vera-formula-validator] plugin loaded')
+  ctx.tools.register(defineTool({
+    name: 'excel_repair_formulas',
+    description: 'Validate an .xlsx file, generate deterministic repairs for reference-pattern anomalies, write a .repaired.xlsx copy, and re-validate the repaired copy.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      return await repairWorkbookFile(args.path)
+    },
+  }))
   ctx.tools.register(defineTool({
     name: 'excel_compile_formula',
     description: 'Compile a semantic Formula IR into a deterministic Excel formula. IR operations: binary (left/right operands with operator), ratio (numerator/denominator), aggregate (metric, function, filters with value_from cell/column/constant). Table schema: { sheet, columns: { logicalName: columnLetter } }.',

@@ -1,0 +1,15 @@
+# Changelog
+
+## v0.2.0 — 2026-08-14
+
+- Formula Patch 抽象：apply / revert / 写回 workbook，带前置条件校验。
+- 确定性 Repair：reference-offset 异常 → 生成最小补丁（如 `Sales!D4: =B4-C3 → =B4-C4`）。
+- 新工具 `excel_repair_formulas`：读取文件 → 验证 → 修复 → 写出 `.repaired.xlsx` → 复验。
+- 公式解析器记录引用文本范围（`range`），支持安全替换。
+
+## v0.1.0 — 2026-08-14
+
+- P0 Formula Pattern Validator：A1 引用解析、依赖图、列 pattern 异常检测、hardcode / 空行 / 循环引用检测。
+- Formula IR + Compiler：binary / ratio / aggregate 语义 IR → 确定性 Excel 公式。
+- ExcelJS workbook 读取，真实 .xlsx 文件端到端验证。
+- dsh 插件入口：`excel_validate_formulas`、`excel_compile_formula`。
