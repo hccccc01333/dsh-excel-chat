@@ -1025,6 +1025,7 @@ function applySubtotal(
     const finalEndRow = group.endRow + groupIndex
     const insertRow = finalEndRow + 1
     sheet.spliceRows(insertRow, 0, [])
+    shiftWorkbookRows(workbook, sheet.name, insertRow, 1)
     const label = sheet.getCell(`${numberToColumn(groupCol)}${insertRow}`)
     label.value = `${group.value} 汇总`
     label.font = { bold: true }
@@ -1041,6 +1042,7 @@ function applySubtotal(
   if (options.addGrandTotal ?? true) {
     const totalRow = parsed.endRow + groups.length + 1
     sheet.spliceRows(totalRow, 0, [])
+    shiftWorkbookRows(workbook, sheet.name, totalRow, 1)
     const label = sheet.getCell(`${numberToColumn(groupCol)}${totalRow}`)
     label.value = '总计'
     label.font = { bold: true }

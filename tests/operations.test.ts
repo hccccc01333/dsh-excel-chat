@@ -584,6 +584,40 @@ test('subtotal inserts per-group summary rows and a grand total', async () => {
   assert.equal(sheet.getCell('B4').font.bold, true)
 })
 
+test('subtotal shifts formulas that reference the edited range', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '类别'
+    sheet.getCell('B1').value = '金额'
+    sheet.getCell('A2').value = 'A'
+    sheet.getCell('B2').value = 10
+    sheet.getCell('A3').value = 'A'
+    sheet.getCell('B3').value = 20
+    sheet.getCell('A4').value = 'B'
+    sheet.getCell('B4').value = 5
+    sheet.getCell('A5').value = 'B'
+    sheet.getCell('B5').value = 15
+    const summary = workbook.addWorksheet('汇总')
+    summary.getCell('A1').value = '类别'
+    summary.getCell('A2').value = 'A'
+    summary.getCell('B2').value = { formula: 'SUMIFS(Sheet1!B2:B5,Sheet1!A2:A5,A2)' }
+  })
+  const outPath = join(join(path, '..'), 'subtotal-shift.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'subtotal',
+    sheet: 'Sheet1',
+    range: 'Sheet1!A1:B5',
+    groupColumn: 'A',
+    summaryColumns: [{ column: 'B', function: 'sum' }],
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  assert.equal(
+    workbook.getWorksheet('汇总')!.getCell('B2').formula,
+    'SUMIFS(Sheet1!B2:B6,Sheet1!A2:A6,A2)',
+  )
+})
+
 test('aggregateReport builds a dynamic summary sheet with SUMIFS formulas', async () => {
   const path = await makeWorkbook((workbook) => {
     const sheet = workbook.addWorksheet('Sheet1')
