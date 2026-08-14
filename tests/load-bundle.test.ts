@@ -1,23 +1,25 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { pathToFileURL } from 'node:url'
+import { join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
 import { CallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 
-const bundleUrl = pathToFileURL('D:/vera/bundle/dist/index.js').href
+const bundleDir = fileURLToPath(new URL('../bundle', import.meta.url))
+const bundleUrl = pathToFileURL(join(bundleDir, 'dist/index.js')).href
 
 test('bundle manifest points at an existing patch and entry', async () => {
-  const manifest = JSON.parse(await readFile('D:/vera/bundle/package.json', 'utf8')) as {
+  const manifest = JSON.parse(await readFile(join(bundleDir, 'package.json'), 'utf8')) as {
     name: string
     dsh: { bundle: { patch: string } }
   }
   assert.equal(manifest.dsh.bundle.patch, './cordis.patch.yml')
-  const patch = await readFile('D:/vera/bundle/cordis.patch.yml', 'utf8')
+  const patch = await readFile(join(bundleDir, 'cordis.patch.yml'), 'utf8')
   assert.match(patch, new RegExp(manifest.name))
-  const entry = await readFile('D:/vera/bundle/dist/index.js', 'utf8')
+  const entry = await readFile(join(bundleDir, 'dist/index.js'), 'utf8')
   assert.match(entry, /excel_validate_formulas/)
 })
 
