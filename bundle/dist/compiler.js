@@ -1,6 +1,11 @@
 import { parseCellId } from './formula.js';
 const BINARY_OPERATORS = new Set(['+', '-', '*', '/']);
 const AGGREGATE_FUNCTIONS = new Set(['SUMIFS', 'AVERAGEIFS', 'COUNTIFS', 'SUM']);
+const FUNCTION_NAMES = new Set([
+    'VLOOKUP', 'INDEX', 'MATCH', 'ROUND', 'TEXT', 'SUMIF', 'COUNTIF', 'AVERAGE', 'MEDIAN',
+    'MAX', 'MIN', 'COUNT', 'COUNTA', 'TODAY', 'YEAR', 'MONTH', 'DAY', 'DATE', 'DATEDIF',
+    'EOMONTH', 'SUMIFS', 'AVERAGEIFS', 'COUNTIFS',
+]);
 export function compileFormula(ir, context) {
     assertIr(ir);
     const base = parseCellId(context.baseCell);
@@ -14,6 +19,8 @@ function compileNode(ir, base, context) {
             return compileAggregate(ir, base, context);
         case 'ratio':
             return compileRatio(ir, base, context);
+        case 'function':
+            return compileFunction(ir, base, context);
     }
 }
 function compileBinary(ir, base, context) {
@@ -21,6 +28,9 @@ function compileBinary(ir, base, context) {
 }
 function compileRatio(ir, base, context) {
     return `${compileOperand(ir.numerator, base, context)}/${compileOperand(ir.denominator, base, context)}`;
+}
+function compileFunction(ir, base, context) {
+    return `${ir.name}(${ir.args.map((arg) => compileOperand(arg, base, context)).join(',')})`;
 }
 function compileAggregate(ir, base, context) {
     const metricLetter = columnLetter(ir.metric, context);
@@ -40,6 +50,8 @@ function compileOperand(operand, base, context) {
             return `${columnLetter(operand.column, context)}${base.row}`;
         case 'cell':
             return operand.cell;
+        case 'range':
+            return operand.range;
         case 'constant':
             return String(operand.value);
     }
@@ -85,6 +97,15 @@ function assertIr(ir) {
             assertOperand(ir.numerator);
             assertOperand(ir.denominator);
             return;
+        case 'function': {
+            if (!FUNCTION_NAMES.has(ir.name))
+                throw new Error(`unsupported function: ${ir.name}`);
+            if (!Array.isArray(ir.args))
+                throw new Error('function IR requires args array');
+            for (const arg of ir.args)
+                assertOperand(arg);
+            return;
+        }
         default:
             throw new Error(`unsupported IR operation: ${ir.operation}`);
     }
@@ -101,6 +122,10 @@ function assertOperand(operand) {
         case 'cell':
             if (typeof operand.cell !== 'string' || operand.cell.length === 0)
                 throw new Error('cell operand requires cell');
+            return;
+        case 'range':
+            if (typeof operand.range !== 'string' || operand.range.length === 0)
+                throw new Error('range operand requires range');
             return;
         case 'constant':
             if (typeof operand.value !== 'number' || !Number.isFinite(operand.value))

@@ -1,5 +1,13 @@
 import { parseCellId, type ParsedCellId } from './formula.ts'
-import type { AggregateFormulaIR, BinaryFormulaIR, ColumnTable, FormulaIR, OperandIR, RatioFormulaIR } from './ir.ts'
+import type {
+  AggregateFormulaIR,
+  BinaryFormulaIR,
+  ColumnTable,
+  FormulaIR,
+  FunctionFormulaIR,
+  OperandIR,
+  RatioFormulaIR,
+} from './ir.ts'
 
 export interface CompileContext {
   baseCell: string
@@ -8,6 +16,11 @@ export interface CompileContext {
 
 const BINARY_OPERATORS = new Set(['+', '-', '*', '/'])
 const AGGREGATE_FUNCTIONS = new Set(['SUMIFS', 'AVERAGEIFS', 'COUNTIFS', 'SUM'])
+const FUNCTION_NAMES = new Set([
+  'VLOOKUP', 'INDEX', 'MATCH', 'ROUND', 'TEXT', 'SUMIF', 'COUNTIF', 'AVERAGE', 'MEDIAN',
+  'MAX', 'MIN', 'COUNT', 'COUNTA', 'TODAY', 'YEAR', 'MONTH', 'DAY', 'DATE', 'DATEDIF',
+  'EOMONTH', 'SUMIFS', 'AVERAGEIFS', 'COUNTIFS',
+])
 
 export function compileFormula(ir: FormulaIR, context: CompileContext): string {
   assertIr(ir)
@@ -23,6 +36,8 @@ function compileNode(ir: FormulaIR, base: ParsedCellId, context: CompileContext)
       return compileAggregate(ir, base, context)
     case 'ratio':
       return compileRatio(ir, base, context)
+    case 'function':
+      return compileFunction(ir, base, context)
   }
 }
 
@@ -32,6 +47,10 @@ function compileBinary(ir: BinaryFormulaIR, base: ParsedCellId, context: Compile
 
 function compileRatio(ir: RatioFormulaIR, base: ParsedCellId, context: CompileContext): string {
   return `${compileOperand(ir.numerator, base, context)}/${compileOperand(ir.denominator, base, context)}`
+}
+
+function compileFunction(ir: FunctionFormulaIR, base: ParsedCellId, context: CompileContext): string {
+  return `${ir.name}(${ir.args.map((arg) => compileOperand(arg, base, context)).join(',')})`
 }
 
 function compileAggregate(ir: AggregateFormulaIR, base: ParsedCellId, context: CompileContext): string {
@@ -52,6 +71,8 @@ function compileOperand(operand: OperandIR, base: ParsedCellId, context: Compile
       return `${columnLetter(operand.column, context)}${base.row}`
     case 'cell':
       return operand.cell
+    case 'range':
+      return operand.range
     case 'constant':
       return String(operand.value)
   }
@@ -92,6 +113,12 @@ function assertIr(ir: FormulaIR): void {
       assertOperand(ir.numerator)
       assertOperand(ir.denominator)
       return
+    case 'function': {
+      if (!FUNCTION_NAMES.has(ir.name)) throw new Error(`unsupported function: ${ir.name}`)
+      if (!Array.isArray(ir.args)) throw new Error('function IR requires args array')
+      for (const arg of ir.args) assertOperand(arg)
+      return
+    }
     default:
       throw new Error(`unsupported IR operation: ${(ir as { operation?: string }).operation}`)
   }
@@ -107,6 +134,9 @@ function assertOperand(operand: OperandIR): void {
       return
     case 'cell':
       if (typeof operand.cell !== 'string' || operand.cell.length === 0) throw new Error('cell operand requires cell')
+      return
+    case 'range':
+      if (typeof operand.range !== 'string' || operand.range.length === 0) throw new Error('range operand requires range')
       return
     case 'constant':
       if (typeof operand.value !== 'number' || !Number.isFinite(operand.value)) throw new Error('constant operand requires finite number')

@@ -56,6 +56,140 @@ export async function exportChartsWithExcel(path: string, outDir: string, signal
   return files.map((name) => join(outDir, name))
 }
 
+export type ChartTypeName = 'column' | 'line' | 'pie' | 'bar' | 'area'
+
+export interface ChartCreateOptions {
+  sheet?: string
+  /** Data range including headers, e.g. "Sheet1!A1:B4". */
+  range: string
+  type?: ChartTypeName
+  title?: string
+  name?: string
+}
+
+export interface ChartModifyOptions {
+  type?: ChartTypeName
+  title?: string
+  hasLegend?: boolean
+  axisTitleX?: string
+  axisTitleY?: string
+}
+
+const CHART_TYPE_CODES: Record<ChartTypeName, number> = {
+  column: 51, // xlColumnClustered
+  line: 4, // xlLine
+  pie: 5, // xlPie
+  bar: 57, // xlBarClustered
+  area: 1, // xlArea
+}
+
+const CHART_CREATE_SCRIPT = `
+param([string]$WorkbookPath, [string]$OutPath, [string]$SheetName, [string]$Range, [int]$ChartType, [string]$ChartName, [string]$Title)
+$ErrorActionPreference = 'Stop'
+$excel = New-Object -ComObject Excel.Application
+try {
+  $excel.Visible = $false
+  $excel.DisplayAlerts = $false
+  $wb = $excel.Workbooks.Open($WorkbookPath)
+  $ws = if ($SheetName) { $wb.Worksheets.Item($SheetName) } else { $wb.Worksheets.Item(1) }
+  $chart = $ws.ChartObjects().Add(0, 0, 480, 300)
+  $chart.Name = $ChartName
+  $chart.Chart.ChartType = $ChartType
+  $chart.Chart.SetSourceData($ws.Range($Range))
+  if ($Title) {
+    $chart.Chart.HasTitle = $true
+    $chart.Chart.ChartTitle.Text = $Title
+  }
+  $wb.SaveAs($OutPath, 51)
+  $wb.Close($false)
+} finally {
+  $excel.Quit()
+}
+`
+
+const CHART_MODIFY_SCRIPT = `
+param([string]$WorkbookPath, [string]$OutPath, [string]$ChartName, [int]$ChartType, [string]$Title, [string]$AxisX, [string]$AxisY, [string]$Legend)
+$ErrorActionPreference = 'Stop'
+$excel = New-Object -ComObject Excel.Application
+try {
+  $excel.Visible = $false
+  $excel.DisplayAlerts = $false
+  $wb = $excel.Workbooks.Open($WorkbookPath)
+  $chart = $null
+  foreach ($ws in $wb.Worksheets) {
+    foreach ($item in $ws.ChartObjects()) {
+      if ($item.Name -eq $ChartName) { $chart = $item; break }
+    }
+    if ($chart) { break }
+  }
+  if (-not $chart) { throw "chart not found: $ChartName" }
+  if ($ChartType -gt 0) { $chart.Chart.ChartType = $ChartType }
+  if ($Title) {
+    $chart.Chart.HasTitle = $true
+    $chart.Chart.ChartTitle.Text = $Title
+  }
+  if ($AxisX) {
+    $chart.Chart.Axes(1).HasTitle = $true
+    $chart.Chart.Axes(1).AxisTitle.Text = $AxisX
+  }
+  if ($AxisY) {
+    $chart.Chart.Axes(2).HasTitle = $true
+    $chart.Chart.Axes(2).AxisTitle.Text = $AxisY
+  }
+  if ($Legend -ne '') {
+    $chart.Chart.HasLegend = ($Legend -eq 'True')
+  }
+  $wb.SaveAs($OutPath, 51)
+  $wb.Close($false)
+} finally {
+  $excel.Quit()
+}
+`
+
+/** Create a chart in an .xlsx copy using local Excel (Windows only). */
+export async function createChartWithExcel(
+  inputPath: string,
+  options: ChartCreateOptions,
+  outPath: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const scriptPath = join(tmpdir(), `vera-chart-create-${randomUUID()}.ps1`)
+  await writeFile(scriptPath, CHART_CREATE_SCRIPT, 'utf8')
+  await runPowerShell([
+    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
+    '-WorkbookPath', inputPath,
+    '-OutPath', outPath,
+    '-SheetName', options.sheet ?? '',
+    '-Range', options.range,
+    '-ChartType', String(CHART_TYPE_CODES[options.type ?? 'column']),
+    '-ChartName', options.name ?? 'Chart 1',
+    '-Title', options.title ?? '',
+  ], signal)
+}
+
+/** Modify chart parameters (type, title, legend, axis titles) in an .xlsx copy. */
+export async function modifyChartWithExcel(
+  inputPath: string,
+  chartName: string,
+  changes: ChartModifyOptions,
+  outPath: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const scriptPath = join(tmpdir(), `vera-chart-modify-${randomUUID()}.ps1`)
+  await writeFile(scriptPath, CHART_MODIFY_SCRIPT, 'utf8')
+  await runPowerShell([
+    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
+    '-WorkbookPath', inputPath,
+    '-OutPath', outPath,
+    '-ChartName', chartName,
+    '-ChartType', changes.type ? String(CHART_TYPE_CODES[changes.type]) : '0',
+    '-Title', changes.title ?? '',
+    '-AxisX', changes.axisTitleX ?? '',
+    '-AxisY', changes.axisTitleY ?? '',
+    '-Legend', changes.hasLegend === undefined ? '' : String(changes.hasLegend),
+  ], signal)
+}
+
 function runPowerShell(args: string[], signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(POWERSHELL_PATH, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })

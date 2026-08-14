@@ -31,10 +31,12 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 | `excel_compile_formula` | Formula IR（binary / ratio / aggregate）→ 确定性 Excel 公式 |
 | `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复（`useLlm` / `autoTable` / `oraclePath` / `outPath`），输出修复副本并复验 |
 | `excel_diff_workbook` | 两个 workbook 的单元格级 diff |
-| `excel_operate` | 职场级 Excel 操作：写值（自动类型识别）、填充/序列、插入/删除行列（引用联动 + `#REF!`）、复制/移动、排序、样式、数据有效性下拉、条件格式、自动筛选、结构化表格、冻结窗格、查找替换、工作表管理、合并；操作后自动复验公式 |
+| `excel_operate` | 职场级 Excel 操作：写值、填充/序列、行列增删、复制/移动、排序、分类汇总、动态透视报表、高级筛选、样式、数据有效性、条件格式、自动筛选、结构化表格、冻结窗格、查找替换、工作表保护、邮件合并、工作表管理、合并；操作后自动复验公式 |
 | `excel_validate_charts` | 图表结构校验：类型、系列、缺失单元格、二维范围、日期排序 |
 | `excel_validate_charts_visual` | Excel 导出 PNG + 视觉 LLM 评审 |
 | `excel_export_charts` | 用本地 Excel 把图表导出为 PNG（Windows） |
+| `excel_create_chart` | 用本地 Excel 创建图表：数据范围、类型、标题（Windows） |
+| `excel_modify_chart` | 修改图表参数：类型、标题、图例、坐标轴（Windows） |
 
 ## Modules
 
@@ -49,7 +51,7 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 - `src/llm.ts` — `llmTextFromContext`：把 `ctx.llm` 流式服务接入修复顾问（可选注入）。
 - `src/diff.ts` — Workbook Diff 与 Patch Log：diff / apply / rollback。
 - `src/charts.ts` / `src/chart-validator.ts` — xlsx 图表 XML 解析与结构校验。
-- `src/chart-visual.ts` — Excel COM 图表导出 + 可注入视觉评审（VLM 接口）。
+- `src/chart-visual.ts` — Excel COM 图表创建/参数修改/导出 + 可注入视觉评审（VLM 接口）。
 - `src/vision.ts` — `visionTextFromContext`：把 `ctx.attachments` + `ctx.llm` 接成视觉评审。
 - `src/deepseek.ts` — DeepSeek chat completions 客户端（读 `DEEPSEEK_API_KEY`），接修复顾问。
 - `src/patch.ts` — 最小补丁抽象：apply / revert / 写回 workbook。

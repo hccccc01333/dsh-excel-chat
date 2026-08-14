@@ -20,6 +20,14 @@ const operandSchema = {
       type: 'object',
       additionalProperties: false,
       properties: {
+        kind: { type: 'string', enum: ['range'], required: true },
+        range: { type: 'string', required: true },
+      },
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
         kind: { type: 'string', enum: ['constant'], required: true },
         value: { type: 'number', required: true },
       },
@@ -33,6 +41,47 @@ const operandSchema = {
  */
 export const formulaIrSchema = {
   oneOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        operation: { type: 'string', enum: ['function'], required: true },
+        name: {
+          type: 'string',
+          enum: [
+            'VLOOKUP',
+            'INDEX',
+            'MATCH',
+            'ROUND',
+            'TEXT',
+            'SUMIF',
+            'COUNTIF',
+            'AVERAGE',
+            'MEDIAN',
+            'MAX',
+            'MIN',
+            'COUNT',
+            'COUNTA',
+            'TODAY',
+            'YEAR',
+            'MONTH',
+            'DAY',
+            'DATE',
+            'DATEDIF',
+            'EOMONTH',
+            'SUMIFS',
+            'AVERAGEIFS',
+            'COUNTIFS',
+          ],
+          required: true,
+        },
+        args: {
+          type: 'array',
+          required: true,
+          items: operandSchema,
+        },
+      },
+    },
     {
       type: 'object',
       additionalProperties: false,

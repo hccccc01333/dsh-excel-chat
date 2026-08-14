@@ -8,8 +8,10 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import {
   buildVisionPrompt,
+  createChartWithExcel,
   createVisionCritic,
   exportChartsWithExcel,
+  modifyChartWithExcel,
   parseVisionReply,
   validateChartsVisually,
   type VisionText,
@@ -57,6 +59,30 @@ test('exportChartsWithExcel exports chart PNGs using local Excel', { skip: !exce
   const images = await exportChartsWithExcel(book, outDir)
   assert.equal(images.length, 3)
   for (const image of images) assert.ok(existsSync(image))
+})
+
+test('createChartWithExcel adds a chart and modifyChartWithExcel changes its parameters', { skip: !excelAvailable, timeout: 180000 }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'vera-chart-edit-'))
+  const book = join(dir, 'charts.xlsx')
+  await createChartWorkbookWithExcel(book)
+  const created = join(dir, 'created.xlsx')
+  await createChartWithExcel(book, {
+    range: 'Sales!A1:B4',
+    type: 'line',
+    title: 'Line Trend',
+    name: 'Chart 4',
+  }, created)
+  const modified = join(dir, 'modified.xlsx')
+  await modifyChartWithExcel(created, 'Chart 4', {
+    type: 'column',
+    title: 'Column Trend',
+    hasLegend: false,
+    axisTitleX: 'Date',
+    axisTitleY: 'Amount',
+  }, modified)
+  const outDir = join(dir, 'out')
+  const images = await exportChartsWithExcel(modified, outDir)
+  assert.equal(images.length, 4)
 })
 
 async function createChartWorkbookWithExcel(path: string): Promise<void> {

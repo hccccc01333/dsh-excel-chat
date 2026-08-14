@@ -20,6 +20,8 @@ dsh plugin --profile demo add ./bundle
   行列、复制/移动、排序、样式、数据有效性、条件格式、自动筛选、结构化表格、
   冻结、查找替换、工作表管理、合并），操作后自动复验公式
 - `excel_validate_charts` — 图表结构校验
+- `excel_create_chart` / `excel_modify_chart` — 用本地 Excel 创建与修改图表（类型、
+  标题、图例、坐标轴，Windows）
 - `excel_export_charts` — 用本地 Excel 把图表导出为 PNG（Windows）
 
 构建（源码安装时 `prepare` 自动执行）：

@@ -62,6 +62,12 @@ export type ExcelOperation =
       }>
     }
   | { op: 'autoFilter'; range: string }
+  | { op: 'subtotal'; sheet: string; range: string; groupColumn: string; summaryColumns: Array<{ column: string; function: 'sum' | 'average' | 'count' | 'max' | 'min' }>; addGrandTotal?: boolean }
+  | { op: 'aggregateReport'; source: string; groupColumn: string; metrics: Array<{ column: string; function: 'sum' | 'average' | 'count' | 'counta' | 'max' | 'min' }>; outputSheet?: string }
+  | { op: 'filterToRange'; source: string; criteria: Array<{ column: string; operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains'; value: string | number }>; target: string; matchAll?: boolean }
+  | { op: 'protectSheet'; sheet: string; password?: string }
+  | { op: 'unprotectSheet'; sheet: string; password?: string }
+  | { op: 'mailMerge'; template: string; data: string; outputSheet?: string }
   | {
       op: 'addTable'
       name: string
@@ -475,6 +481,35 @@ export async function applyOperationsToWorkbook(
         }
         break
       }
+      case 'subtotal': {
+        applySubtotal(workbook, operation)
+        warnings.push({ op: index, message: 'subtotal groups data by the group column; sort the range by that column first for correct grouping' })
+        break
+      }
+      case 'aggregateReport': {
+        applyAggregateReport(workbook, operation)
+        break
+      }
+      case 'filterToRange': {
+        applyFilterToRange(workbook, operation)
+        break
+      }
+      case 'protectSheet': {
+        const sheet = findSheet(workbook, operation.sheet)
+        if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
+        sheet.protect(operation.password ?? '', { selectLockedCells: true, selectUnlockedCells: true })
+        break
+      }
+      case 'unprotectSheet': {
+        const sheet = findSheet(workbook, operation.sheet)
+        if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
+        sheet.unprotect()
+        break
+      }
+      case 'mailMerge': {
+        applyMailMerge(workbook, operation)
+        break
+      }
       case 'addTable': {
         addTable(workbook, operation)
         break
@@ -812,6 +847,310 @@ function addTable(
       showColumnStripes: options.showColumnStripes ?? false,
     },
   })
+}
+
+const SUBTOTAL_CODES: Record<string, number> = {
+  sum: 9,
+  average: 1,
+  count: 2,
+  max: 4,
+  min: 5,
+}
+
+function applySubtotal(
+  workbook: ExcelJS.Workbook,
+  options: Extract<ExcelOperation, { op: 'subtotal' }>,
+): void {
+  const parsed = parseRange(workbook, options.range)
+  const groupCol = columnToNumber(options.groupColumn)
+  if (groupCol < parsed.startCol || groupCol > parsed.endCol) {
+    throw new Error(`subtotal group column outside range: ${options.groupColumn}`)
+  }
+  for (const summary of options.summaryColumns) {
+    const col = columnToNumber(summary.column)
+    if (col < parsed.startCol || col > parsed.endCol) {
+      throw new Error(`subtotal summary column outside range: ${summary.column}`)
+    }
+    if (!SUBTOTAL_CODES[summary.function]) throw new Error(`unsupported subtotal function: ${summary.function}`)
+  }
+  const sheet = parsed.sheet
+  const header = parsed.startRow
+  const firstData = parsed.startRow + 1
+  const lastData = parsed.endRow
+
+  interface SubtotalGroup {
+    value: string
+    startRow: number
+    endRow: number
+  }
+  const groups: SubtotalGroup[] = []
+  let current: SubtotalGroup | null = null
+  for (let row = firstData; row <= lastData; row++) {
+    const raw = sheet.getCell(`${numberToColumn(groupCol)}${row}`).value
+    const key = raw === null || raw === undefined ? '' : String(raw)
+    if (!current || current.value !== key) {
+      current = { value: key, startRow: row, endRow: row }
+      groups.push(current)
+    } else {
+      current.endRow = row
+    }
+  }
+
+  for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+    const group = groups[groupIndex]!
+    const finalStartRow = group.startRow + groupIndex
+    const finalEndRow = group.endRow + groupIndex
+    const insertRow = finalEndRow + 1
+    sheet.spliceRows(insertRow, 0, [])
+    const label = sheet.getCell(`${numberToColumn(groupCol)}${insertRow}`)
+    label.value = `${group.value} 汇总`
+    label.font = { bold: true }
+    for (const summary of options.summaryColumns) {
+      const col = columnToNumber(summary.column)
+      const cell = sheet.getCell(`${numberToColumn(col)}${insertRow}`)
+      cell.value = {
+        formula: `SUBTOTAL(${SUBTOTAL_CODES[summary.function]},${numberToColumn(col)}${finalStartRow}:${numberToColumn(col)}${finalEndRow})`,
+      }
+      cell.font = { bold: true }
+    }
+  }
+
+  if (options.addGrandTotal ?? true) {
+    const totalRow = parsed.endRow + groups.length + 1
+    sheet.spliceRows(totalRow, 0, [])
+    const label = sheet.getCell(`${numberToColumn(groupCol)}${totalRow}`)
+    label.value = '总计'
+    label.font = { bold: true }
+    for (const summary of options.summaryColumns) {
+      const col = columnToNumber(summary.column)
+      const cell = sheet.getCell(`${numberToColumn(col)}${totalRow}`)
+      cell.value = {
+        formula: `SUBTOTAL(${SUBTOTAL_CODES[summary.function]},${numberToColumn(col)}${firstData}:${numberToColumn(col)}${lastData + groups.length})`,
+      }
+      cell.font = { bold: true }
+    }
+  }
+  void header
+}
+
+const REPORT_FUNCTIONS: Record<string, string> = {
+  sum: 'SUMIFS',
+  average: 'AVERAGEIFS',
+  count: 'COUNTIFS',
+  counta: 'COUNTIFS',
+  max: 'MAXIFS',
+  min: 'MINIFS',
+}
+
+function applyAggregateReport(
+  workbook: ExcelJS.Workbook,
+  options: Extract<ExcelOperation, { op: 'aggregateReport' }>,
+): void {
+  const parsed = parseRange(workbook, options.source)
+  const groupCol = columnToNumber(options.groupColumn)
+  const sourceSheet = parsed.sheet.name
+  const firstData = parsed.startRow + 1
+  const lastData = parsed.endRow
+  const groupRange = `${sourceSheet}!$${numberToColumn(groupCol)}$${firstData}:$${numberToColumn(groupCol)}$${lastData}`
+
+  const groupValues: string[] = []
+  const seen = new Set<string>()
+  for (let row = firstData; row <= lastData; row++) {
+    const raw = parsed.sheet.getCell(`${numberToColumn(groupCol)}${row}`).value
+    const key = raw === null || raw === undefined ? '' : String(raw)
+    if (!seen.has(key)) {
+      seen.add(key)
+      groupValues.push(key)
+    }
+  }
+
+  const outputSheetName = options.outputSheet ?? `${sourceSheet}-汇总`
+  let output = findSheet(workbook, outputSheetName)
+  if (!output) output = workbook.addWorksheet(outputSheetName)
+  const groupHeader = String(parsed.sheet.getCell(`${numberToColumn(groupCol)}${parsed.startRow}`).value ?? options.groupColumn)
+  output.getCell('A1').value = groupHeader
+  output.getCell('A1').font = { bold: true }
+  const metricLabels: Record<string, string> = {
+    sum: '合计',
+    average: '平均',
+    count: '计数',
+    counta: '非空计数',
+    max: '最大',
+    min: '最小',
+  }
+  options.metrics.forEach((metric, index) => {
+    const metricCol = columnToNumber(metric.column)
+    const header = String(parsed.sheet.getCell(`${numberToColumn(metricCol)}${parsed.startRow}`).value ?? metric.column)
+    const cell = output.getCell(`${numberToColumn(2 + index)}1`)
+    cell.value = `${header} ${metricLabels[metric.function]}`
+    cell.font = { bold: true }
+    void metricCol
+  })
+
+  for (let index = 0; index < groupValues.length; index++) {
+    const row = 2 + index
+    const groupCell = output.getCell(`A${row}`)
+    groupCell.value = groupValues[index]
+    options.metrics.forEach((metric, metricIndex) => {
+      const metricCol = columnToNumber(metric.column)
+      const metricRange = `${sourceSheet}!$${numberToColumn(metricCol)}$${firstData}:$${numberToColumn(metricCol)}$${lastData}`
+      const fn = REPORT_FUNCTIONS[metric.function]!
+      const criteria = `A${row}`
+      output.getCell(`${numberToColumn(2 + metricIndex)}${row}`).value = {
+        formula: `${fn}(${metricRange},${groupRange},${criteria})`,
+      }
+    })
+  }
+  const lastGroupRow = 1 + groupValues.length
+  options.metrics.forEach((metric, metricIndex) => {
+    const col = numberToColumn(2 + metricIndex)
+    output.getCell(`${col}${lastGroupRow + 1}`).value = {
+      formula: `SUM(${col}2:${col}${lastGroupRow})`,
+    }
+    output.getCell(`${col}${lastGroupRow + 1}`).font = { bold: true }
+  })
+  output.getCell(`A${lastGroupRow + 1}`).value = '总计'
+  output.getCell(`A${lastGroupRow + 1}`).font = { bold: true }
+}
+
+function applyFilterToRange(
+  workbook: ExcelJS.Workbook,
+  options: Extract<ExcelOperation, { op: 'filterToRange' }>,
+): void {
+  const parsed = parseRange(workbook, options.source)
+  const target = parseTargetCell(workbook, options.target, parsed.sheet.name)
+  const matchAll = options.matchAll ?? true
+
+  const headerRow: Array<ExcelJS.CellValue> = []
+  for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+    headerRow.push(parsed.sheet.getCell(`${numberToColumn(col)}${parsed.startRow}`).value)
+  }
+  let targetRow = target.row
+  headerRow.forEach((value, index) => {
+    target.sheet.getCell(`${numberToColumn(target.col + index)}${targetRow}`).value = value
+  })
+  targetRow += 1
+
+  for (let row = parsed.startRow + 1; row <= parsed.endRow; row++) {
+    let matched = matchAll
+    for (const criterion of options.criteria) {
+      const col = columnToNumber(criterion.column)
+      const actual = parsed.sheet.getCell(`${numberToColumn(col)}${row}`).value
+      const ok = matchesCriterion(actual, criterion.operator, criterion.value)
+      if (matchAll && !ok) {
+        matched = false
+        break
+      }
+      if (!matchAll && ok) {
+        matched = true
+        break
+      }
+    }
+    if (!matched) continue
+    for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+      target.sheet.getCell(`${numberToColumn(target.col + (col - parsed.startCol))}${targetRow}`).value =
+        parsed.sheet.getCell(`${numberToColumn(col)}${row}`).value
+    }
+    targetRow += 1
+  }
+}
+
+function matchesCriterion(
+  actual: ExcelJS.CellValue,
+  operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains',
+  expected: string | number,
+): boolean {
+  const actualNumber = typeof actual === 'number' ? actual : null
+  const expectedNumber = typeof expected === 'number' ? expected : Number(expected)
+  const actualText = actual === null || actual === undefined ? '' : String(actual)
+  const expectedText = String(expected)
+  switch (operator) {
+    case 'eq':
+      return actualNumber !== null && Number.isFinite(expectedNumber)
+        ? actualNumber === expectedNumber
+        : actualText.toLowerCase() === expectedText.toLowerCase()
+    case 'neq':
+      return !matchesCriterion(actual, 'eq', expected)
+    case 'contains':
+      return actualText.toLowerCase().includes(expectedText.toLowerCase())
+    case 'gt':
+      return actualNumber !== null && Number.isFinite(expectedNumber) && actualNumber > expectedNumber
+    case 'gte':
+      return actualNumber !== null && Number.isFinite(expectedNumber) && actualNumber >= expectedNumber
+    case 'lt':
+      return actualNumber !== null && Number.isFinite(expectedNumber) && actualNumber < expectedNumber
+    case 'lte':
+      return actualNumber !== null && Number.isFinite(expectedNumber) && actualNumber <= expectedNumber
+  }
+}
+
+function applyMailMerge(
+  workbook: ExcelJS.Workbook,
+  options: Extract<ExcelOperation, { op: 'mailMerge' }>,
+): void {
+  const template = parseRange(workbook, options.template)
+  const data = parseRange(workbook, options.data)
+  const headers = new Map<string, number>()
+  for (let col = data.startCol; col <= data.endCol; col++) {
+    const raw = data.sheet.getCell(`${numberToColumn(col)}${data.startRow}`).value
+    headers.set(String(raw ?? '').toLowerCase(), col)
+  }
+  const templateRows: Array<Record<number, ExcelJS.CellValue>> = []
+  for (let row = template.startRow; row <= template.endRow; row++) {
+    const cells: Record<number, ExcelJS.CellValue> = {}
+    for (let col = template.startCol; col <= template.endCol; col++) {
+      cells[col] = template.sheet.getCell(`${numberToColumn(col)}${row}`).value
+    }
+    templateRows.push(cells)
+  }
+
+  const outputSheetName = options.outputSheet ?? `${template.sheet.name}-合并`
+  let output = findSheet(workbook, outputSheetName)
+  if (!output) output = workbook.addWorksheet(outputSheetName)
+  let outputRow = 1
+  const placeholder = /\{([^{}]+)\}/g
+  for (let dataRow = data.startRow + 1; dataRow <= data.endRow; dataRow++) {
+    const record = new Map<string, ExcelJS.CellValue>()
+    for (const [header, col] of headers) {
+      record.set(header, data.sheet.getCell(`${numberToColumn(col)}${dataRow}`).value)
+    }
+    for (const templateRow of templateRows) {
+      for (const [col, value] of Object.entries(templateRow)) {
+        const column = Number(col)
+        const text = value === null || value === undefined ? '' : String(value)
+        if (/^\{[^{}]+\}$/.test(text.trim())) {
+          const key = text.trim().slice(1, -1).toLowerCase()
+          output.getCell(`${numberToColumn(column)}${outputRow}`).value = record.get(key) ?? text
+          continue
+        }
+        if (placeholder.test(text)) {
+          placeholder.lastIndex = 0
+          output.getCell(`${numberToColumn(column)}${outputRow}`).value = text.replace(placeholder, (_match, name: string) => {
+            const replacement = record.get(String(name).toLowerCase())
+            return replacement === undefined ? _match : String(replacement)
+          })
+          continue
+        }
+        output.getCell(`${numberToColumn(column)}${outputRow}`).value = value
+      }
+      outputRow += 1
+    }
+  }
+}
+
+function parseTargetCell(
+  workbook: ExcelJS.Workbook,
+  target: string,
+  defaultSheet: string,
+): { sheet: ExcelJS.Worksheet; col: number; row: number } {
+  const bang = target.lastIndexOf('!')
+  const sheetName = bang >= 0 ? target.slice(0, bang) : defaultSheet
+  const body = bang >= 0 ? target.slice(bang + 1) : target
+  const match = /^([A-Za-z]{1,3})(\d+)$/.exec(body)
+  if (!match) throw new Error(`invalid target cell: ${target}`)
+  const sheet = findSheet(workbook, sheetName)
+  if (!sheet) throw new Error(`sheet not found: ${sheetName}`)
+  return { sheet, col: columnToNumber(match[1]!), row: Number(match[2]!) }
 }
 
 function copyRange(workbook: ExcelJS.Workbook, sourceRange: string, targetCell: string, move: boolean): void {

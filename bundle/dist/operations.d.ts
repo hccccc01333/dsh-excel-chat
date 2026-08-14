@@ -129,6 +129,48 @@ export type ExcelOperation = {
     op: 'autoFilter';
     range: string;
 } | {
+    op: 'subtotal';
+    sheet: string;
+    range: string;
+    groupColumn: string;
+    summaryColumns: Array<{
+        column: string;
+        function: 'sum' | 'average' | 'count' | 'max' | 'min';
+    }>;
+    addGrandTotal?: boolean;
+} | {
+    op: 'aggregateReport';
+    source: string;
+    groupColumn: string;
+    metrics: Array<{
+        column: string;
+        function: 'sum' | 'average' | 'count' | 'counta' | 'max' | 'min';
+    }>;
+    outputSheet?: string;
+} | {
+    op: 'filterToRange';
+    source: string;
+    criteria: Array<{
+        column: string;
+        operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains';
+        value: string | number;
+    }>;
+    target: string;
+    matchAll?: boolean;
+} | {
+    op: 'protectSheet';
+    sheet: string;
+    password?: string;
+} | {
+    op: 'unprotectSheet';
+    sheet: string;
+    password?: string;
+} | {
+    op: 'mailMerge';
+    template: string;
+    data: string;
+    outputSheet?: string;
+} | {
     op: 'addTable';
     name: string;
     range: string;

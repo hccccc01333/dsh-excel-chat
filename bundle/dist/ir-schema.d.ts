@@ -9,6 +9,84 @@ export declare const formulaIrSchema: {
         readonly properties: {
             readonly operation: {
                 readonly type: 'string';
+                readonly enum: readonly ['function'];
+                readonly required: true;
+            };
+            readonly name: {
+                readonly type: 'string';
+                readonly enum: readonly ['VLOOKUP', 'INDEX', 'MATCH', 'ROUND', 'TEXT', 'SUMIF', 'COUNTIF', 'AVERAGE', 'MEDIAN', 'MAX', 'MIN', 'COUNT', 'COUNTA', 'TODAY', 'YEAR', 'MONTH', 'DAY', 'DATE', 'DATEDIF', 'EOMONTH', 'SUMIFS', 'AVERAGEIFS', 'COUNTIFS'];
+                readonly required: true;
+            };
+            readonly args: {
+                readonly type: 'array';
+                readonly required: true;
+                readonly items: {
+                    readonly oneOf: readonly [{
+                        readonly type: 'object';
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly kind: {
+                                readonly type: 'string';
+                                readonly enum: readonly ['column'];
+                                readonly required: true;
+                            };
+                            readonly column: {
+                                readonly type: 'string';
+                                readonly required: true;
+                            };
+                        };
+                    }, {
+                        readonly type: 'object';
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly kind: {
+                                readonly type: 'string';
+                                readonly enum: readonly ['cell'];
+                                readonly required: true;
+                            };
+                            readonly cell: {
+                                readonly type: 'string';
+                                readonly required: true;
+                            };
+                        };
+                    }, {
+                        readonly type: 'object';
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly kind: {
+                                readonly type: 'string';
+                                readonly enum: readonly ['range'];
+                                readonly required: true;
+                            };
+                            readonly range: {
+                                readonly type: 'string';
+                                readonly required: true;
+                            };
+                        };
+                    }, {
+                        readonly type: 'object';
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly kind: {
+                                readonly type: 'string';
+                                readonly enum: readonly ['constant'];
+                                readonly required: true;
+                            };
+                            readonly value: {
+                                readonly type: 'number';
+                                readonly required: true;
+                            };
+                        };
+                    }];
+                };
+            };
+        };
+    }, {
+        readonly type: 'object';
+        readonly additionalProperties: false;
+        readonly properties: {
+            readonly operation: {
+                readonly type: 'string';
                 readonly enum: readonly ['binary'];
                 readonly required: true;
             };
@@ -37,6 +115,20 @@ export declare const formulaIrSchema: {
                             readonly required: true;
                         };
                         readonly cell: {
+                            readonly type: 'string';
+                            readonly required: true;
+                        };
+                    };
+                }, {
+                    readonly type: 'object';
+                    readonly additionalProperties: false;
+                    readonly properties: {
+                        readonly kind: {
+                            readonly type: 'string';
+                            readonly enum: readonly ['range'];
+                            readonly required: true;
+                        };
+                        readonly range: {
                             readonly type: 'string';
                             readonly required: true;
                         };
@@ -83,6 +175,20 @@ export declare const formulaIrSchema: {
                             readonly required: true;
                         };
                         readonly cell: {
+                            readonly type: 'string';
+                            readonly required: true;
+                        };
+                    };
+                }, {
+                    readonly type: 'object';
+                    readonly additionalProperties: false;
+                    readonly properties: {
+                        readonly kind: {
+                            readonly type: 'string';
+                            readonly enum: readonly ['range'];
+                            readonly required: true;
+                        };
+                        readonly range: {
                             readonly type: 'string';
                             readonly required: true;
                         };
@@ -191,6 +297,20 @@ export declare const formulaIrSchema: {
                     readonly properties: {
                         readonly kind: {
                             readonly type: 'string';
+                            readonly enum: readonly ['range'];
+                            readonly required: true;
+                        };
+                        readonly range: {
+                            readonly type: 'string';
+                            readonly required: true;
+                        };
+                    };
+                }, {
+                    readonly type: 'object';
+                    readonly additionalProperties: false;
+                    readonly properties: {
+                        readonly kind: {
+                            readonly type: 'string';
                             readonly enum: readonly ['constant'];
                             readonly required: true;
                         };
@@ -227,6 +347,20 @@ export declare const formulaIrSchema: {
                             readonly required: true;
                         };
                         readonly cell: {
+                            readonly type: 'string';
+                            readonly required: true;
+                        };
+                    };
+                }, {
+                    readonly type: 'object';
+                    readonly additionalProperties: false;
+                    readonly properties: {
+                        readonly kind: {
+                            readonly type: 'string';
+                            readonly enum: readonly ['range'];
+                            readonly required: true;
+                        };
+                        readonly range: {
                             readonly type: 'string';
                             readonly required: true;
                         };

@@ -5,6 +5,9 @@ export type OperandIR = {
     kind: 'cell';
     cell: string;
 } | {
+    kind: 'range';
+    range: string;
+} | {
     kind: 'constant';
     value: number;
 };
@@ -28,7 +31,12 @@ export interface RatioFormulaIR {
     numerator: OperandIR;
     denominator: OperandIR;
 }
-export type FormulaIR = BinaryFormulaIR | AggregateFormulaIR | RatioFormulaIR;
+export interface FunctionFormulaIR {
+    operation: 'function';
+    name: 'VLOOKUP' | 'INDEX' | 'MATCH' | 'ROUND' | 'TEXT' | 'SUMIF' | 'COUNTIF' | 'AVERAGE' | 'MEDIAN' | 'MAX' | 'MIN' | 'COUNT' | 'COUNTA' | 'TODAY' | 'YEAR' | 'MONTH' | 'DAY' | 'DATE' | 'DATEDIF' | 'EOMONTH' | 'SUMIFS' | 'AVERAGEIFS' | 'COUNTIFS';
+    args: OperandIR[];
+}
+export type FormulaIR = BinaryFormulaIR | AggregateFormulaIR | RatioFormulaIR | FunctionFormulaIR;
 export interface ColumnTable {
     sheet: string;
     columns: Record<string, string>;

@@ -29,6 +29,22 @@ test('formulaIrSchema accepts a valid binary IR', () => {
   assert.deepEqual(violations, [])
 })
 
+test('formulaIrSchema accepts a function IR with range operands', () => {
+  const violations = validateArgs(spec, {
+    ir: {
+      operation: 'function',
+      name: 'VLOOKUP',
+      args: [
+        { kind: 'column', column: 'product' },
+        { kind: 'range', range: 'Sheet2!$A$1:$D$100' },
+        { kind: 'constant', value: 4 },
+        { kind: 'constant', value: 0 },
+      ],
+    },
+  })
+  assert.deepEqual(violations, [])
+})
+
 test('formulaIrSchema rejects an unknown operation', () => {
   const violations = validateArgs(spec, { ir: { operation: 'magic' } })
   assert.ok(violations.length > 0)

@@ -3,7 +3,12 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { readFile } from 'node:fs/promises'
 import { createLlmRepairAdvisor } from './advisor.ts'
 import { validateCharts } from './chart-validator.ts'
-import { exportChartsWithExcel } from './chart-visual.ts'
+import {
+  createChartWithExcel,
+  exportChartsWithExcel,
+  modifyChartWithExcel,
+  type ChartTypeName,
+} from './chart-visual.ts'
 import { readChartInfos } from './charts.ts'
 import { compileFormula } from './compiler.ts'
 import { diffWorkbookFiles } from './diff.ts'
@@ -28,7 +33,7 @@ export function apply(ctx: Context) {
   console.log('[vera-formula-validator] plugin loaded')
   ctx.tools.register(defineTool({
     name: 'excel_operate',
-    description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill (drag-fill with reference adjustment), fillSeries (numeric/date), insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel, including cross-sheet; deleted references become #REF!), copyRange (move:true moves), sortRange, style, dataValidation, conditionalFormatting, autoFilter, addTable, setColumnWidth / setRowHeight / freezePanes, findReplace, addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor, clear, merge / unmerge. The operations array is a strict union on "op": choose the matching object shape. Example: {"operations":[{"op":"set","cells":{"Sheet1!A1":"100"}},{"op":"style","range":"Sheet1!A1:C1","style":{"bold":true}}]}. Writes <path>.edited.xlsx (or outPath) and returns the post-operation validation result.',
+    description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill, fillSeries, insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel), copyRange (move:true moves), sortRange, subtotal (group summaries), aggregateReport (dynamic pivot-style summary with live SUMIFS formulas), filterToRange (advanced filter), style, dataValidation, conditionalFormatting, autoFilter, addTable, setColumnWidth / setRowHeight / freezePanes, findReplace, protectSheet / unprotectSheet, mailMerge (expand {Placeholder} templates per data row), addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor, clear, merge / unmerge. The operations array is a strict union on "op": choose the matching object shape. Example: {"operations":[{"op":"set","cells":{"Sheet1!A1":"100"}},{"op":"style","range":"Sheet1!A1:C1","style":{"bold":true}}]}. Writes <path>.edited.xlsx (or outPath) and returns the post-operation validation result.',
     parameters: {
       path: {
         type: 'string',
@@ -106,6 +111,120 @@ export function apply(ctx: Context) {
         reports.push(await critic(image, exec.signal))
       }
       return { images, reports } as unknown as JsonRecord
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_create_chart',
+    description: 'Create a chart in an .xlsx copy using local Excel (Windows only): choose data range, chart type (column/line/pie/bar/area), title, and chart name.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      range: {
+        type: 'string',
+        required: true,
+        description: 'Data range including headers, e.g. "Sheet1!A1:B4".',
+      },
+      sheet: {
+        type: 'string',
+        description: 'Sheet name containing the range (default first sheet).',
+      },
+      type: {
+        type: 'string',
+        enum: ['column', 'line', 'pie', 'bar', 'area'],
+        description: 'Chart type (default column).',
+      },
+      title: {
+        type: 'string',
+        description: 'Chart title.',
+      },
+      name: {
+        type: 'string',
+        description: 'Chart name (default "Chart 1").',
+      },
+      outPath: {
+        type: 'string',
+        description: 'Output .xlsx path (default: <path>.chart.xlsx).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args, exec) {
+      if (process.platform !== 'win32') {
+        throw new Error('chart creation requires Windows with Microsoft Excel installed')
+      }
+      const outPath = (typeof args.outPath === 'string' && args.outPath ? args.outPath : (args.path as string).replace(/\.xlsx$/i, '.chart.xlsx'))
+      await createChartWithExcel(args.path as string, {
+        sheet: typeof args.sheet === 'string' ? args.sheet : undefined,
+        range: args.range as string,
+        type: args.type as ChartTypeName | undefined,
+        title: typeof args.title === 'string' ? args.title : undefined,
+        name: typeof args.name === 'string' ? args.name : undefined,
+      }, outPath, exec.signal)
+      return { outputPath: outPath } as unknown as JsonRecord
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_modify_chart',
+    description: 'Modify chart parameters in an .xlsx copy using local Excel (Windows only): chart type, title, legend, and axis titles.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      chartName: {
+        type: 'string',
+        required: true,
+        description: 'Name of the chart to modify (e.g. "Chart 1").',
+      },
+      type: {
+        type: 'string',
+        enum: ['column', 'line', 'pie', 'bar', 'area'],
+        description: 'New chart type.',
+      },
+      title: {
+        type: 'string',
+        description: 'New chart title.',
+      },
+      hasLegend: {
+        type: 'boolean',
+        description: 'Show or hide the legend.',
+      },
+      axisTitleX: {
+        type: 'string',
+        description: 'Category axis title.',
+      },
+      axisTitleY: {
+        type: 'string',
+        description: 'Value axis title.',
+      },
+      outPath: {
+        type: 'string',
+        description: 'Output .xlsx path (default: <path>.chart.xlsx).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args, exec) {
+      if (process.platform !== 'win32') {
+        throw new Error('chart modification requires Windows with Microsoft Excel installed')
+      }
+      const outPath = (typeof args.outPath === 'string' && args.outPath ? args.outPath : (args.path as string).replace(/\.xlsx$/i, '.chart.xlsx'))
+      await modifyChartWithExcel(args.path as string, args.chartName as string, {
+        type: args.type as ChartTypeName | undefined,
+        title: typeof args.title === 'string' ? args.title : undefined,
+        hasLegend: typeof args.hasLegend === 'boolean' ? args.hasLegend : undefined,
+        axisTitleX: typeof args.axisTitleX === 'string' ? args.axisTitleX : undefined,
+        axisTitleY: typeof args.axisTitleY === 'string' ? args.axisTitleY : undefined,
+      }, outPath, exec.signal)
+      return { outputPath: outPath } as unknown as JsonRecord
     },
   }))
   ctx.tools.register(defineTool({

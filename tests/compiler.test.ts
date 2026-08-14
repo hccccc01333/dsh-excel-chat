@@ -74,3 +74,49 @@ test('rejects unknown operations, functions, and columns', () => {
     { baseCell: 'D2', table: salesTable },
   ), /unknown column/)
 })
+
+test('compiles a VLOOKUP function IR with a range operand', () => {
+  const formula = compileFormula({
+    operation: 'function',
+    name: 'VLOOKUP',
+    args: [
+      { kind: 'column', column: 'revenue' },
+      { kind: 'range', range: 'Sheet2!$A$1:$D$100' },
+      { kind: 'constant', value: 4 },
+      { kind: 'constant', value: 0 },
+    ],
+  }, { baseCell: 'E2', table: { sheet: 'Sheet1', columns: { revenue: 'B' } } })
+  assert.equal(formula, '=VLOOKUP(B2,Sheet2!$A$1:$D$100,4,0)')
+})
+
+test('compiles INDEX, SUMIF, and date functions', () => {
+  const base = {
+    baseCell: 'F2',
+    table: { sheet: 'Sheet1', columns: { product: 'A', amount: 'B', date: 'C' } },
+  }
+  assert.equal(
+    compileFormula({
+      operation: 'function',
+      name: 'INDEX',
+      args: [{ kind: 'range', range: 'Sheet1!$D$1:$D$50' }, { kind: 'constant', value: 1 }],
+    }, base),
+    '=INDEX(Sheet1!$D$1:$D$50,1)',
+  )
+  assert.equal(
+    compileFormula({
+      operation: 'function',
+      name: 'SUMIF',
+      args: [
+        { kind: 'range', range: 'Sheet1!$A$1:$A$50' },
+        { kind: 'column', column: 'product' },
+        { kind: 'range', range: 'Sheet1!$B$1:$B$50' },
+      ],
+    }, base),
+    '=SUMIF(Sheet1!$A$1:$A$50,A2,Sheet1!$B$1:$B$50)',
+  )
+  assert.equal(
+    compileFormula({ operation: 'function', name: 'YEAR', args: [{ kind: 'column', column: 'date' }] }, base),
+    '=YEAR(C2)',
+  )
+  assert.equal(compileFormula({ operation: 'function', name: 'TODAY', args: [] }, base), '=TODAY()')
+})

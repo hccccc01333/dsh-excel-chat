@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.19.0 — 2026-08-14
+
+覆盖职场 Excel 15 讲（数据透视表 → 邮件合并）：
+
+- Formula IR 泛化：新增 `function` 操作与 `range` 操作数，支持 VLOOKUP、INDEX、
+  MATCH、ROUND、TEXT、SUMIF、COUNTIF、AVERAGE、MEDIAN、MAX、MIN、COUNT、COUNTA、
+  日期函数（TODAY/YEAR/MONTH/DAY/DATE/DATEDIF/EOMONTH）与 SUMIFS/AVERAGEIFS/
+  COUNTIFS；LLM 修复顾问与 `excel_compile_formula` 同步支持。
+- `excel_operate` 新增：
+  - `subtotal` — 分类汇总（SUBTOTAL 公式 + 分组小计 + 总计，粗体样式）。
+  - `aggregateReport` — 动态数据分析报表：按分组列生成透视式汇总表，指标用
+    实时 SUMIFS/AVERAGEIFS/COUNTIFS/MAXIFS/MINIFS 公式，源数据变化自动更新。
+  - `filterToRange` — 高级筛选：按多条件把匹配行写到指定区域。
+  - `protectSheet` / `unprotectSheet` — 工作表保护（可设密码）。
+  - `mailMerge` — 邮件合并（Excel 侧）：模板 `{占位符}` 按数据行批量展开。
+- 图表可视化：`excel_create_chart` / `excel_modify_chart`（Excel COM，Windows）——
+  创建图表（类型/标题/数据范围）、修改参数（类型/标题/图例/坐标轴标题）。
+- 测试规模 116 → 125。
+
 ## v0.18.0 — 2026-08-14
 
 - 更名为 `dsh-excel-chat`：定位从“公式验证/修复工具”升级为“在 DeepSeek Harness

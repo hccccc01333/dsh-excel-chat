@@ -135,6 +135,72 @@ export const excelOperationSchema = {
       },
     }),
     opSchema('autoFilter', { range: rangeSchema }),
+    opSchema('subtotal', {
+      sheet: text('Sheet name.', true),
+      range: rangeSchema,
+      groupColumn: text('Column letter to group by; the data should be sorted by it.', true),
+      summaryColumns: {
+        type: 'array',
+        required: true,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            column: text('Column letter to summarize.', true),
+            function: { type: 'string', enum: ['sum', 'average', 'count', 'max', 'min'], required: true, description: 'Summary function.' },
+          },
+        },
+      },
+      addGrandTotal: bool('Add a grand total row (default true).'),
+    }),
+    opSchema('aggregateReport', {
+      source: text('Source data range including the header row, e.g. "Sheet1!A1:C50".', true),
+      groupColumn: text('Column letter to group by (e.g. "A").', true),
+      metrics: {
+        type: 'array',
+        required: true,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            column: text('Column letter of the metric.', true),
+            function: { type: 'string', enum: ['sum', 'average', 'count', 'counta', 'max', 'min'], required: true, description: 'Aggregation; the report uses live SUMIFS/AVERAGEIFS/COUNTIFS/MAXIFS/MINIFS formulas so it stays dynamic.' },
+          },
+        },
+      },
+      outputSheet: text('Output sheet name (default "<source>汇总").'),
+    }),
+    opSchema('filterToRange', {
+      source: text('Source data range including the header row.', true),
+      criteria: {
+        type: 'array',
+        required: true,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            column: text('Column letter to test.', true),
+            operator: { type: 'string', enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains'], required: true, description: 'Comparison operator.' },
+            value: { oneOf: [{ type: 'string' }, { type: 'number' }], description: 'Comparison value.' },
+          },
+        },
+      },
+      target: text('Destination top-left cell, e.g. "Sheet1!D1".', true),
+      matchAll: bool('AND across criteria (default true); false means OR.'),
+    }),
+    opSchema('protectSheet', {
+      sheet: text('Sheet name.', true),
+      password: text('Optional password; empty means protected without a password.'),
+    }),
+    opSchema('unprotectSheet', {
+      sheet: text('Sheet name.', true),
+      password: text('Password used when protecting (if any).'),
+    }),
+    opSchema('mailMerge', {
+      template: text('Template range with {Placeholder} tokens, e.g. "Sheet1!A1:B1".', true),
+      data: text('Data range with a header row matching the placeholders, e.g. "Sheet2!A1:C10".', true),
+      outputSheet: text('Output sheet name (default "<template>合并").'),
+    }),
     opSchema('addTable', {
       name: text('Unique table name.', true),
       range: rangeSchema,

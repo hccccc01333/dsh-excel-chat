@@ -41,6 +41,22 @@ export function buildRepairPrompt(
       },
     }],
   }
+  const functionExample = {
+    repairs: [{
+      id: 'E2',
+      baseCell: 'E2',
+      ir: {
+        operation: 'function',
+        name: 'VLOOKUP',
+        args: [
+          { kind: 'column', column: 'product' },
+          { kind: 'range', range: 'Sheet2!$A$1:$D$100' },
+          { kind: 'constant', value: 4 },
+          { kind: 'constant', value: 0 },
+        ],
+      },
+    }],
+  }
   return [
     'You are the repair planner for a verified Excel agent.',
     'The workbook excerpt (cell id -> content) is:',
@@ -56,15 +72,20 @@ export function buildRepairPrompt(
     `The table schema is: ${JSON.stringify(table)}`,
     'Return ONLY JSON matching: {"repairs":[{"id":"<cell id>","baseCell":"<cell id>","ir":<FormulaIR>}]}.',
     'FormulaIR uses operation "binary" (left/right/operator), "ratio" (numerator/denominator),',
-    'or "aggregate" (metric/function/filters, each filter with column and value_from).',
+    '"aggregate" (metric/function/filters, each filter with column and value_from),',
+    'or "function" (name/args) for VLOOKUP, INDEX, MATCH, ROUND, TEXT, SUMIF, COUNTIF,',
+    'AVERAGE, MEDIAN, MAX, MIN, COUNT, COUNTA, TODAY, YEAR, MONTH, DAY, DATE, DATEDIF,',
+    'EOMONTH, SUMIFS, AVERAGEIFS, COUNTIFS.',
     'Operands are objects: {"kind":"column","column":"<logical column from table.columns>"},',
-    '{"kind":"cell","cell":"<A1 ref>"}, or {"kind":"constant","value":<number>}.',
+    '{"kind":"cell","cell":"<A1 ref>"}, {"kind":"range","range":"<A1:B10 or Sheet!$A$1:$B$10>"},',
+    'or {"kind":"constant","value":<number>}.',
     'The column pattern example above is the exact formula shape the other cells follow.',
     'Choose binary/ratio/aggregate to match that shape; when it is an aggregate such as',
     '=SUM(Sheet1!$B:$B), return an aggregate IR (see the aggregate example below).',
     'Only repair cells that actually deviate from the column pattern; do not repair matching cells.',
     `Example reply: ${JSON.stringify(example)}`,
     `Aggregate example reply: ${JSON.stringify(aggregateExample)}`,
+    `Function example reply: ${JSON.stringify(functionExample)}`,
   ].join('\n')
 }
 
@@ -152,11 +173,14 @@ export function normalizeIr(ir: FormulaIR, table?: ColumnTable): FormulaIR {
       }
       return ir
     }
+    case 'function':
+      return { ...ir, args: ir.args.map(normalizeOperand) }
   }
 }
 
 function normalizeOperand(operand: unknown): OperandIR {
   if (typeof operand === 'string') {
+    if (operand.includes(':')) return { kind: 'range', range: operand }
     return /^[A-Za-z]{1,3}[0-9]+$/.test(operand)
       ? { kind: 'cell', cell: operand }
       : { kind: 'column', column: operand }

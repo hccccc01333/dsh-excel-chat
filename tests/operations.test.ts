@@ -491,6 +491,143 @@ test('addTable registers a structured table with striped rows', async () => {
   assert.equal(tables[0]!.model.tableRef, 'A1:B3')
 })
 
+test('subtotal inserts per-group summary rows and a grand total', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '类别'
+    sheet.getCell('B1').value = '金额'
+    sheet.getCell('A2').value = 'A'
+    sheet.getCell('B2').value = 10
+    sheet.getCell('A3').value = 'A'
+    sheet.getCell('B3').value = 20
+    sheet.getCell('A4').value = 'B'
+    sheet.getCell('B4').value = 5
+    sheet.getCell('A5').value = 'B'
+    sheet.getCell('B5').value = 15
+  })
+  const outPath = join(join(path, '..'), 'subtotal.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'subtotal',
+    sheet: 'Sheet1',
+    range: 'Sheet1!A1:B5',
+    groupColumn: 'A',
+    summaryColumns: [{ column: 'B', function: 'sum' }],
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('A4').value, 'A 汇总')
+  assert.equal(sheet.getCell('B4').formula, 'SUBTOTAL(9,B2:B3)')
+  assert.equal(sheet.getCell('A7').value, 'B 汇总')
+  assert.equal(sheet.getCell('B7').formula, 'SUBTOTAL(9,B5:B6)')
+  assert.equal(sheet.getCell('A8').value, '总计')
+  assert.equal(sheet.getCell('B8').formula, 'SUBTOTAL(9,B2:B7)')
+  assert.equal(sheet.getCell('B4').font.bold, true)
+})
+
+test('aggregateReport builds a dynamic summary sheet with SUMIFS formulas', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '类别'
+    sheet.getCell('B1').value = '金额'
+    sheet.getCell('C1').value = '数量'
+    sheet.getCell('A2').value = 'A'
+    sheet.getCell('B2').value = 10
+    sheet.getCell('C2').value = 2
+    sheet.getCell('A3').value = 'A'
+    sheet.getCell('B3').value = 20
+    sheet.getCell('C3').value = 4
+    sheet.getCell('A4').value = 'B'
+    sheet.getCell('B4').value = 5
+    sheet.getCell('C4').value = 1
+  })
+  const outPath = join(join(path, '..'), 'report-summary.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'aggregateReport',
+    source: 'Sheet1!A1:C4',
+    groupColumn: 'A',
+    metrics: [
+      { column: 'B', function: 'sum' },
+      { column: 'C', function: 'average' },
+    ],
+  }], outPath)
+  const cells = await readWorkbookCells(await readFile(outPath))
+  assert.equal(cells['Sheet1-汇总!A1'], '类别')
+  assert.equal(cells['Sheet1-汇总!B1'], '金额 合计')
+  assert.equal(cells['Sheet1-汇总!A2'], 'A')
+  assert.equal(cells['Sheet1-汇总!B2'], '=SUMIFS(Sheet1!$B$2:$B$4,Sheet1!$A$2:$A$4,A2)')
+  assert.equal(cells['Sheet1-汇总!C2'], '=AVERAGEIFS(Sheet1!$C$2:$C$4,Sheet1!$A$2:$A$4,A2)')
+  assert.equal(cells['Sheet1-汇总!A4'], '总计')
+  assert.equal(cells['Sheet1-汇总!B4'], '=SUM(B2:B3)')
+})
+
+test('filterToRange writes rows matching criteria to a target range', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '名称'
+    sheet.getCell('B1').value = '金额'
+    sheet.getCell('A2').value = '苹果'
+    sheet.getCell('B2').value = 10
+    sheet.getCell('A3').value = '香蕉'
+    sheet.getCell('B3').value = 5
+    sheet.getCell('A4').value = '苹果'
+    sheet.getCell('B4').value = 20
+    sheet.getCell('A5').value = '橙子'
+    sheet.getCell('B5').value = 8
+  })
+  const cells = await readAfter(path, [{
+    op: 'filterToRange',
+    source: 'Sheet1!A1:B5',
+    criteria: [{ column: 'A', operator: 'eq', value: '苹果' }],
+    target: 'Sheet1!D1',
+  }])
+  assert.equal(cells['Sheet1!D1'], '名称')
+  assert.equal(cells['Sheet1!D2'], '苹果')
+  assert.equal(cells['Sheet1!E2'], '10')
+  assert.equal(cells['Sheet1!D3'], '苹果')
+  assert.equal(cells['Sheet1!E3'], '20')
+  assert.equal(cells['Sheet1!D4'], undefined)
+})
+
+test('protectSheet and unprotectSheet round-trip through a file', async () => {
+  const path = await makeWorkbook(formulaFixture())
+  const outPath = join(join(path, '..'), 'protected.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'protectSheet', sheet: 'Sheet1', password: 'secret' },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  sheet.unprotect('secret')
+  sheet.getCell('A1').value = 1 // still writable after unprotect
+  assert.equal(sheet.getCell('A1').value, 1)
+})
+
+test('mailMerge expands a template with placeholders per data record', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const template = workbook.addWorksheet('Sheet1')
+    template.getCell('A1').value = '{姓名}'
+    template.getCell('B1').value = '你好，{金额} 元'
+    const data = workbook.addWorksheet('Sheet2')
+    data.getCell('A1').value = '姓名'
+    data.getCell('B1').value = '金额'
+    data.getCell('A2').value = '张三'
+    data.getCell('B2').value = 100
+    data.getCell('A3').value = '李四'
+    data.getCell('B3').value = 200
+  })
+  const cells = await readAfter(path, [{
+    op: 'mailMerge',
+    template: 'Sheet1!A1:B1',
+    data: 'Sheet2!A1:B3',
+    outputSheet: '通知',
+  }])
+  assert.equal(cells['通知!A1'], '张三')
+  assert.equal(cells['通知!B1'], '你好，100 元')
+  assert.equal(cells['通知!A2'], '李四')
+  assert.equal(cells['通知!B2'], '你好，200 元')
+})
+
 test('operateWorkbookFile returns post-operation validation and flags broken patterns', async () => {
   const path = await makeWorkbook(formulaFixture())
   const outPath = join(join(path, '..'), 'edited.xlsx')
