@@ -1,13 +1,16 @@
 import ExcelJS from 'exceljs'
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { CallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import { exportChartsWithExcel } from '../src/chart-visual.ts'
 import * as plugin from '../src/index.ts'
 import { deepseekChatWithTools, type DeepSeekMessage } from '../src/deepseek.ts'
+import { readWorkbookCells } from '../src/workbook.ts'
+import { makeSalesWorkbook } from './sales-fixture.ts'
 
 if (!process.env.DEEPSEEK_API_KEY) {
   console.log('DEEPSEEK_API_KEY is not set; skipping real conversation invocation')
@@ -32,6 +35,14 @@ async function readSheet(path: string): Promise<ExcelJS.Worksheet> {
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.readFile(path)
   return workbook.getWorksheet('Sheet1')!
+}
+
+async function readSheetByName(path: string, name: string): Promise<ExcelJS.Worksheet> {
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(path)
+  const sheet = workbook.getWorksheet(name)
+  if (!sheet) throw new Error(`sheet not found: ${name}`)
+  return sheet
 }
 
 async function runConversation(
@@ -165,6 +176,83 @@ for (const [label, actual, expected] of repairChecks) {
   if (!ok) throw new Error(`repair scenario failed: ${label}`)
 }
 
-console.log(`conversation turns: report=${reportTurns}, repair=${repairTurns}`)
+// Scenario 3: analysis report — pivot-style summary, subtotals, data bars, protection.
+const salesPath = await makeSalesWorkbook()
+const analysisOut = join(dir, '分析报表.xlsx')
+const analysisTurns = await runConversation(
+  ctx,
+  tools,
+  `请对文件 ${salesPath} 做数据分析：` +
+    `1) 用 excel_operate 的 aggregateReport 按“区域”生成透视汇总表（金额合计 + 数量计数），输出到工作表“订单-汇总”；` +
+    `2) 给“订单”表按“区域”做分类汇总（金额小计 + 总计）；` +
+    `3) 给“订单”表 F 列金额加数据条条件格式；` +
+    `4) 最后保护“订单”工作表（密码 pw）。输出到 ${analysisOut}。`,
+)
+const summarySheet = await readSheetByName(analysisOut, '订单-汇总')
+const analysisChecks = [
+  ['summary SUMIFS', summarySheet.getCell('B2').formula?.startsWith('SUMIFS'), true],
+  ['summary group', summarySheet.getCell('A2').value, '华东'],
+]
+for (const [label, actual, expected] of analysisChecks) {
+  const ok = JSON.stringify(actual) === JSON.stringify(expected)
+  console.log(`[${ok ? 'PASS' : 'FAIL'}] ${label}: ${JSON.stringify(actual)}`)
+  if (!ok) throw new Error(`analysis scenario failed: ${label}`)
+}
+const orderSheet = await readSheetByName(analysisOut, '订单')
+const orderCells = await readWorkbookCells(await readFile(analysisOut))
+const hasSubtotalRow = Object.values(orderCells).some((value) => typeof value === 'string' && value.includes('汇总'))
+const hasSubtotalFormula = Object.values(orderCells).some((value) => typeof value === 'string' && value.startsWith('=SUBTOTAL'))
+const cfTypes = (orderSheet as unknown as { conditionalFormattings?: Array<{ rules: Array<{ type: string }> }> }).conditionalFormattings
+  ?.flatMap((entry) => entry.rules.map((rule) => rule.type)) ?? []
+console.log(`[${hasSubtotalRow ? 'PASS' : 'FAIL'}] subtotal row present`)
+console.log(`[${hasSubtotalFormula ? 'PASS' : 'FAIL'}] SUBTOTAL formula present`)
+console.log(`[${cfTypes.includes('dataBar') ? 'PASS' : 'FAIL'}] dataBar conditional formatting present`)
+if (!hasSubtotalRow || !hasSubtotalFormula || !cfTypes.includes('dataBar')) {
+  throw new Error('analysis scenario failed: missing subtotals or data bars')
+}
+
+// Scenario 4: VLOOKUP enrichment + mail merge through conversation.
+const mergeOut = join(dir, 'vlookup-merge.xlsx')
+const mergeTurns = await runConversation(
+  ctx,
+  tools,
+  `请处理文件 ${salesPath}：` +
+    `1) 给“订单”表新增 G 列“产品名称”，用 VLOOKUP 从“产品价目”表（A1:B4）按产品代码查找名称，G2:G7 各一行；` +
+    `2) 用 excel_operate 的 mailMerge，以“通知模板”为模板、订单表 A:D 为数据，批量生成发货通知到工作表“发货通知”。` +
+    `输出到 ${mergeOut}。`,
+)
+const mergeOrders = await readSheetByName(mergeOut, '订单')
+const noticeSheet = await readSheetByName(mergeOut, '发货通知')
+const mergeChecks = [
+  ['VLOOKUP header', mergeOrders.getCell('G1').value, '产品名称'],
+  ['VLOOKUP formula', mergeOrders.getCell('G2').formula?.startsWith('VLOOKUP(C2,'), true],
+  ['merge row 1', noticeSheet.getCell('A1').value, '华东'],
+  ['merge row 1 qty', noticeSheet.getCell('B1').value, '数量 10'],
+  ['merge rows', noticeSheet.getCell('A6').value, '华东'],
+]
+for (const [label, actual, expected] of mergeChecks) {
+  const ok = JSON.stringify(actual) === JSON.stringify(expected)
+  console.log(`[${ok ? 'PASS' : 'FAIL'}] ${label}: ${JSON.stringify(actual)}`)
+  if (!ok) throw new Error(`merge scenario failed: ${label}`)
+}
+
+// Scenario 5: create a chart through conversation (Windows + Excel only).
+let chartTurns = 0
+if (process.platform === 'win32') {
+  const chartOut = join(dir, '图表.xlsx')
+  chartTurns = await runConversation(
+    ctx,
+    tools,
+    `请用 excel_create_chart 给文件 ${salesPath} 的“订单”表创建柱状图：` +
+      `数据范围 “订单!B1:F7”（区域为分类、金额为数值），标题“区域金额”，图表名“Chart 1”。输出到 ${chartOut}。`,
+  )
+  const images = await exportChartsWithExcel(chartOut, join(dir, 'chart-out'))
+  console.log(`[${images.length >= 1 ? 'PASS' : 'FAIL'}] chart created and exported (${images.length} chart(s))`)
+  if (images.length < 1) throw new Error('chart scenario failed')
+} else {
+  console.log('SKIP chart scenario: requires Windows + Excel')
+}
+
+console.log(`conversation turns: report=${reportTurns}, repair=${repairTurns}, analysis=${analysisTurns}, merge=${mergeTurns}, chart=${chartTurns}`)
 console.log('ALL CONVERSATION SCENARIOS PASSED')
 await ctx.fiber.dispose()

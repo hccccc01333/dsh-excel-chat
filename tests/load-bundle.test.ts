@@ -83,3 +83,31 @@ test('excel_operate runs through the plugin context and re-validates', async () 
   assert.equal(value.outputPath, output)
   assert.ok(value.validation.anomalies.some((anomaly) => anomaly.cell === 'Sheet1!D4'))
 })
+
+test('excel_read runs through the plugin context and returns lossless JSON', async () => {
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Sheet1')
+  sheet.getCell('A1').value = 100
+  sheet.getCell('A2').value = { formula: 'A1*2' }
+  sheet.getCell('A1').font = { bold: true }
+  const dir = await mkdtemp(join(tmpdir(), 'vera-bundle-read-'))
+  const input = join(dir, 'book.xlsx')
+  await writeFile(input, await workbook.xlsx.writeBuffer())
+
+  const plugin = await import(bundleUrl)
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(plugin)
+  const result = await ctx.tools.execute({
+    signal: new AbortController().signal,
+    callId: CallId('vera-bundle-read-1'),
+    name: 'excel_read',
+    arguments: { path: input },
+  })
+  assert.equal(result.isError, false)
+  const value = result.value as { sheets: Array<{ cells: Array<{ id: string; value: number; bold?: boolean }> }> }
+  const cell = value.sheets[0]!.cells.find((entry) => entry.id === 'Sheet1!A1')
+  assert.equal(cell?.value, 100)
+  assert.equal(cell?.bold, true)
+})

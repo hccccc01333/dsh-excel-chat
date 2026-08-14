@@ -120,13 +120,13 @@ export function apply(ctx) {
         },
         async execute(args) {
             const cells = Array.isArray(args.cells) ? args.cells.map((cell) => String(cell)) : undefined;
-            return {
-                sheets: await readWorkbookDetail(args.path, {
-                    sheet: typeof args.sheet === 'string' ? args.sheet : undefined,
-                    range: typeof args.range === 'string' ? args.range : undefined,
-                    cells,
-                }),
-            };
+            const sheets = await readWorkbookDetail(args.path, {
+                sheet: typeof args.sheet === 'string' ? args.sheet : undefined,
+                range: typeof args.range === 'string' ? args.range : undefined,
+                cells,
+            });
+            // dsh requires lossless JSON: strip optional undefined fields explicitly.
+            return JSON.parse(JSON.stringify({ sheets }));
         },
     }));
     ctx.tools.register(defineTool({
