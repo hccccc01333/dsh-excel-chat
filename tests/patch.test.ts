@@ -22,3 +22,13 @@ test('applyPatches rejects stale preconditions', () => {
     /precondition failed for D4/,
   )
 })
+
+test('applyPatches treats empty string as a missing cell', () => {
+  const result = applyPatches({ D2: '=B2-C2' }, [{
+    id: 'D4',
+    kind: 'formula',
+    oldValue: '',
+    newValue: '=B4-C4',
+  }])
+  assert.equal(result.D4, '=B4-C4')
+})

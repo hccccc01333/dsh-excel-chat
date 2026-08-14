@@ -1,15 +1,18 @@
 import { readFile } from 'node:fs/promises'
 import {
+  canonicalCellId,
   columnToNumber,
   numberToColumn,
   parseCellId,
   parseFormula,
+  shiftFormulaRow,
   type ParsedCellId,
   type ParsedRef,
   type RefPoint,
 } from './formula.ts'
 import { applyPatchesToWorkbook, type CellPatch } from './patch.ts'
 import type { PatternAnomaly } from './patterns.ts'
+import { scoreWorkbookAgainstOracle, type WorkbookScore } from './score.ts'
 import { validate, type ValidationResult } from './validator.ts'
 import { readWorkbookCells } from './workbook.ts'
 
@@ -59,7 +62,59 @@ export function generateRepairs(cells: Record<string, string>, result: Validatio
       repairedCells.add(anomaly.cell)
     }
   }
+  const normalizedCells = new Map<string, string>()
+  for (const [id, content] of Object.entries(cells)) {
+    try {
+      const parsed = parseCellId(id)
+      normalizedCells.set(canonicalCellId(parsed.sheet, parsed.column, parsed.row), content)
+    } catch {
+      // skip malformed ids
+    }
+  }
+  for (const anomaly of result.anomalies) {
+    if (anomaly.kind !== 'empty-gap' || repairedCells.has(anomaly.cell)) continue
+    const base = parseCellId(anomaly.cell)
+    const source = findFillSource(normalizedCells, base)
+    if (!source) continue
+    const newValue = shiftFormulaRow(source.formula, source.rowShift)
+    if (!newValue.startsWith('=')) continue
+    repairs.push({
+      id: actualCellId(cells, base, anomaly.cell),
+      kind: 'formula',
+      oldValue: '',
+      newValue,
+    })
+    repairedCells.add(anomaly.cell)
+  }
   return repairs
+}
+
+function findFillSource(
+  normalizedCells: Map<string, string>,
+  base: ParsedCellId,
+): { formula: string; rowShift: number } | null {
+  for (let distance = 1; distance <= 3; distance++) {
+    const aboveId = canonicalCellId(base.sheet, base.column, base.row - distance)
+    const above = normalizedCells.get(aboveId)?.trim()
+    if (above?.startsWith('=')) return { formula: above, rowShift: distance }
+    const belowId = canonicalCellId(base.sheet, base.column, base.row + distance)
+    const below = normalizedCells.get(belowId)?.trim()
+    if (below?.startsWith('=')) return { formula: below, rowShift: -distance }
+  }
+  return null
+}
+
+/** Reuse the sheet-prefix style of an existing cell on the same sheet. */
+function actualCellId(cells: Record<string, string>, base: ParsedCellId, fallback: string): string {
+  const sample = Object.keys(cells).find((id) => {
+    const bang = id.lastIndexOf('!')
+    const sheetPart = bang >= 0 ? id.slice(0, bang) : 'Sheet1'
+    return sheetPart.replace(/^'|'$/g, '').toUpperCase() === base.sheet
+  })
+  if (!sample) return fallback
+  const bang = sample.lastIndexOf('!')
+  const prefix = bang >= 0 ? `${sample.slice(0, bang)}!` : ''
+  return `${prefix}${base.column}${base.row}`
 }
 
 function pointReplacement(
@@ -111,12 +166,14 @@ export interface RepairResult {
   before: ValidationResult
   after: ValidationResult
   repairedPath: string
+  oracleScore: WorkbookScore | null
 }
 
 export async function repairWorkbookFile(
   path: string,
   llmAdvisor?: RepairAdvisor,
   cells?: Record<string, string>,
+  oracleCells?: Record<string, string>,
 ): Promise<RepairResult> {
   const cellMap = cells ?? (await readWorkbookCells(await readFile(path)))
   const before = validate(cellMap)
@@ -131,5 +188,6 @@ export async function repairWorkbookFile(
   }
   const afterCells = allRepairs.length > 0 ? await readWorkbookCells(await readFile(repairedPath)) : cellMap
   const after = validate(afterCells)
-  return { repairs, llmRepairs: extraLlmRepairs, before, after, repairedPath }
+  const oracleScore = oracleCells ? scoreWorkbookAgainstOracle(afterCells, oracleCells) : null
+  return { repairs, llmRepairs: extraLlmRepairs, before, after, repairedPath, oracleScore }
 }

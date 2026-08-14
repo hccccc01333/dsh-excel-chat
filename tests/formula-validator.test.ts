@@ -5,6 +5,7 @@ import {
   numberToColumn,
   parseCellId,
   parseFormula,
+  shiftFormulaRow,
 } from '../src/formula.ts'
 import { validate } from '../src/validator.ts'
 
@@ -126,4 +127,12 @@ test('pattern validator works across a sheet-qualified column', () => {
     'Sheet1!D4': '=B4-C3',
   })
   assert.ok(result.anomalies.some((anomaly) => anomaly.kind === 'reference-offset' && anomaly.cell === 'Sheet1!D4'))
+})
+
+test('shiftFormulaRow shifts relative rows and preserves absolute rows', () => {
+  assert.equal(shiftFormulaRow('=B3-C3', 1), '=B4-C4')
+  assert.equal(shiftFormulaRow('=SUM(B3:C3)', 1), '=SUM(B4:C4)')
+  assert.equal(shiftFormulaRow('=SUM($B$4:C3)', 1), '=SUM($B$4:C4)')
+  assert.equal(shiftFormulaRow('=Sheet1!B3+Sheet1!$C$3', 1), '=Sheet1!B4+Sheet1!$C$3')
+  assert.equal(shiftFormulaRow('=B3-C3', 0), '=B3-C3')
 })

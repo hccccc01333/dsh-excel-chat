@@ -3,11 +3,14 @@ import { cellContent } from './workbook.js';
 export function applyPatches(cells, patches) {
     const result = { ...cells };
     for (const patch of patches) {
-        const current = result[patch.id];
+        const current = result[patch.id] ?? '';
         if (current !== patch.oldValue) {
             throw new Error(`patch precondition failed for ${patch.id}: expected ${patch.oldValue}, got ${current}`);
         }
-        result[patch.id] = patch.newValue;
+        if (patch.newValue === '')
+            delete result[patch.id];
+        else
+            result[patch.id] = patch.newValue;
     }
     return result;
 }
@@ -32,10 +35,14 @@ export async function applyPatchesToWorkbook(inputPath, patches, outputPath = in
             throw new Error(`patch failed for ${patch.id}: sheet ${sheetName} not found`);
         const target = sheet.getCell(`${cellMatch[1]}${cellMatch[2]}`);
         const current = cellContent(target);
-        if (current !== patch.oldValue) {
+        if ((current ?? '') !== patch.oldValue) {
             throw new Error(`patch precondition failed for ${patch.id}: expected ${patch.oldValue}, got ${current}`);
         }
-        target.value = patch.newValue.startsWith('=') ? { formula: patch.newValue.slice(1) } : patch.newValue;
+        target.value = patch.newValue === ''
+            ? null
+            : patch.newValue.startsWith('=')
+                ? { formula: patch.newValue.slice(1) }
+                : patch.newValue;
     }
     await workbook.xlsx.writeFile(outputPath);
 }

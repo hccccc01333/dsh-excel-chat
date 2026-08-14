@@ -23,13 +23,16 @@
 - `src/vision.ts` — `visionTextFromContext`：把 `ctx.attachments` + `ctx.llm` 接成视觉评审。
 - `src/deepseek.ts` — DeepSeek chat completions 客户端（读 `DEEPSEEK_API_KEY`），接修复顾问。
 - `src/patch.ts` — 最小补丁抽象：apply / revert / 写回 workbook。
-- `src/repair.ts` — 从验证结果生成确定性修复，写出 `.repaired.xlsx` 并复验。
+- `src/repair.ts` — 从验证结果生成确定性修复（引用偏移 + 空行填充），写出
+  `.repaired.xlsx` 并复验；可选传入 oracle cells 返回 `oracleScore`。
 - `src/workbook.ts` — ExcelJS-based workbook reader: `.xlsx` → cell-content map, and `validateWorkbookFile(path)`.
 - `src/tables.ts` — `detectTableFromCells`：从单元格内容推断 `{ sheet, columns }`，
   供 `excel_repair_formulas` 的 `autoTable` 自动识别表头。
 - `src/score.ts` — `scoreWorkbookAgainstOracle`：oracle 单元格级判分，容忍公式
   大小写/空白与数字格式差异，输出准确率与 mismatch 明细。
 - `src/benchmark.ts` — Pass@1 benchmark：确定性修复 → LLM 修复，与 oracle 对比判分。
+- `src/benchmark-cases.ts` — 11 个 benchmark 任务：范围端点、绝对引用、空行、
+  跨表、多表、聚合结构、hardcode 等场景。
 - `src/index.ts` — dsh plugin entry exposing seven tools（validate / compile / repair / diff / chart structure / chart export / chart visual）。
 - `bundle/` — 可发布 dsh bundle：manifest + cordis.patch.yml + 编译产物。
 

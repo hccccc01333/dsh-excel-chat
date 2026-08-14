@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.11.0 — 2026-08-14
+
+- 空行确定性修复：`empty-gap` 自动克隆相邻公式填充缺口，`shiftFormulaRow`
+  只平移相对行引用，保留绝对行（`$4`）与跨表前缀；补丁抽象支持空单元格
+  （`oldValue: ''` 即“缺失”）。
+- Oracle 闭环：`excel_repair_formulas` 新增 `oraclePath` 参数，修复后自动对比
+  ground-truth workbook，结果中返回 `oracleScore`（准确率 + mismatch 明细）。
+- Benchmark 扩展到 11 个任务（`src/benchmark-cases.ts`）：范围双端点、绝对引用、
+  空行填充、跨表、多表、聚合结构、hardcode、结构不匹配等。
+- LLM 容错：aggregate SUM 缺 metric 时从表结构第一列推断；单条 malformed IR
+  跳过而不中断整个修复；benchmark 记录 `llmError` 而非崩溃。
+- Prompt 增强：加入“列 pattern 示例公式 + aggregate 示例”，要求模型对齐
+  示例公式形态。真实 DeepSeek：Pass@1 11/11，meanAccuracy 1.000。
+- 测试规模 75 → 82。
+
 ## v0.10.0 — 2026-08-14
 
 - 范围尾引用修复：确定性 repair 现在覆盖 `=SUM(B4:C3)` 这类 range.end 偏移异常；

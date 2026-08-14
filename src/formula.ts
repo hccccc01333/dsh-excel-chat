@@ -148,3 +148,44 @@ export function parseCellId(id: string): ParsedCellId {
   }
   return { sheet: normalizeSheet(rawSheet), column: match[1].toUpperCase(), row: Number(match[2]) }
 }
+
+/**
+ * Shift every relative row reference in a formula by rowDelta, preserving
+ * columns, absolute rows ($4), whole-column references, and sheet prefixes.
+ * Returns the original formula when any shift would leave the sheet (row < 1).
+ */
+export function shiftFormulaRow(formula: string, rowDelta: number): string {
+  if (rowDelta === 0) return formula
+  const hasEquals = formula.trimStart().startsWith('=')
+  const raw = hasEquals ? formula.trimStart().slice(1) : formula
+  const parsed = parseFormula(`=${raw}`)
+  const edits: Array<{ start: number; end: number; text: string }> = []
+  for (const ref of parsed.references) {
+    const text = raw.slice(ref.range.start, ref.range.end)
+    if (!ref.end) {
+      edits.push({ start: ref.range.start, end: ref.range.end, text: shiftReferenceToken(text, ref.start, rowDelta) })
+      continue
+    }
+    const colon = text.indexOf(':')
+    if (colon < 0) continue
+    const startToken = text.slice(0, colon)
+    const endToken = text.slice(colon + 1)
+    const newStart = shiftReferenceToken(startToken, ref.start, rowDelta)
+    const newEnd = shiftReferenceToken(endToken, ref.end, rowDelta)
+    edits.push({ start: ref.range.start, end: ref.range.end, text: `${newStart}:${newEnd}` })
+  }
+  let result = raw
+  for (const edit of [...edits].sort((a, b) => b.start - a.start)) {
+    result = `${result.slice(0, edit.start)}${edit.text}${result.slice(edit.end)}`
+  }
+  return hasEquals ? `=${result}` : result
+}
+
+function shiftReferenceToken(token: string, point: RefPoint, rowDelta: number): string {
+  if (point.row === null || point.absRow) return token
+  const newRow = point.row + rowDelta
+  if (newRow < 1) return token
+  const match = /^(.*[A-Za-z])(\$?)(\d+)$/.exec(token)
+  if (!match) return token
+  return `${match[1]}${newRow}`
+}

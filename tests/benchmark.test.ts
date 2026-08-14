@@ -1,47 +1,19 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { runBenchmark, runBenchmarkTask, type BenchmarkTask } from '../src/benchmark.ts'
+import { benchmarkTasks } from '../src/benchmark-cases.ts'
 import type { LlmText } from '../src/advisor.ts'
 
 const table = { sheet: 'Sheet1', columns: { revenue: 'B', cost: 'C' } }
 
-const tasks: BenchmarkTask[] = [
-  {
-    name: 'silent-offset',
-    cells: { D2: '=B2-C2', D3: '=B3-C3', D4: '=B4-C3', D5: '=B5-C5' },
-    oracleCells: { D2: '=B2-C2', D3: '=B3-C3', D4: '=B4-C4', D5: '=B5-C5' },
-    table,
-  },
-  {
-    name: 'range-tail',
-    cells: { D2: '=SUM(B2:C2)', D3: '=SUM(B3:C3)', D4: '=SUM(B4:C3)', D5: '=SUM(B5:C5)' },
-    oracleCells: { D2: '=SUM(B2:C2)', D3: '=SUM(B3:C3)', D4: '=SUM(B4:C4)', D5: '=SUM(B5:C5)' },
-    table,
-  },
-  {
-    name: 'structure-mismatch',
-    cells: { D2: '=B2-C2', D3: '=SUM(B3:C3)', D4: '=B4-C4', D5: '=B5-C5' },
-    oracleCells: { D2: '=B2-C2', D3: '=B3-C3', D4: '=B4-C4', D5: '=B5-C5' },
-    table,
-  },
-  {
-    name: 'hardcode-break',
-    cells: { D2: '=B2-C2', D3: '=B3-C3', D4: '100', D5: '=B5-C5' },
-    oracleCells: { D2: '=B2-C2', D3: '=B3-C3', D4: '=B4-C4', D5: '=B5-C5' },
-    table,
-  },
-  {
-    name: 'clean-noop',
-    cells: { D2: '=B2-C2', D3: '=B3-C3' },
-    oracleCells: { D2: '=B2-C2', D3: '=B3-C3' },
-    table,
-  },
-]
+const tasks = benchmarkTasks.filter((task) => task.name !== 'aggregate-mismatch')
 
 /** Repairs every anomaly with the revenue-minus-cost IR the compiler expects. */
 const fakeLlm: LlmText = async (prompt) => {
   const body = prompt.split('The validator found these anomalies:')[1] ?? ''
-  const json = body.slice(0, body.indexOf('\nThe table schema'))
+  const patternEnd = body.indexOf('\nThe column patterns are')
+  const tableEnd = body.indexOf('\nThe table schema')
+  const json = body.slice(0, patternEnd >= 0 ? patternEnd : tableEnd).trim()
   const anomalies = JSON.parse(json) as Array<{ cell: string }>
   return JSON.stringify({
     repairs: anomalies.map((anomaly) => ({
@@ -60,7 +32,7 @@ const fakeLlm: LlmText = async (prompt) => {
 test('deterministic repair passes silent-offset and range-tail tasks', async () => {
   const report = await runBenchmark(tasks, {})
   assert.equal(report.total, tasks.length)
-  assert.equal(report.passAt1, 3) // silent-offset, range-tail, clean-noop
+  assert.equal(report.passAt1, 8) // all pattern/fill tasks; LLM-only tasks stay red
   const structure = report.tasks.find((task) => task.task === 'structure-mismatch')!
   assert.equal(structure.deterministic.score.passes, false)
   assert.equal(structure.llm, null)
@@ -80,6 +52,27 @@ test('LLM route lifts structure-mismatch and hardcode-break to Pass@1', async ()
   }])
 })
 
+test('aggregate IR repair reaches Pass@1 on the aggregate-mismatch case', async () => {
+  const aggregateLlm: LlmText = async () => JSON.stringify({
+    repairs: [{
+      id: 'D4',
+      baseCell: 'D4',
+      ir: { operation: 'aggregate', metric: 'revenue', function: 'SUM', filters: [] },
+    }],
+  })
+  const result = await runBenchmarkTask(
+    benchmarkTasks.find((task) => task.name === 'aggregate-mismatch')!,
+    { llm: aggregateLlm },
+  )
+  assert.equal(result.passAt1, true)
+  assert.deepEqual(result.llm!.llmRepairs, [{
+    id: 'D4',
+    kind: 'formula',
+    oldValue: '=B4-C4',
+    newValue: '=SUM(Sheet1!$B:$B)',
+  }])
+})
+
 test('LLM repairs overlapping deterministic repairs are deduplicated', async () => {
   const result = await runBenchmarkTask(tasks[0]!, { llm: fakeLlm })
   assert.equal(result.passAt1, true)
@@ -93,4 +86,17 @@ test('a task without a table schema cannot use the LLM route', async () => {
     runBenchmarkTask(task, { llm: fakeLlm }),
     /needs a table schema/,
   )
+})
+
+test('an LLM failure is recorded instead of crashing the benchmark', async () => {
+  const failingLlm: LlmText = async () => {
+    throw new Error('model timeout')
+  }
+  const result = await runBenchmarkTask(
+    benchmarkTasks.find((task) => task.name === 'structure-mismatch')!,
+    { llm: failingLlm },
+  )
+  assert.equal(result.passAt1, false)
+  assert.equal(result.llm, null)
+  assert.equal(result.llmError, 'model timeout')
 })

@@ -152,12 +152,20 @@ export function apply(ctx) {
                 additionalProperties: true,
                 description: 'Table schema { sheet, columns } for LLM repair compilation. Required when useLlm is true unless autoTable is enabled.',
             },
+            oraclePath: {
+                type: 'string',
+                description: 'Absolute path to the ground-truth .xlsx file. When provided, the repaired workbook is scored against it and the result includes oracleScore.',
+            },
         },
         output: {
             schema: { type: 'object', additionalProperties: true },
             render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
         },
         async execute(args, exec) {
+            let oracleCells;
+            if (args.oraclePath) {
+                oracleCells = await readWorkbookCells(await readFile(args.oraclePath));
+            }
             if (args.useLlm) {
                 if (!args.model) {
                     throw new Error('model is required when useLlm is true');
@@ -176,9 +184,9 @@ export function apply(ctx) {
                     table = detected;
                 }
                 const advisor = createLlmRepairAdvisor(llmTextFromContext(ctx, args.provider ?? 'deepseek', args.model), table, exec.signal);
-                return await repairWorkbookFile(args.path, advisor, cells);
+                return await repairWorkbookFile(args.path, advisor, cells, oracleCells);
             }
-            return await repairWorkbookFile(args.path);
+            return await repairWorkbookFile(args.path, undefined, undefined, oracleCells);
         },
     }));
     ctx.tools.register(defineTool({

@@ -26,6 +26,7 @@ export interface BenchmarkTaskResult {
   task: string
   deterministic: RouteResult
   llm: RouteResult | null
+  llmError: string | null
   passAt1: boolean
 }
 
@@ -63,20 +64,25 @@ export async function runBenchmarkTask(
   }
 
   let llm: RouteResult | null = null
+  let llmError: string | null = null
   if (options.llm) {
     if (!task.table) {
       throw new Error(`task "${task.name}" needs a table schema for LLM repair`)
     }
     const advisor = createLlmRepairAdvisor(options.llm, task.table, options.signal)
-    const llmRepairs = await advisor(task.cells, before)
-    const covered = new Set(repairs.map((patch) => patch.id))
-    const extraLlmRepairs = llmRepairs.filter((patch) => !covered.has(patch.id))
-    const llmCells = extraLlmRepairs.length > 0 ? applyPatches(deterministicCells, extraLlmRepairs) : deterministicCells
-    llm = {
-      repairs,
-      llmRepairs: extraLlmRepairs,
-      finalCells: llmCells,
-      score: scoreWorkbookAgainstOracle(llmCells, task.oracleCells),
+    try {
+      const llmRepairs = await advisor(task.cells, before)
+      const covered = new Set(repairs.map((patch) => patch.id))
+      const extraLlmRepairs = llmRepairs.filter((patch) => !covered.has(patch.id))
+      const llmCells = extraLlmRepairs.length > 0 ? applyPatches(deterministicCells, extraLlmRepairs) : deterministicCells
+      llm = {
+        repairs,
+        llmRepairs: extraLlmRepairs,
+        finalCells: llmCells,
+        score: scoreWorkbookAgainstOracle(llmCells, task.oracleCells),
+      }
+    } catch (error) {
+      llmError = error instanceof Error ? error.message : String(error)
     }
   }
 
@@ -84,6 +90,7 @@ export async function runBenchmarkTask(
     task: task.name,
     deterministic,
     llm,
+    llmError,
     passAt1: deterministic.score.passes || (llm?.score.passes ?? false),
   }
 }

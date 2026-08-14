@@ -131,3 +131,60 @@ test('auto-detected table schema feeds the LLM repair route', async () => {
   assert.equal(repair.llmRepairs[0]!.newValue, '=B3-C3')
   assert.equal(repair.after.anomalies.length, 0)
 })
+
+test('generateRepairs fills an empty gap by cloning the adjacent formula', () => {
+  const cells = {
+    D2: '=B2-C2',
+    D3: '=B3-C3',
+    D5: '=B5-C5',
+    D6: '=B6-C6',
+  }
+  const repairs = generateRepairs(cells, validate(cells))
+  assert.deepEqual(repairs, [{
+    id: 'D4',
+    kind: 'formula',
+    oldValue: '',
+    newValue: '=B4-C4',
+  }])
+})
+
+test('empty-gap repair preserves sheet id casing', () => {
+  const cells = {
+    'Sales!D2': '=B2-C2',
+    'Sales!D3': '=B3-C3',
+    'Sales!D5': '=B5-C5',
+    'Sales!D6': '=B6-C6',
+  }
+  const repairs = generateRepairs(cells, validate(cells))
+  assert.equal(repairs.length, 1)
+  assert.equal(repairs[0]!.id, 'Sales!D4')
+  assert.equal(repairs[0]!.newValue, '=B4-C4')
+})
+
+test('repairWorkbookFile fills an empty gap on disk and re-validates clean', async () => {
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Sales')
+  sheet.getCell('D2').value = { formula: 'B2-C2', result: 40 }
+  sheet.getCell('D3').value = { formula: 'B3-C3', result: 80 }
+  sheet.getCell('D5').value = { formula: 'B5-C5', result: 160 }
+  sheet.getCell('D6').value = { formula: 'B6-C6', result: 170 }
+  const gapPath = fileURLToPath(new URL('../fixtures/empty-gap.xlsx', import.meta.url))
+  await writeFile(gapPath, await workbook.xlsx.writeBuffer())
+  const repair = await repairWorkbookFile(gapPath)
+  assert.equal(repair.repairs.length, 1)
+  assert.equal(repair.repairs[0]!.newValue, '=B4-C4')
+  assert.equal(repair.after.anomalies.filter((a) => a.kind === 'empty-gap').length, 0)
+})
+
+test('repairWorkbookFile scores the repaired workbook against an oracle', async () => {
+  await writeFixture()
+  const oracleCells = {
+    'Sales!D2': '=B2-C2',
+    'Sales!D3': '=B3-C3',
+    'Sales!D4': '=B4-C4',
+    'Sales!D5': '=B5-C5',
+  }
+  const repair = await repairWorkbookFile(fixturePath, undefined, undefined, oracleCells)
+  assert.equal(repair.oracleScore!.passes, true)
+  assert.equal(repair.oracleScore!.accuracy, 1)
+})

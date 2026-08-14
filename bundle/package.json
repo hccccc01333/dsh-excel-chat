@@ -1,10 +1,18 @@
 {
   "name": "dsh-excel-vera-plugin",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "VERA - Verified Excel Reasoning Agent dsh plugin: formula validation, IR compilation, repair, diff, and chart validation.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hccccc01333/dsh-excel-vera-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hccccc01333/dsh-excel-vera-plugin/issues"
+  },
+  "homepage": "https://github.com/hccccc01333/dsh-excel-vera-plugin",
   "files": [
     "dist",
     "cordis.patch.yml"

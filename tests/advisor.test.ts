@@ -14,10 +14,11 @@ const cells = {
 
 test('buildRepairPrompt includes the excerpt, anomalies, and table schema', () => {
   const result = validate(cells)
-  const prompt = buildRepairPrompt(cells, result.anomalies, table)
+  const prompt = buildRepairPrompt(cells, result.anomalies, table, result.columns)
   assert.match(prompt, /D3/)
   assert.match(prompt, /structure-mismatch/)
   assert.match(prompt, /Sheet1/)
+  assert.match(prompt, /SHEET1!D: =B2-C2/)
 })
 
 test('LLM advisor compiles IR repairs and the patched workbook re-validates clean', async () => {
@@ -93,5 +94,53 @@ test('LLM advisor resolves sheet-qualified cell ids from bare ids', async () => 
   const patches = await advisor(sheetCells, result)
   assert.equal(patches.length, 1)
   assert.equal(patches[0]!.id, 'Sheet1!D3')
+  assert.equal(patches[0]!.newValue, '=B3-C3')
+})
+
+test('aggregate SUM without a metric falls back to the table first column', async () => {
+  const aggregateCells = {
+    D2: '=SUM(Sheet1!$B:$B)',
+    D3: '=SUM(Sheet1!$B:$B)',
+    D4: '=B4-C4',
+    D5: '=SUM(Sheet1!$B:$B)',
+  }
+  const result = validate(aggregateCells)
+  const fakeLlm: LlmText = async () => JSON.stringify({
+    repairs: [{
+      id: 'D4',
+      baseCell: 'D4',
+      ir: { operation: 'aggregate', function: 'SUM', filters: [] },
+    }],
+  })
+  const advisor = createLlmRepairAdvisor(fakeLlm, table)
+  const patches = await advisor(aggregateCells, result)
+  assert.deepEqual(patches, [{
+    id: 'D4',
+    kind: 'formula',
+    oldValue: '=B4-C4',
+    newValue: '=SUM(Sheet1!$B:$B)',
+  }])
+})
+
+test('malformed IR items are skipped without failing the run', async () => {
+  const result = validate(cells)
+  const fakeLlm: LlmText = async () => JSON.stringify({
+    repairs: [
+      { id: 'D3', baseCell: 'D3', ir: { operation: 'aggregate', function: 'SUM' } },
+      {
+        id: 'D3',
+        baseCell: 'D3',
+        ir: {
+          operation: 'binary',
+          left: { kind: 'column', column: 'revenue' },
+          right: { kind: 'column', column: 'cost' },
+          operator: '-',
+        },
+      },
+    ],
+  })
+  const advisor = createLlmRepairAdvisor(fakeLlm, table)
+  const patches = await advisor(cells, result)
+  assert.equal(patches.length, 1)
   assert.equal(patches[0]!.newValue, '=B3-C3')
 })
