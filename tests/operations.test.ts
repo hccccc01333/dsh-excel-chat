@@ -774,6 +774,34 @@ test('definedName registers a named range on the workbook', async () => {
   assert.ok(names.some((entry) => entry.name === 'SalesRange' && entry.ranges.some((range) => range.includes('$A$1:$D$10'))))
 })
 
+test('importCsv and exportCsv round-trip with typed values and formula-injection guard', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '名称'
+    sheet.getCell('B1').value = '金额'
+    sheet.getCell('A2').value = '苹果'
+    sheet.getCell('B2').value = 100
+    sheet.getCell('A3').value = '=注入'
+  })
+  const dir = join(join(path, '..'))
+  const csvPath = join(dir, 'out.csv')
+  await applyOperationsToWorkbook(path, [
+    { op: 'exportCsv', file: csvPath, sheet: 'Sheet1' },
+  ], join(dir, 'exported.xlsx'))
+  const csv = await readFile(csvPath, 'utf8')
+  assert.ok(csv.includes('名称,金额'))
+  assert.ok(csv.includes('苹果,100'))
+  assert.ok(csv.includes("'=注入"))
+
+  const importOut = join(dir, 'imported.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'importCsv', file: csvPath, sheet: '导入' },
+  ], importOut)
+  const cells = await readWorkbookCells(await readFile(importOut))
+  assert.equal(cells['导入!A1'], '名称')
+  assert.equal(cells['导入!B2'], '100')
+})
+
 test('mailMerge expands a template with placeholders per data record', async () => {
   const path = await makeWorkbook((workbook) => {
     const template = workbook.addWorksheet('Sheet1')

@@ -94,6 +94,19 @@ export type ExcelOperation = {
     name: string;
     color: string;
 } | {
+    op: 'importCsv';
+    file: string;
+    sheet?: string;
+    delimiter?: string;
+    firstRowHeaders?: boolean;
+} | {
+    op: 'exportCsv';
+    file: string;
+    sheet?: string;
+    range?: string;
+    delimiter?: string;
+    guardFormulas?: boolean;
+} | {
     op: 'sortRange';
     range: string;
     keys: Array<{

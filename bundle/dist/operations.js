@@ -1,9 +1,10 @@
 import ExcelJS from 'exceljs';
 import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula, } from './formula.js';
+import { guardFormulaInjection, parseCsv, stringifyCsv } from './csv.js';
 import { validate } from './validator.js';
 import { readWorkbookCells, stripPivotTableParts } from './workbook.js';
 import { diffCellMaps, writePatchLog } from './diff.js';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 const RANGE_LINE = /^([A-Za-z]{1,3})(\d+):([A-Za-z]{1,3})(\d+)$/;
 export function findSheet(workbook, name) {
     const normalized = normalizeSheet(name);
@@ -153,7 +154,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(stripPivotTableParts(await readFile(inputPath)));
     const warnings = [];
-    operations.forEach((operation, index) => {
+    for (const [index, operation] of operations.entries()) {
         switch (operation.op) {
             case 'set': {
                 for (const [id, content] of Object.entries(operation.cells)) {
@@ -311,6 +312,14 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 sheet.properties.tabColor = { argb: normalizeColor(operation.color) };
                 break;
             }
+            case 'importCsv': {
+                await importCsv(workbook, operation);
+                break;
+            }
+            case 'exportCsv': {
+                await exportCsv(workbook, operation);
+                break;
+            }
             case 'sortRange': {
                 sortRange(workbook, operation.range, operation.keys, operation.headerRows ?? 0);
                 warnings.push({ op: index, message: 'sortRange moved cell content; formulas outside the range still point to their original addresses' });
@@ -396,7 +405,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 break;
             }
         }
-    });
+    }
     await workbook.xlsx.writeFile(outputPath);
     return { warnings };
 }
@@ -1325,6 +1334,49 @@ function applyPageSetup(workbook, options) {
         pageSetup.horizontalCentered = options.centerHorizontally;
     if (options.centerVertically !== undefined)
         pageSetup.verticalCentered = options.centerVertically;
+}
+async function importCsv(workbook, options) {
+    const text = await readFile(options.file, 'utf8');
+    const rows = parseCsv(text, options.delimiter ?? ',');
+    const sheetName = options.sheet ?? 'CSV';
+    let sheet = findSheet(workbook, sheetName);
+    if (!sheet)
+        sheet = workbook.addWorksheet(sheetName);
+    rows.forEach((row, rowIndex) => {
+        row.forEach((value, colIndex) => {
+            writeContent(sheet.getCell(`${numberToColumn(colIndex + 1)}${rowIndex + 1}`), value);
+        });
+    });
+}
+async function exportCsv(workbook, options) {
+    const sheet = findSheet(workbook, options.sheet ?? workbook.worksheets[0].name);
+    if (!sheet)
+        throw new Error(`sheet not found: ${options.sheet}`);
+    const parsed = options.range ? parseRange(workbook, `${sheet.name}!${options.range}`) : null;
+    const startCol = parsed?.startCol ?? 1;
+    const startRow = parsed?.startRow ?? 1;
+    const endCol = parsed?.endCol ?? sheet.columnCount;
+    const endRow = parsed?.endRow ?? sheet.rowCount;
+    const guard = options.guardFormulas ?? true;
+    const rows = [];
+    for (let rowIndex = startRow; rowIndex <= endRow; rowIndex++) {
+        const row = [];
+        for (let colIndex = startCol; colIndex <= endCol; colIndex++) {
+            const cell = sheet.getCell(`${numberToColumn(colIndex)}${rowIndex}`);
+            if (cell.formula) {
+                row.push(`=${cell.formula}`);
+            }
+            else {
+                const raw = cell.value;
+                let text = raw === null || raw === undefined ? '' : String(raw);
+                if (guard && typeof raw === 'string')
+                    text = guardFormulaInjection(text);
+                row.push(text);
+            }
+        }
+        rows.push(row);
+    }
+    await writeFile(options.file, stringifyCsv(rows, options.delimiter ?? ','), 'utf8');
 }
 function normalizeColor(color) {
     const hex = color.replace('#', '').trim();

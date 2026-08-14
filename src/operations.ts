@@ -7,10 +7,11 @@ import {
   parseFormula,
   type RefPoint,
 } from './formula.ts'
+import { guardFormulaInjection, parseCsv, stringifyCsv } from './csv.ts'
 import { validate, type ValidationResult } from './validator.ts'
 import { readWorkbookCells, stripPivotTableParts } from './workbook.ts'
 import { diffCellMaps, writePatchLog, type PatchLog } from './diff.ts'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 
 export type ExcelOperation =
   | { op: 'set'; cells: Record<string, string> }
@@ -35,6 +36,8 @@ export type ExcelOperation =
   | { op: 'duplicateSheet'; name: string; newName: string }
   | { op: 'hideSheet'; name: string; hidden?: boolean }
   | { op: 'setTabColor'; name: string; color: string }
+  | { op: 'importCsv'; file: string; sheet?: string; delimiter?: string; firstRowHeaders?: boolean }
+  | { op: 'exportCsv'; file: string; sheet?: string; range?: string; delimiter?: string; guardFormulas?: boolean }
   | { op: 'sortRange'; range: string; keys: Array<{ column: string; direction?: 'asc' | 'desc' }>; headerRows?: number }
   | {
       op: 'report'
@@ -414,7 +417,7 @@ export async function applyOperationsToWorkbook(
   await workbook.xlsx.load(stripPivotTableParts(await readFile(inputPath)) as any)
   const warnings: OperationWarning[] = []
 
-  operations.forEach((operation, index) => {
+  for (const [index, operation] of operations.entries()) {
     switch (operation.op) {
       case 'set': {
         for (const [id, content] of Object.entries(operation.cells)) {
@@ -556,6 +559,14 @@ export async function applyOperationsToWorkbook(
         sheet.properties.tabColor = { argb: normalizeColor(operation.color) }
         break
       }
+      case 'importCsv': {
+        await importCsv(workbook, operation)
+        break
+      }
+      case 'exportCsv': {
+        await exportCsv(workbook, operation)
+        break
+      }
       case 'sortRange': {
         sortRange(workbook, operation.range, operation.keys, operation.headerRows ?? 0)
         warnings.push({ op: index, message: 'sortRange moved cell content; formulas outside the range still point to their original addresses' })
@@ -639,7 +650,7 @@ export async function applyOperationsToWorkbook(
         break
       }
     }
-  })
+  }
 
   await workbook.xlsx.writeFile(outputPath)
   return { warnings }
@@ -1632,6 +1643,53 @@ function applyPageSetup(
   if (options.margins) pageSetup.margins = { ...pageSetup.margins, ...options.margins }
   if (options.centerHorizontally !== undefined) pageSetup.horizontalCentered = options.centerHorizontally
   if (options.centerVertically !== undefined) pageSetup.verticalCentered = options.centerVertically
+}
+
+async function importCsv(
+  workbook: ExcelJS.Workbook,
+  options: Extract<ExcelOperation, { op: 'importCsv' }>,
+): Promise<void> {
+  const text = await readFile(options.file, 'utf8')
+  const rows = parseCsv(text, options.delimiter ?? ',')
+  const sheetName = options.sheet ?? 'CSV'
+  let sheet = findSheet(workbook, sheetName)
+  if (!sheet) sheet = workbook.addWorksheet(sheetName)
+  rows.forEach((row, rowIndex) => {
+    row.forEach((value, colIndex) => {
+      writeContent(sheet!.getCell(`${numberToColumn(colIndex + 1)}${rowIndex + 1}`), value)
+    })
+  })
+}
+
+async function exportCsv(
+  workbook: ExcelJS.Workbook,
+  options: Extract<ExcelOperation, { op: 'exportCsv' }>,
+): Promise<void> {
+  const sheet = findSheet(workbook, options.sheet ?? workbook.worksheets[0]!.name)
+  if (!sheet) throw new Error(`sheet not found: ${options.sheet}`)
+  const parsed = options.range ? parseRange(workbook, `${sheet.name}!${options.range}`) : null
+  const startCol = parsed?.startCol ?? 1
+  const startRow = parsed?.startRow ?? 1
+  const endCol = parsed?.endCol ?? sheet.columnCount
+  const endRow = parsed?.endRow ?? sheet.rowCount
+  const guard = options.guardFormulas ?? true
+  const rows: string[][] = []
+  for (let rowIndex = startRow; rowIndex <= endRow; rowIndex++) {
+    const row: string[] = []
+    for (let colIndex = startCol; colIndex <= endCol; colIndex++) {
+      const cell = sheet.getCell(`${numberToColumn(colIndex)}${rowIndex}`)
+      if (cell.formula) {
+        row.push(`=${cell.formula}`)
+      } else {
+        const raw = cell.value
+        let text = raw === null || raw === undefined ? '' : String(raw)
+        if (guard && typeof raw === 'string') text = guardFormulaInjection(text)
+        row.push(text)
+      }
+    }
+    rows.push(row)
+  }
+  await writeFile(options.file, stringifyCsv(rows, options.delimiter ?? ','), 'utf8')
 }
 
 function normalizeColor(color: string): string {
