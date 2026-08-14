@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.16.0 — 2026-08-14
+
+- `excel_operate` 新增报表骨架能力：
+  - `autoFilter`：一键给表头区域加筛选下拉。
+  - `addTable`：把区域转成结构化表格（Ctrl+T 效果），自动读取表头与行数据，
+    支持斑马纹/表头行/汇总行。
+- 错误值体检：`excel_validate_formulas` 新增 `error-value` 检测，扫描
+  `#REF!` / `#DIV/0!` / `#VALUE!` / `#NAME?` / `#N/A` / `#NULL!` / `#NUM!`。
+- 测试规模 112 → 115。
+
 ## v0.15.0 — 2026-08-14
 
 - `excel_operate` 继续扩展：

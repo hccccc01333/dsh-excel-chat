@@ -323,6 +323,18 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 applyConditionalFormatting(workbook, operation.range, operation.rules);
                 break;
             }
+            case 'autoFilter': {
+                const parsed = parseRange(workbook, operation.range);
+                parsed.sheet.autoFilter = {
+                    from: { row: parsed.startRow, column: parsed.startCol },
+                    to: { row: parsed.endRow, column: parsed.endCol },
+                };
+                break;
+            }
+            case 'addTable': {
+                addTable(workbook, operation);
+                break;
+            }
         }
     });
     await workbook.xlsx.writeFile(outputPath);
@@ -595,6 +607,39 @@ function excelStyleToWorkbookStyle(style) {
         result.fill = { type: 'pattern', pattern: 'solid', bgColor: { argb: normalizeColor(style.fill) } };
     }
     return result;
+}
+function addTable(workbook, options) {
+    const parsed = parseRange(workbook, options.range);
+    const ref = `${numberToColumn(parsed.startCol)}${parsed.startRow}:${numberToColumn(parsed.endCol)}${parsed.endRow}`;
+    const headerRow = options.headerRow ?? true;
+    const header = headerRow ? parsed.startRow : null;
+    const dataStart = headerRow ? parsed.startRow + 1 : parsed.startRow;
+    const columns = [];
+    for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+        const letter = numberToColumn(col);
+        const nameCell = header ? parsed.sheet.getCell(`${letter}${header}`).value : null;
+        columns.push({ name: nameCell === null || nameCell === undefined ? `Column${letter}` : String(nameCell) });
+    }
+    const rows = [];
+    for (let row = dataStart; row <= parsed.endRow; row++) {
+        const values = [];
+        for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+            values.push(parsed.sheet.getCell(`${numberToColumn(col)}${row}`).value);
+        }
+        rows.push(values);
+    }
+    parsed.sheet.addTable({
+        name: options.name,
+        ref,
+        headerRow,
+        totalsRow: options.totalsRow ?? false,
+        columns,
+        rows,
+        style: {
+            showRowStripes: options.showRowStripes ?? true,
+            showColumnStripes: options.showColumnStripes ?? false,
+        },
+    });
 }
 function copyRange(workbook, sourceRange, targetCell, move) {
     const parsed = parseRange(workbook, sourceRange);

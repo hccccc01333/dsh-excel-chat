@@ -1,4 +1,4 @@
-export type PatternAnomalyKind = 'reference-offset' | 'structure-mismatch' | 'hardcode-break' | 'empty-gap' | 'circular-reference';
+export type PatternAnomalyKind = 'reference-offset' | 'structure-mismatch' | 'hardcode-break' | 'empty-gap' | 'circular-reference' | 'error-value';
 export interface PatternAnomaly {
     kind: PatternAnomalyKind;
     cell: string;
@@ -26,4 +26,10 @@ export interface ColumnPatternReport {
 export declare function detectPatternAnomalies(cells: Record<string, string>): ColumnPatternReport[];
 export declare function detectHardcodeBreaks(cells: Record<string, string>): PatternAnomaly[];
 export declare function detectEmptyGaps(cells: Record<string, string>): PatternAnomaly[];
+/**
+ * Detect cells whose content carries an Excel error value such as #REF! or
+ * #DIV/0! (both literal error constants and formulas whose cached result is
+ * an error token).
+ */
+export declare function detectErrorValues(cells: Record<string, string>): PatternAnomaly[];
 //# sourceMappingURL=patterns.d.ts.map

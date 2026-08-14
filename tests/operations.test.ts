@@ -445,6 +445,52 @@ test('conditionalFormatting adds a cellIs rule with a red fill', async () => {
   assert.equal(entry!.rules[0]!.style?.fill?.bgColor?.argb, 'FFFF0000')
 })
 
+test('autoFilter adds filter dropdowns to the header range', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'Name'
+    sheet.getCell('B1').value = 'Score'
+    sheet.getCell('A2').value = 'Alice'
+    sheet.getCell('B2').value = 90
+  })
+  const outPath = join(join(path, '..'), 'filtered.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'autoFilter', range: 'Sheet1!A1:B2' },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const filter = workbook.getWorksheet('Sheet1')!.autoFilter
+  assert.equal(filter, 'A1:B2')
+})
+
+test('addTable registers a structured table with striped rows', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'Name'
+    sheet.getCell('B1').value = 'Score'
+    sheet.getCell('A2').value = 'Alice'
+    sheet.getCell('B2').value = 90
+    sheet.getCell('A3').value = 'Bob'
+    sheet.getCell('B3').value = 70
+  })
+  const outPath = join(join(path, '..'), 'table.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'addTable',
+    name: 'SalesTable',
+    range: 'Sheet1!A1:B3',
+    showRowStripes: true,
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const tables = Object.values(workbook.getWorksheet('Sheet1')!.tables) as Array<{
+    name: string
+    model: { tableRef: string }
+  }>
+  assert.equal(tables.length, 1)
+  assert.equal(tables[0]!.name, 'SalesTable')
+  assert.equal(tables[0]!.model.tableRef, 'A1:B3')
+})
+
 test('operateWorkbookFile returns post-operation validation and flags broken patterns', async () => {
   const path = await makeWorkbook(formulaFixture())
   const outPath = join(join(path, '..'), 'edited.xlsx')

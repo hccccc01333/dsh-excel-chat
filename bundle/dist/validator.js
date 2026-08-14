@@ -1,5 +1,5 @@
 import { buildDependencyGraph } from './graph.js';
-import { detectEmptyGaps, detectHardcodeBreaks, detectPatternAnomalies, } from './patterns.js';
+import { detectEmptyGaps, detectErrorValues, detectHardcodeBreaks, detectPatternAnomalies, } from './patterns.js';
 export function validate(cells) {
     const formulaEntries = [];
     const errors = [];
@@ -22,6 +22,7 @@ export function validate(cells) {
         ...columns.flatMap((column) => column.anomalies),
         ...detectHardcodeBreaks(cells),
         ...detectEmptyGaps(cells),
+        ...detectErrorValues(cells),
     ];
     for (const cycle of dependencyGraph.cycles) {
         anomalies.push({

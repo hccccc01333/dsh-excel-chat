@@ -6,6 +6,7 @@ export type PatternAnomalyKind =
   | 'hardcode-break'
   | 'empty-gap'
   | 'circular-reference'
+  | 'error-value'
 
 export interface PatternAnomaly {
   kind: PatternAnomalyKind
@@ -251,6 +252,33 @@ export function detectEmptyGaps(cells: Record<string, string>): PatternAnomaly[]
           })
         }
       }
+    }
+  }
+  return anomalies
+}
+
+const ERROR_TOKEN = /#(?:REF|DIV\/0|VALUE|NAME\?|N\/A|NULL|NUM)!/g
+
+/**
+ * Detect cells whose content carries an Excel error value such as #REF! or
+ * #DIV/0! (both literal error constants and formulas whose cached result is
+ * an error token).
+ */
+export function detectErrorValues(cells: Record<string, string>): PatternAnomaly[] {
+  const anomalies: PatternAnomaly[] = []
+  for (const [id, content] of Object.entries(cells)) {
+    const trimmed = content.trim()
+    if (!trimmed) continue
+    const match = trimmed.match(ERROR_TOKEN)
+    if (match) {
+      anomalies.push({
+        kind: 'error-value',
+        cell: id,
+        message: `cell contains Excel error ${match[0]}`,
+        expected: 'valid value',
+        actual: trimmed.slice(0, 200),
+        confidence: 1,
+      })
     }
   }
   return anomalies

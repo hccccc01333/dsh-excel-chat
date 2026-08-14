@@ -61,6 +61,16 @@ export type ExcelOperation =
         style?: ExcelStyle
       }>
     }
+  | { op: 'autoFilter'; range: string }
+  | {
+      op: 'addTable'
+      name: string
+      range: string
+      headerRow?: boolean
+      totalsRow?: boolean
+      showRowStripes?: boolean
+      showColumnStripes?: boolean
+    }
 
 export interface ExcelStyle {
   bold?: boolean
@@ -457,6 +467,18 @@ export async function applyOperationsToWorkbook(
         applyConditionalFormatting(workbook, operation.range, operation.rules)
         break
       }
+      case 'autoFilter': {
+        const parsed = parseRange(workbook, operation.range)
+        parsed.sheet.autoFilter = {
+          from: { row: parsed.startRow, column: parsed.startCol },
+          to: { row: parsed.endRow, column: parsed.endCol },
+        }
+        break
+      }
+      case 'addTable': {
+        addTable(workbook, operation)
+        break
+      }
     }
   })
 
@@ -753,6 +775,43 @@ function excelStyleToWorkbookStyle(style: ExcelStyle): ExcelJS.Style {
     result.fill = { type: 'pattern', pattern: 'solid', bgColor: { argb: normalizeColor(style.fill) } }
   }
   return result as ExcelJS.Style
+}
+
+function addTable(
+  workbook: ExcelJS.Workbook,
+  options: Extract<ExcelOperation, { op: 'addTable' }>,
+): void {
+  const parsed = parseRange(workbook, options.range)
+  const ref = `${numberToColumn(parsed.startCol)}${parsed.startRow}:${numberToColumn(parsed.endCol)}${parsed.endRow}`
+  const headerRow = options.headerRow ?? true
+  const header = headerRow ? parsed.startRow : null
+  const dataStart = headerRow ? parsed.startRow + 1 : parsed.startRow
+  const columns: Array<{ name: string }> = []
+  for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+    const letter = numberToColumn(col)
+    const nameCell = header ? parsed.sheet.getCell(`${letter}${header}`).value : null
+    columns.push({ name: nameCell === null || nameCell === undefined ? `Column${letter}` : String(nameCell) })
+  }
+  const rows: Array<Array<ExcelJS.CellValue>> = []
+  for (let row = dataStart; row <= parsed.endRow; row++) {
+    const values: ExcelJS.CellValue[] = []
+    for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+      values.push(parsed.sheet.getCell(`${numberToColumn(col)}${row}`).value)
+    }
+    rows.push(values)
+  }
+  parsed.sheet.addTable({
+    name: options.name,
+    ref,
+    headerRow,
+    totalsRow: options.totalsRow ?? false,
+    columns,
+    rows,
+    style: {
+      showRowStripes: options.showRowStripes ?? true,
+      showColumnStripes: options.showColumnStripes ?? false,
+    },
+  })
 }
 
 function copyRange(workbook: ExcelJS.Workbook, sourceRange: string, targetCell: string, move: boolean): void {

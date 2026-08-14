@@ -125,6 +125,17 @@ export type ExcelOperation = {
         formula2?: string | number;
         style?: ExcelStyle;
     }>;
+} | {
+    op: 'autoFilter';
+    range: string;
+} | {
+    op: 'addTable';
+    name: string;
+    range: string;
+    headerRow?: boolean;
+    totalsRow?: boolean;
+    showRowStripes?: boolean;
+    showColumnStripes?: boolean;
 };
 export interface ExcelStyle {
     bold?: boolean;

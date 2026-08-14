@@ -129,6 +129,20 @@ test('pattern validator works across a sheet-qualified column', () => {
   assert.ok(result.anomalies.some((anomaly) => anomaly.kind === 'reference-offset' && anomaly.cell === 'Sheet1!D4'))
 })
 
+test('detects Excel error values like #REF! and #DIV/0!', () => {
+  const result = validate({
+    A1: '=#REF!',
+    A2: '=B2/C2',
+    B2: '10',
+    C2: '0',
+    A3: '{"error":"#DIV/0!"}',
+  })
+  const errors = result.anomalies.filter((anomaly) => anomaly.kind === 'error-value')
+  assert.equal(errors.length, 2)
+  assert.ok(errors.some((anomaly) => anomaly.cell === 'A1'))
+  assert.ok(errors.some((anomaly) => anomaly.cell === 'A3'))
+})
+
 test('shiftFormulaRow shifts relative rows and preserves absolute rows', () => {
   assert.equal(shiftFormulaRow('=B3-C3', 1), '=B4-C4')
   assert.equal(shiftFormulaRow('=SUM(B3:C3)', 1), '=SUM(B4:C4)')

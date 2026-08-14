@@ -1,6 +1,7 @@
 import { buildDependencyGraph, type DependencyGraph } from './graph.ts'
 import {
   detectEmptyGaps,
+  detectErrorValues,
   detectHardcodeBreaks,
   detectPatternAnomalies,
   type ColumnPatternReport,
@@ -38,6 +39,7 @@ export function validate(cells: Record<string, string>): ValidationResult {
     ...columns.flatMap((column) => column.anomalies),
     ...detectHardcodeBreaks(cells),
     ...detectEmptyGaps(cells),
+    ...detectErrorValues(cells),
   ]
   for (const cycle of dependencyGraph.cycles) {
     anomalies.push({
