@@ -4,6 +4,8 @@
 [![GitHub release](https://img.shields.io/github/v/release/hccccc01333/dsh-excel-chat)](https://github.com/hccccc01333/dsh-excel-chat/releases)
 [![license](https://img.shields.io/github/license/hccccc01333/dsh-excel-chat)](LICENSE)
 
+![dsh-excel-chat banner](assets/banner.png)
+
 在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 里用自然语言
 操作 Excel：说一句“给 D 列加毛利公式、表头加粗、冻结首行、加筛选”，agent 会自动
 调用 `excel_operate` 完成；每次编辑后自动体检公式有没有被弄坏，也可以让它
@@ -22,6 +24,8 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 > 表头加粗填浅灰，冻结第一行，加筛选。
 
 > 检查 sales.xlsx 里 D 列公式是不是每行都是“收入-成本”，不对的帮我修掉。
+
+完整使用指南见 [docs/usage.md](docs/usage.md)。
 
 ## 给使用者：一分钟上手
 

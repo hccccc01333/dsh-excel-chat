@@ -1,0 +1,13 @@
+{
+  "title": "dsh-excel-chat",
+  "tagline": "和 Excel 对话，把活干完",
+  "subtitle": "Talk to Excel in DeepSeek Harness",
+  "chips": [
+    "公式校验与修复",
+    "数据透视表",
+    "图表制作",
+    "分类汇总",
+    "邮件合并",
+    "操作审计与撤销"
+  ]
+}
