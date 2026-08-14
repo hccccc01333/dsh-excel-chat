@@ -21,7 +21,7 @@ test('npm pack dry-run includes dist, patch, README, and LICENSE', async () => {
     files: Array<{ path: string }>
   }>
   const paths = result.files.map((file) => file.path)
-  for (const expected of ['dist/index.js', 'cordis.patch.yml', 'README.md', 'LICENSE']) {
+  for (const expected of ['dist/index.js', 'dist/index.d.ts', 'cordis.patch.yml', 'README.md', 'LICENSE']) {
     assert.ok(paths.includes(expected), `tarball missing ${expected}`)
   }
   assert.equal(result.name, manifest.name)

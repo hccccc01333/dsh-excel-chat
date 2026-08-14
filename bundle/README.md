@@ -2,9 +2,10 @@
 
 VERA（Verified Excel Reasoning Agent）的 dsh 插件 bundle。
 
-安装：
+安装（从 npm 或本地 bundle）：
 
 ```sh
+dsh plugin --profile demo add dsh-excel-vera-plugin
 dsh plugin --profile demo add ./bundle
 ```
 

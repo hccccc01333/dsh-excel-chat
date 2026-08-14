@@ -1,0 +1,133 @@
+# Publish dsh-excel-vera-plugin to npm and attach the tarball to a GitHub Release.
+#
+# One-time setup (repo owner):
+#   1. npm account → Access Tokens → generate an "Automation" token
+#      (automation tokens bypass 2FA prompts during CI).
+#   2. GitHub repo → Settings → Secrets and variables → Actions →
+#      New repository secret: NPM_TOKEN = the token from step 1.
+#
+# Trigger a release:
+#   git tag v0.12.0 && git push origin v0.12.0
+# or run the workflow manually with "publish" checked (from a v* tag).
+
+name: Publish to npm
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to npm (must run from a v* tag). Leave unchecked for a dry-run pack.'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  pack:
+    name: Test, build and pack tarball
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install (immutable)
+        run: npm ci
+
+      - name: Verify release version
+        run: |
+          pkg_version=$(node -p "require('./bundle/package.json').version")
+          echo "bundle version: $pkg_version"
+          if [[ "$GITHUB_REF_NAME" == v* ]]; then
+            tag_version="${GITHUB_REF_NAME#v}"
+            if [[ "$tag_version" != "$pkg_version" ]]; then
+              echo "::error::tag v$tag_version does not match bundle version $pkg_version" >&2
+              exit 1
+            fi
+          fi
+          echo "PKG_VERSION=$pkg_version" >> "$GITHUB_ENV"
+
+      - name: Test
+        run: node --test tests/*.test.ts
+
+      - name: Build bundle
+        run: npm run build:bundle
+
+      - name: Pack tarball
+        run: |
+          mkdir -p dist
+          cd bundle
+          npm pack --pack-destination ../dist
+
+      - name: Show tarball contents
+        run: tar -tzf dist/*.tgz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-tarball
+          path: dist/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to npm
+    if: github.event_name == 'push' || inputs.publish
+    needs: pack
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: Release-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: https://registry.npmjs.org
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-tarball
+          path: dist
+
+      - name: Publish tarball
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish ./dist/*.tgz --provenance --access public
+
+  release:
+    name: GitHub Release with tarball
+    if: github.event_name == 'push'
+    needs: pack
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-tarball
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tgz
+          generate_release_notes: true

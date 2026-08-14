@@ -1,10 +1,34 @@
 # VERA — Verified Excel Reasoning Agent
 
+[![npm version](https://img.shields.io/npm/v/dsh-excel-vera-plugin)](https://www.npmjs.com/package/dsh-excel-vera-plugin)
+[![GitHub release](https://img.shields.io/github/v/release/hccccc01333/dsh-excel-vera-plugin)](https://github.com/hccccc01333/dsh-excel-vera-plugin/releases)
+[![license](https://img.shields.io/github/license/hccccc01333/dsh-excel-vera-plugin)](LICENSE)
+
 独立项目目录（`D:\vera`），与 deepseek-harness 仓库工作区分离，通过已发布的
 `@deepseek-ai/dsh-*` npm 包运行。当前模块：
 
 - P0 Formula Pattern Validator — 确定性静默错误检测，无 LLM。
 - Formula IR + Compiler — 语义公式中间表示 → 确定性 Excel 公式。
+- Oracle 判分 + Pass@1 Benchmark — 修复结果与 ground truth 逐格对比。
+
+## 安装
+
+```sh
+dsh plugin --profile demo add dsh-excel-vera-plugin   # 从 npm 安装（发布后可用）
+dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
+```
+
+## 工具
+
+| 工具 | 作用 |
+|---|---|
+| `excel_validate_formulas` | 静默公式错误检测：列 pattern 偏移、结构不匹配、hardcode、空行、循环引用 |
+| `excel_compile_formula` | Formula IR（binary / ratio / aggregate）→ 确定性 Excel 公式 |
+| `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复（`useLlm` / `autoTable` / `oraclePath`），输出 `.repaired.xlsx` 并复验 |
+| `excel_diff_workbook` | 两个 workbook 的单元格级 diff |
+| `excel_validate_charts` | 图表结构校验：类型、系列、缺失单元格、二维范围、日期排序 |
+| `excel_validate_charts_visual` | Excel 导出 PNG + 视觉 LLM 评审 |
+| `excel_export_charts` | 用本地 Excel 把图表导出为 PNG（Windows） |
 
 ## Modules
 
@@ -79,11 +103,20 @@ npm run build:bundle
 dsh plugin --profile demo add ./bundle
 ```
 
-发布 bundle（可选）：
+发布 bundle（可选，本地打包）：
 
 ```sh
 cd bundle && npm pack
 ```
+
+自动发布（GitHub Actions，需在仓库配置 `NPM_TOKEN` 自动化 token）：
+
+```sh
+git tag v0.12.0 && git push origin v0.12.0
+```
+
+CI 会执行测试、构建、`npm pack` 校验 tag 与版本一致、发布 npm，并在 GitHub
+Release 上附带 tarball。
 
 通过真实执行管线调用工具：
 

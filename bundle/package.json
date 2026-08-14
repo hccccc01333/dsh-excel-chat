@@ -1,10 +1,19 @@
 {
   "name": "dsh-excel-vera-plugin",
-  "version": "0.11.0",
-  "description": "VERA - Verified Excel Reasoning Agent dsh plugin: formula validation, IR compilation, repair, diff, and chart validation.",
+  "version": "0.12.0",
+  "description": "VERA - Verified Excel Reasoning Agent dsh plugin: silent formula-error detection, semantic Formula IR compilation, deterministic + LLM repair, oracle scoring, Pass@1 benchmark, and chart validation.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hccccc01333/dsh-excel-vera-plugin.git"
@@ -15,7 +24,9 @@
   "homepage": "https://github.com/hccccc01333/dsh-excel-vera-plugin",
   "files": [
     "dist",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
   ],
   "dsh": {
     "bundle": {
@@ -24,10 +35,43 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": "^22.19 || >=24"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-attachment": "^0.0.1-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.0.1-rc.1",
+    "@deepseek-ai/dsh-system-prompt": "^0.0.1-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1",
+    "exceljs": "^4.4.0",
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
     "typescript": "^5.7.0"
-  }
+  },
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "excel",
+    "spreadsheet",
+    "formula",
+    "verification",
+    "silent-errors",
+    "xlsx",
+    "chart",
+    "benchmark",
+    "agent"
+  ]
 }

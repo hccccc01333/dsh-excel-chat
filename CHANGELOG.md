@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.12.0 — 2026-08-14
+
+- 包装对齐社区 dsh-plugin 最佳实践：npm 元数据补全（`exports` / `types` /
+  `engines` / `keywords` / `peerDependencies` / `publishConfig` /
+  `prepublishOnly`），bundle 构建生成 `dist/index.d.ts` 类型声明。
+- 自动发布流水线：`.github/workflows/publish.yml` 在 `v*` tag 推送时执行
+  测试 → 构建 → 打包（校验 tag 与版本一致）→ npm 发布（`NPM_TOKEN`
+  自动化 token，绕过 2FA）→ 创建 GitHub Release 并附带 tarball。
+- GitHub 仓库添加 `dsh-plugin`、`deepseek-harness` 等主题标签，进入
+  [dsh-plugin topic](https://github.com/topics/dsh-plugin) 生态。
+- README 补全：安装方式、7 个工具表、npm/Release 徽章、CI 发布说明。
+- 打包测试新增断言：tarball 必须包含类型声明与 `cordis.patch.yml` 导出。
+
 ## v0.11.0 — 2026-08-14
 
 - 空行确定性修复：`empty-gap` 自动克隆相邻公式填充缺口，`shiftFormulaRow`
