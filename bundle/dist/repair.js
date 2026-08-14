@@ -139,7 +139,7 @@ function rebuildRangeText(rangeText, ref, base, cellAnomalies, refIndex) {
         return null;
     return `${newStart}:${newEnd}`;
 }
-export async function repairWorkbookFile(path, llmAdvisor, cells, oracleCells) {
+export async function repairWorkbookFile(path, llmAdvisor, cells, oracleCells, outPath) {
     const cellMap = cells ?? (await readWorkbookCells(await readFile(path)));
     const before = validate(cellMap);
     const repairs = generateRepairs(cellMap, before);
@@ -147,7 +147,7 @@ export async function repairWorkbookFile(path, llmAdvisor, cells, oracleCells) {
     const covered = new Set(repairs.map((patch) => patch.id));
     const extraLlmRepairs = llmRepairs.filter((patch) => !covered.has(patch.id));
     const allRepairs = [...repairs, ...extraLlmRepairs];
-    const repairedPath = path.replace(/\.xlsx$/i, '.repaired.xlsx');
+    const repairedPath = outPath ?? path.replace(/\.xlsx$/i, '.repaired.xlsx');
     if (allRepairs.length > 0) {
         await applyPatchesToWorkbook(path, allRepairs, repairedPath);
     }

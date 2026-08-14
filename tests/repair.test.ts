@@ -188,3 +188,11 @@ test('repairWorkbookFile scores the repaired workbook against an oracle', async 
   assert.equal(repair.oracleScore!.passes, true)
   assert.equal(repair.oracleScore!.accuracy, 1)
 })
+
+test('repairWorkbookFile honors a custom outPath', async () => {
+  await writeFixture()
+  const custom = fileURLToPath(new URL('../fixtures/custom-repaired.xlsx', import.meta.url))
+  const repair = await repairWorkbookFile(fixturePath, undefined, undefined, undefined, custom)
+  assert.equal(repair.repairedPath, custom)
+  assert.ok((await readFile(custom)).length > 0)
+})

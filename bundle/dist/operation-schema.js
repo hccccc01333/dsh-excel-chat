@@ -1,0 +1,186 @@
+/**
+ * Strict dsh tool-DSL schema for excel_operate operations. Each operation is a
+ * discriminated union on `op`, so the model knows the exact fields to emit
+ * instead of guessing from prose.
+ */
+const text = (description, required = false) => ({ type: 'string', description, ...(required ? { required: true } : {}) });
+const num = (description, required = false) => ({ type: 'number', description, ...(required ? { required: true } : {}) });
+const bool = (description) => ({ type: 'boolean', description });
+const cellMap = (description) => ({ type: 'object', additionalProperties: true, description, required: true });
+const stringList = (description) => ({ type: 'array', items: { type: 'string' }, description, required: true });
+const opSchema = (op, properties) => ({
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+        op: { type: 'string', enum: [op], required: true, description: `Operation: ${op}` },
+        ...properties,
+    },
+});
+const rangeSchema = text('Range with sheet, e.g. "Sheet1!A1:B10".', true);
+export const excelOperationSchema = {
+    oneOf: [
+        opSchema('set', {
+            cells: cellMap('Map of cell id (e.g. "Sheet1!A1") to content: numbers/dates/booleans are typed, strings starting with "=" become formulas.'),
+        }),
+        opSchema('fill', {
+            source: text('Source cell id, e.g. "Sheet1!D2".', true),
+            target: rangeSchema,
+        }),
+        opSchema('fillSeries', {
+            start: text('Start cell id holding a number or date; must be the top-left cell of the target range.', true),
+            target: rangeSchema,
+            step: num('Step (default 1 for numbers, 1 day for dates).'),
+        }),
+        opSchema('insertRows', {
+            sheet: text('Sheet name.', true),
+            row: num('Insertion row (1-based).', true),
+            count: num('Number of rows.', true),
+        }),
+        opSchema('deleteRows', {
+            sheet: text('Sheet name.', true),
+            row: num('First deleted row (1-based).', true),
+            count: num('Number of rows.', true),
+        }),
+        opSchema('insertColumns', {
+            sheet: text('Sheet name.', true),
+            column: text('Insertion column letter, e.g. "B".', true),
+            count: num('Number of columns.', true),
+        }),
+        opSchema('deleteColumns', {
+            sheet: text('Sheet name.', true),
+            column: text('First deleted column letter.', true),
+            count: num('Number of columns.', true),
+        }),
+        opSchema('copyRange', {
+            source: rangeSchema,
+            target: text('Destination top-left cell id, e.g. "Sheet1!E2".', true),
+            move: bool('Set true to clear the source range after copying.'),
+        }),
+        opSchema('sortRange', {
+            range: rangeSchema,
+            keys: {
+                type: 'array',
+                required: true,
+                items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        column: text('Column letter inside the range, e.g. "B".', true),
+                        direction: { type: 'string', enum: ['asc', 'desc'], description: 'Sort direction (default asc).' },
+                    },
+                },
+            },
+            headerRows: num('Number of header rows to keep in place (default 0).'),
+        }),
+        opSchema('style', {
+            range: rangeSchema,
+            style: {
+                type: 'object',
+                required: true,
+                additionalProperties: false,
+                properties: {
+                    bold: bool('Bold text.'),
+                    italic: bool('Italic text.'),
+                    underline: bool('Underline text.'),
+                    fontColor: text('Font color as 6-digit hex, e.g. "FF0000".'),
+                    fill: text('Background fill color as 6-digit hex, e.g. "D9D9D9".'),
+                    numberFormat: text('Excel number format, e.g. "#,##0.00" or "0.00%".'),
+                    hAlign: { type: 'string', enum: ['left', 'center', 'right'], description: 'Horizontal alignment.' },
+                    vAlign: { type: 'string', enum: ['top', 'middle', 'bottom'], description: 'Vertical alignment.' },
+                    wrapText: bool('Wrap text.'),
+                },
+            },
+        }),
+        opSchema('dataValidation', {
+            range: rangeSchema,
+            type: { type: 'string', enum: ['list', 'whole', 'decimal', 'date', 'textLength', 'custom'], required: true, description: 'Validation type.' },
+            operator: { type: 'string', enum: ['between', 'notBetween', 'equal', 'notEqual', 'greaterThan', 'lessThan', 'greaterThanOrEqual', 'lessThanOrEqual'], description: 'Comparison operator for non-list types.' },
+            formula1: text('For list: comma-separated items ("高,中,低") or a range. For others: lower bound or value.'),
+            formula2: text('Upper bound for between / notBetween.'),
+            allowBlank: bool('Allow empty cells.'),
+            showInputMessage: bool('Show an input prompt.'),
+            prompt: text('Input prompt text.'),
+            showErrorMessage: bool('Reject invalid input.'),
+            errorStyle: { type: 'string', enum: ['stop', 'warning', 'information'], description: 'Error alert style.' },
+            error: text('Error message text.'),
+            errorTitle: text('Error alert title.'),
+        }),
+        opSchema('conditionalFormatting', {
+            range: rangeSchema,
+            rules: {
+                type: 'array',
+                required: true,
+                items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        type: { type: 'string', enum: ['cellIs', 'expression'], required: true, description: 'Rule type.' },
+                        operator: text('cellIs operator, e.g. "greaterThan", "lessThan", "equal", "between".'),
+                        formula: text('Threshold value (number as text) or expression formula.'),
+                        formula2: text('Upper bound for between.'),
+                        style: {
+                            type: 'object',
+                            additionalProperties: false,
+                            properties: {
+                                bold: bool('Bold text.'),
+                                fontColor: text('Font color hex.'),
+                                fill: text('Fill color hex.'),
+                            },
+                        },
+                    },
+                },
+            },
+        }),
+        opSchema('autoFilter', { range: rangeSchema }),
+        opSchema('addTable', {
+            name: text('Unique table name.', true),
+            range: rangeSchema,
+            headerRow: bool('Use the first row as headers (default true).'),
+            totalsRow: bool('Add a totals row (default false).'),
+            showRowStripes: bool('Zebra stripes (default true).'),
+            showColumnStripes: bool('Column stripes (default false).'),
+        }),
+        opSchema('setColumnWidth', {
+            sheet: text('Sheet name.', true),
+            column: text('Column letter.', true),
+            width: num('Width in characters.', true),
+        }),
+        opSchema('setRowHeight', {
+            sheet: text('Sheet name.', true),
+            row: num('Row number.', true),
+            height: num('Height in points.', true),
+        }),
+        opSchema('freezePanes', {
+            sheet: text('Sheet name.', true),
+            row: num('First scrollable row (1-based; 2 freezes row 1).', true),
+            column: text('First scrollable column letter (1-based; "B" freezes column A).', true),
+        }),
+        opSchema('findReplace', {
+            find: text('Text to find.', true),
+            replace: text('Replacement text.', true),
+            sheet: text('Restrict to one sheet (optional).'),
+            matchCase: bool('Case-sensitive match (default false).'),
+        }),
+        opSchema('addSheet', { name: text('New sheet name.', true) }),
+        opSchema('renameSheet', {
+            oldName: text('Current sheet name.', true),
+            newName: text('New sheet name; formulas referencing the old name are updated.', true),
+        }),
+        opSchema('deleteSheet', { name: text('Sheet name to delete.', true) }),
+        opSchema('duplicateSheet', {
+            name: text('Source sheet name.', true),
+            newName: text('New sheet name.', true),
+        }),
+        opSchema('hideSheet', {
+            name: text('Sheet name.', true),
+            hidden: bool('Hide (default true) or show (false).'),
+        }),
+        opSchema('setTabColor', {
+            name: text('Sheet name.', true),
+            color: text('Tab color as 6-digit hex.', true),
+        }),
+        opSchema('clear', { cells: stringList('Cell ids to clear, e.g. ["Sheet1!A1"].') }),
+        opSchema('merge', { range: rangeSchema }),
+        opSchema('unmerge', { range: rangeSchema }),
+    ],
+};

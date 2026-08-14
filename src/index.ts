@@ -10,6 +10,7 @@ import { diffWorkbookFiles } from './diff.ts'
 import { formulaIrSchema } from './ir-schema.ts'
 import type { ColumnTable } from './ir.ts'
 import { llmTextFromContext } from './llm.ts'
+import { excelOperationSchema } from './operation-schema.ts'
 import { operateWorkbookFile, type ExcelOperation } from './operations.ts'
 import { repairWorkbookFile } from './repair.ts'
 import { detectTableFromCells } from './tables.ts'
@@ -27,7 +28,7 @@ export function apply(ctx: Context) {
   console.log('[vera-formula-validator] plugin loaded')
   ctx.tools.register(defineTool({
     name: 'excel_operate',
-    description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill (drag-fill with reference adjustment), insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel, including cross-sheet), addSheet / renameSheet (references update) / deleteSheet / duplicateSheet / hideSheet / setTabColor, clear, merge / unmerge, copyRange / moveRange (formulas adjust), fillSeries (numeric/date), style (bold/italic/underline/colors/numberFormat/alignment/wrap), setColumnWidth / setRowHeight / freezePanes, findReplace. Writes <path>.edited.xlsx and returns the post-operation validation result.',
+    description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill (drag-fill with reference adjustment), fillSeries (numeric/date), insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel, including cross-sheet; deleted references become #REF!), copyRange (move:true moves), sortRange, style, dataValidation, conditionalFormatting, autoFilter, addTable, setColumnWidth / setRowHeight / freezePanes, findReplace, addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor, clear, merge / unmerge. The operations array is a strict union on "op": choose the matching object shape. Example: {"operations":[{"op":"set","cells":{"Sheet1!A1":"100"}},{"op":"style","range":"Sheet1!A1:C1","style":{"bold":true}}]}. Writes <path>.edited.xlsx (or outPath) and returns the post-operation validation result.',
     parameters: {
       path: {
         type: 'string',
@@ -36,12 +37,9 @@ export function apply(ctx: Context) {
       },
       operations: {
         type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: true,
-        },
+        items: excelOperationSchema,
         required: true,
-        description: 'List of operations, each with an "op" field (set / fill / insertRows / deleteRows / addSheet / renameSheet / deleteSheet / clear / merge / unmerge).',
+        description: 'List of operations; each item is a strict object shape selected by its "op" field.',
       },
       outPath: {
         type: 'string',
@@ -57,9 +55,9 @@ export function apply(ctx: Context) {
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     },
     async execute(args) {
-      const outPath = args.outPath ?? args.path.replace(/\.xlsx$/i, '.edited.xlsx')
+      const outPath = (typeof args.outPath === 'string' && args.outPath ? args.outPath : (args.path as string).replace(/\.xlsx$/i, '.edited.xlsx'))
       const result = await operateWorkbookFile(
-        args.path,
+        args.path as string,
         args.operations as unknown as ExcelOperation[],
         outPath,
       )
@@ -210,6 +208,10 @@ export function apply(ctx: Context) {
         type: 'string',
         description: 'Absolute path to the ground-truth .xlsx file. When provided, the repaired workbook is scored against it and the result includes oracleScore.',
       },
+      outPath: {
+        type: 'string',
+        description: 'Output .xlsx path (default: <path>.repaired.xlsx).',
+      },
     },
     output: {
       schema: { type: 'object', additionalProperties: true },
@@ -220,6 +222,7 @@ export function apply(ctx: Context) {
       if (args.oraclePath) {
         oracleCells = await readWorkbookCells(await readFile(args.oraclePath))
       }
+      const outputPath = typeof args.outPath === 'string' && args.outPath ? args.outPath : undefined
       if (args.useLlm) {
         if (!args.model) {
           throw new Error('model is required when useLlm is true')
@@ -242,9 +245,9 @@ export function apply(ctx: Context) {
           table,
           exec.signal,
         )
-        return await repairWorkbookFile(args.path, advisor, cells, oracleCells) as unknown as JsonRecord
+        return await repairWorkbookFile(args.path as string, advisor, cells, oracleCells, outputPath) as unknown as JsonRecord
       }
-      return await repairWorkbookFile(args.path, undefined, undefined, oracleCells) as unknown as JsonRecord
+      return await repairWorkbookFile(args.path as string, undefined, undefined, oracleCells, outputPath) as unknown as JsonRecord
     },
   }))
   ctx.tools.register(defineTool({

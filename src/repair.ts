@@ -174,6 +174,7 @@ export async function repairWorkbookFile(
   llmAdvisor?: RepairAdvisor,
   cells?: Record<string, string>,
   oracleCells?: Record<string, string>,
+  outPath?: string,
 ): Promise<RepairResult> {
   const cellMap = cells ?? (await readWorkbookCells(await readFile(path)))
   const before = validate(cellMap)
@@ -182,7 +183,7 @@ export async function repairWorkbookFile(
   const covered = new Set(repairs.map((patch) => patch.id))
   const extraLlmRepairs = llmRepairs.filter((patch) => !covered.has(patch.id))
   const allRepairs = [...repairs, ...extraLlmRepairs]
-  const repairedPath = path.replace(/\.xlsx$/i, '.repaired.xlsx')
+  const repairedPath = outPath ?? path.replace(/\.xlsx$/i, '.repaired.xlsx')
   if (allRepairs.length > 0) {
     await applyPatchesToWorkbook(path, allRepairs, repairedPath)
   }

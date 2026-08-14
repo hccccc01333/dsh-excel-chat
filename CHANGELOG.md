@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.17.0 — 2026-08-14
+
+- 对话直用打通：`excel_operate` 的 operations 改为严格的 27 操作判别联合 schema
+  （`src/operation-schema.ts`），模型无需猜字段结构，首次调用即正确。
+- `excel_repair_formulas` 新增 `outPath` 参数，修复结果可写到指定路径。
+- DeepSeek 客户端支持原生函数调用（`deepseekChatWithTools`），新增
+  `tests/invoke-conversation.ts` 真实对话端到端：自然语言 → 模型调工具 →
+  执行 → 复验。实测两场景通过：报表搭建（合计列+加粗+冻结+筛选）2 轮、
+  公式静默错误检测修复 3 轮。
+- 测试规模 115 → 116。
+
 ## v0.16.0 — 2026-08-14
 
 - `excel_operate` 新增报表骨架能力：

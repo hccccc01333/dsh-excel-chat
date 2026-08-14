@@ -1,8 +1,16 @@
 import type { LlmText } from './advisor.ts'
 
+export interface DeepSeekToolCall {
+  id: string
+  type: 'function'
+  function: { name: string; arguments: string }
+}
+
 export interface DeepSeekMessage {
-  role: 'system' | 'user' | 'assistant'
-  content: string
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: string | null
+  tool_call_id?: string
+  tool_calls?: DeepSeekToolCall[]
 }
 
 export interface DeepSeekChatOptions {
@@ -60,4 +68,43 @@ export function deepseekLlmTextFromEnv(model = process.env.DEEPSEEK_MODEL ?? 'de
     maxTokens: 2000,
     signal,
   })
+}
+
+export interface DeepSeekChatReply {
+  content: string | null
+  toolCalls: DeepSeekToolCall[]
+}
+
+/** Chat completion with native function-calling tools (DeepSeek tool_calls). */
+export async function deepseekChatWithTools(
+  options: Omit<DeepSeekChatOptions, 'messages'> & { messages: DeepSeekMessage[]; tools: unknown[] },
+): Promise<DeepSeekChatReply> {
+  const baseUrl = (options.baseUrl ?? 'https://api.deepseek.com').replace(/\/+$/, '')
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${options.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: options.model,
+      messages: options.messages,
+      temperature: options.temperature ?? 0,
+      max_tokens: options.maxTokens ?? 4000,
+      tools: options.tools,
+      stream: false,
+    }),
+    signal: options.signal,
+  })
+  if (!response.ok) {
+    throw new Error(`DeepSeek API ${response.status}: ${(await response.text()).slice(0, 500)}`)
+  }
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string | null; tool_calls?: DeepSeekToolCall[] } }>
+  }
+  const message = data.choices?.[0]?.message
+  if (!message) {
+    throw new Error('DeepSeek API returned no message')
+  }
+  return { content: message.content ?? null, toolCalls: message.tool_calls ?? [] }
 }

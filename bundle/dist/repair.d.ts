@@ -11,5 +11,5 @@ export interface RepairResult {
     repairedPath: string;
     oracleScore: WorkbookScore | null;
 }
-export declare function repairWorkbookFile(path: string, llmAdvisor?: RepairAdvisor, cells?: Record<string, string>, oracleCells?: Record<string, string>): Promise<RepairResult>;
+export declare function repairWorkbookFile(path: string, llmAdvisor?: RepairAdvisor, cells?: Record<string, string>, oracleCells?: Record<string, string>, outPath?: string): Promise<RepairResult>;
 //# sourceMappingURL=repair.d.ts.map
