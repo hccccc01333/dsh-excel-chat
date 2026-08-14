@@ -83,6 +83,29 @@ export const excelOperationSchema = {
       },
       headerRows: num('Number of header rows to keep in place (default 0).'),
     }),
+    opSchema('report', {
+      source: text('Source data range including the header row, e.g. "订单!A1:F7".', true),
+      groupColumn: text('Column letter to group and summarize by.', true),
+      metrics: {
+        type: 'array',
+        required: true,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            column: text('Metric column letter.', true),
+            function: { type: 'string', enum: ['sum', 'average', 'count', 'counta', 'max', 'min'], required: true, description: 'Aggregation function for the summary and subtotals.' },
+          },
+        },
+      },
+      sort: bool('Sort by the group column first (default true).'),
+      subtotal: bool('Insert SUBTOTAL summary rows per group plus a grand total (default true).'),
+      autoFilter: bool('Add filters to the header (default true).'),
+      headerStyle: bool('Bold header with a light fill (default true).'),
+      freezeHeader: bool('Freeze the header row (default true).'),
+      numberFormat: text('Optional number format for metric cells, e.g. "#,##0.00".'),
+      outputSheet: text('Summary sheet name (default "<source>汇总").'),
+    }),
     opSchema('style', {
       range: rangeSchema,
       style: {

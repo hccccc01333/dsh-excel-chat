@@ -102,6 +102,21 @@ export type ExcelOperation = {
     }>;
     headerRows?: number;
 } | {
+    op: 'report';
+    source: string;
+    groupColumn: string;
+    metrics: Array<{
+        column: string;
+        function: 'sum' | 'average' | 'count' | 'counta' | 'max' | 'min';
+    }>;
+    sort?: boolean;
+    subtotal?: boolean;
+    autoFilter?: boolean;
+    headerStyle?: boolean;
+    freezeHeader?: boolean;
+    numberFormat?: string;
+    outputSheet?: string;
+} | {
     op: 'dataValidation';
     range: string;
     type: 'list' | 'whole' | 'decimal' | 'date' | 'textLength' | 'custom';

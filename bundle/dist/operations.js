@@ -316,6 +316,10 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 warnings.push({ op: index, message: 'sortRange moved cell content; formulas outside the range still point to their original addresses' });
                 break;
             }
+            case 'report': {
+                applyReport(workbook, operation);
+                break;
+            }
             case 'dataValidation': {
                 applyDataValidation(workbook, operation);
                 break;
@@ -814,6 +818,85 @@ function applySubtotal(workbook, options) {
         }
     }
     void header;
+    return groups.length + (options.addGrandTotal ?? true ? 1 : 0);
+}
+/**
+ * One-shot report template: sort, subtotals, a dynamic SUMIFS summary sheet,
+ * auto filter, header style, frozen header, and optional number format.
+ * Ordering matters: subtotals run before the summary so its SUMIFS ranges
+ * already cover the final data block (subtotal rows do not match group keys).
+ */
+function applyReport(workbook, options) {
+    const parsed = parseRange(workbook, options.source);
+    const sheet = parsed.sheet;
+    const groupCol = columnToNumber(options.groupColumn);
+    if (groupCol < parsed.startCol || groupCol > parsed.endCol) {
+        throw new Error(`report group column outside range: ${options.groupColumn}`);
+    }
+    if (options.sort ?? true) {
+        sortRange(workbook, options.source, [{ column: options.groupColumn }], 1);
+    }
+    let finalEndRow = parsed.endRow;
+    if (options.subtotal ?? true) {
+        const subtotalMetrics = options.metrics.map((metric) => ({
+            column: metric.column,
+            function: metric.function === 'counta' ? 'count' : metric.function,
+        }));
+        const inserted = applySubtotal(workbook, {
+            op: 'subtotal',
+            sheet: sheet.name,
+            range: options.source,
+            groupColumn: options.groupColumn,
+            summaryColumns: subtotalMetrics,
+            addGrandTotal: true,
+        });
+        finalEndRow = parsed.endRow + inserted;
+    }
+    const summarySheet = options.outputSheet ?? `${sheet.name}-汇总`;
+    applyAggregateReport(workbook, {
+        op: 'aggregateReport',
+        source: `${sheet.name}!${numberToColumn(parsed.startCol)}${parsed.startRow}:${numberToColumn(parsed.endCol)}${finalEndRow}`,
+        groupColumn: options.groupColumn,
+        metrics: options.metrics,
+        outputSheet: summarySheet,
+    });
+    if (options.autoFilter ?? true) {
+        sheet.autoFilter = {
+            from: { row: parsed.startRow, column: parsed.startCol },
+            to: { row: finalEndRow, column: parsed.endCol },
+        };
+    }
+    if (options.headerStyle ?? true) {
+        applyStyle(workbook, `${sheet.name}!${numberToColumn(parsed.startCol)}${parsed.startRow}:${numberToColumn(parsed.endCol)}${parsed.startRow}`, {
+            bold: true,
+            fill: 'D9D9D9',
+        });
+    }
+    if (options.freezeHeader ?? true) {
+        sheet.views = [{
+                state: 'frozen',
+                xSplit: Math.max(0, parsed.startCol - 1),
+                ySplit: Math.max(0, parsed.startRow),
+                topLeftCell: `${numberToColumn(parsed.startCol)}${parsed.startRow + 1}`,
+            }];
+    }
+    if (options.numberFormat) {
+        for (const metric of options.metrics) {
+            const col = columnToNumber(metric.column);
+            for (let row = parsed.startRow; row <= finalEndRow; row++) {
+                sheet.getCell(`${numberToColumn(col)}${row}`).numFmt = options.numberFormat;
+            }
+        }
+        const summary = findSheet(workbook, summarySheet);
+        if (summary) {
+            options.metrics.forEach((metric, index) => {
+                const col = numberToColumn(2 + index);
+                for (let row = 1; row <= summary.rowCount; row++) {
+                    summary.getCell(`${col}${row}`).numFmt = options.numberFormat;
+                }
+            });
+        }
+    }
 }
 const REPORT_FUNCTIONS = {
     sum: 'SUMIFS',

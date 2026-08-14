@@ -72,6 +72,12 @@ agent 会用一次 `excel_operate` 完成 set + style + freezePanes + autoFilter
 `aggregateReport` 生成的是实时 SUMIFS 联动报表；`excel_create_pivot` 生成的是
 Excel 原生可交互透视表；`subtotal` 负责分类小计。
 
+想要一条指令出整套经营报表，用 `report` 模板操作（排序 + 分类汇总 + 动态透视
+汇总 + 自动筛选 + 表头样式 + 冻结首行 + 数字格式一步完成）：
+
+> 用 report 给订单表按区域生成经营报表：金额合计，输出到“经营报表”，数字格式
+> 用 #,##0.00。
+
 ### 跨表补列（VLOOKUP）
 
 > 给订单表加一列“产品名称”，用 VLOOKUP 从产品价目表按产品代码查。

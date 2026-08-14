@@ -89,3 +89,32 @@ test('场景4：邮件合并批量通知 + 工作表保护 + 命名区域', asyn
   const names = workbook.definedNames.model as Array<{ name: string; ranges: string[] }>
   assert.ok(names.some((entry) => entry.name === 'SalesData'))
 })
+
+test('场景5：report 一条指令产出经营报表（排序+汇总+动态透视+筛选+样式+冻结+格式）', async () => {
+  const path = await makeSalesWorkbook()
+  const outPath = join(join(path, '..'), '经营报表.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'report',
+    source: '订单!A1:F7',
+    groupColumn: 'B',
+    metrics: [{ column: 'F', function: 'sum' }],
+    numberFormat: '#,##0.00',
+    outputSheet: '经营报表',
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const orders = workbook.getWorksheet('订单')!
+  const summary = workbook.getWorksheet('经营报表')!
+  const cells = await readWorkbookCells(await readFile(outPath))
+
+  assert.ok(Object.values(cells).includes('华东 汇总'), '缺少分类小计行')
+  assert.ok(Object.values(cells).some((content) => content.startsWith('=SUBTOTAL(9,F')), '缺少 SUBTOTAL 公式')
+  assert.equal(cells['经营报表!A2'], '华东')
+  assert.equal(cells['经营报表!B2'], '=SUMIFS(订单!$F$2:$F$11,订单!$B$2:$B$11,A2)')
+  assert.equal(orders.autoFilter, 'A1:F11')
+  assert.equal(orders.getCell('A1').font.bold, true)
+  assert.equal(orders.views[0]!.state, 'frozen')
+  assert.equal(orders.views[0]!.ySplit, 1)
+  assert.equal(orders.getCell('F2').numFmt, '#,##0.00')
+  assert.equal(summary.getCell('B2').numFmt, '#,##0.00')
+})
