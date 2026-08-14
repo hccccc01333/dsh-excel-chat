@@ -39,6 +39,7 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 | `excel_export_charts` | 用本地 Excel 把图表导出为 PNG（Windows） |
 | `excel_create_chart` | 用本地 Excel 创建图表：数据范围、类型、标题（Windows） |
 | `excel_modify_chart` | 修改图表参数：类型、标题、图例、坐标轴（Windows） |
+| `excel_create_pivot` | 原生数据透视表（pivotCache + pivotTable）：行字段 + 值字段（求和/计数/平均/最大/最小），Excel 生成、可刷新（Windows） |
 
 ## Modules
 
@@ -66,6 +67,8 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
   大小写/空白与数字格式差异，输出准确率与 mismatch 明细。
 - `src/read.ts` — `readWorkbookDetail`：精确读取单元格（值/公式/类型/格式/合并/
   数据有效性），供 `excel_read` 工具使用。
+- `src/pivot.ts` — `createPivotTable`：驱动 Excel COM 生成原生数据透视表
+  （pivotCache + pivotTable），保证文件始终合法可打开。
 - `src/operation-schema.ts` — `excel_operate` 的 27 操作严格判别联合 schema，
   让模型按 `op` 字段直接生成正确结构。
 - `src/operations.ts` — Excel 操作 DSL：set（自动类型识别）/ fill / fillSeries /

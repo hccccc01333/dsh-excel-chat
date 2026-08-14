@@ -17,6 +17,7 @@ import type { ColumnTable } from './ir.ts'
 import { llmTextFromContext } from './llm.ts'
 import { excelOperationSchema } from './operation-schema.ts'
 import { operateWorkbookFile, type ExcelOperation } from './operations.ts'
+import { createPivotTable, type PivotValueSpec } from './pivot.ts'
 import { repairWorkbookFile } from './repair.ts'
 import { readWorkbookDetail } from './read.ts'
 import { detectTableFromCells } from './tables.ts'
@@ -32,6 +33,72 @@ export const inject = ['tools']
 
 export function apply(ctx: Context) {
   console.log('[vera-formula-validator] plugin loaded')
+  ctx.tools.register(defineTool({
+    name: 'excel_create_pivot',
+    description: 'Create a native Excel pivot table (pivotCache + pivotTable) from a source range: choose a row field and value fields (sum/count/average/max/min). The pivot renders in Excel and can be refreshed when source data changes.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      sheet: {
+        type: 'string',
+        required: true,
+        description: 'Source sheet name.',
+      },
+      range: {
+        type: 'string',
+        required: true,
+        description: 'Source data range including the header row, e.g. "订单!A1:F7".',
+      },
+      rows: {
+        type: 'array',
+        items: { type: 'string' },
+        required: true,
+        description: 'Row field column letters (one supported for now), e.g. ["B"].',
+      },
+      values: {
+        type: 'array',
+        required: true,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            column: { type: 'string', description: 'Column letter of the value field.' },
+            function: { type: 'string', enum: ['sum', 'count', 'average', 'max', 'min'], required: true, description: 'Aggregation function.' },
+          },
+        },
+      },
+      outputSheet: {
+        type: 'string',
+        description: 'Sheet that hosts the pivot (default "<sheet>透视").',
+      },
+      outPath: {
+        type: 'string',
+        description: 'Output .xlsx path (default: <path>.pivot.xlsx).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      const outPath = (typeof args.outPath === 'string' && args.outPath ? args.outPath : (args.path as string).replace(/\.xlsx$/i, '.pivot.xlsx'))
+      const values = (args.values as Array<{ column: string; function: PivotValueSpec['function'] }>).map((value) => ({
+        column: value.column,
+        function: value.function,
+      }))
+      const result = await createPivotTable(args.path as string, {
+        sheet: args.sheet as string,
+        range: args.range as string,
+        rows: (args.rows as string[]).map(String),
+        values,
+        outputSheet: typeof args.outputSheet === 'string' ? args.outputSheet : undefined,
+      }, outPath)
+      return { outputPath: outPath, ...result } as unknown as JsonRecord
+    },
+  }))
   ctx.tools.register(defineTool({
     name: 'excel_undo',
     description: 'Roll back an excel_operate edit using its .patch.json audit log: every changed cell is restored to the pre-edit state. Content-level undo (inserted/deleted rows and columns are not removed, but their cells are restored).',

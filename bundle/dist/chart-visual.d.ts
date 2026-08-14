@@ -20,6 +20,7 @@ export interface ChartModifyOptions {
 export declare function createChartWithExcel(inputPath: string, options: ChartCreateOptions, outPath: string, signal?: AbortSignal): Promise<void>;
 /** Modify chart parameters (type, title, legend, axis titles) in an .xlsx copy. */
 export declare function modifyChartWithExcel(inputPath: string, chartName: string, changes: ChartModifyOptions, outPath: string, signal?: AbortSignal): Promise<void>;
+export declare function runPowerShell(args: string[], signal?: AbortSignal): Promise<string>;
 export type VisionText = (imagePath: string, prompt: string, signal?: AbortSignal) => Promise<string>;
 export interface VisualIssue {
     kind: string;

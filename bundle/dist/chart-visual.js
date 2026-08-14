@@ -149,7 +149,7 @@ export async function modifyChartWithExcel(inputPath, chartName, changes, outPat
         '-Legend', changes.hasLegend === undefined ? '' : String(changes.hasLegend),
     ], signal);
 }
-function runPowerShell(args, signal) {
+export function runPowerShell(args, signal) {
     return new Promise((resolve, reject) => {
         const child = spawn(POWERSHELL_PATH, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
         let stdout = '';

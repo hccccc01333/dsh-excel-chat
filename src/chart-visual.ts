@@ -190,7 +190,7 @@ export async function modifyChartWithExcel(
   ], signal)
 }
 
-function runPowerShell(args: string[], signal?: AbortSignal): Promise<string> {
+export function runPowerShell(args: string[], signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(POWERSHELL_PATH, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
     let stdout = ''

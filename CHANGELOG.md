@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.22.0 — 2026-08-14
+
+- 原生数据透视表：新增 `excel_create_pivot` 工具，驱动 Excel COM 生成真正的
+  pivotCache + pivotTable（不是模拟汇总），支持一个行字段 + 多个值字段
+  （求和/计数/平均/最大/最小），Excel 内可刷新、可继续交互。Windows + Excel。
+- 测试规模 137 → 138（pivot COM 端到端：生成 → 拆包验证 → Excel 打开）。
+
 ## v0.21.1 — 2026-08-14
 
 - 修复 `excel_read` 工具级调用报错（dsh 要求无损 JSON，可选 undefined 字段被
