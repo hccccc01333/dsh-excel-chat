@@ -18,6 +18,7 @@ import { llmTextFromContext } from './llm.ts'
 import { excelOperationSchema } from './operation-schema.ts'
 import { operateWorkbookFile, type ExcelOperation } from './operations.ts'
 import { repairWorkbookFile } from './repair.ts'
+import { readWorkbookDetail } from './read.ts'
 import { detectTableFromCells } from './tables.ts'
 import { validate } from './validator.ts'
 import { visionTextFromContext } from './vision.ts'
@@ -73,6 +74,44 @@ export function apply(ctx: Context) {
         } as unknown as JsonRecord
       }
       return result as unknown as JsonRecord
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_read',
+    description: 'Precisely read cells from an .xlsx file: values, formulas, value types, number formats, font/fill/alignment, merged ranges, and data validation. Use before editing to inspect the exact cell state.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      sheet: {
+        type: 'string',
+        description: 'Restrict to one sheet (default all sheets).',
+      },
+      range: {
+        type: 'string',
+        description: 'A1 range on the selected sheet, e.g. "A1:D20".',
+      },
+      cells: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Exact cell ids to read, e.g. ["A1","D4"].',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      const cells = Array.isArray(args.cells) ? args.cells.map((cell) => String(cell)) : undefined
+      return {
+        sheets: await readWorkbookDetail(args.path as string, {
+          sheet: typeof args.sheet === 'string' ? args.sheet : undefined,
+          range: typeof args.range === 'string' ? args.range : undefined,
+          cells,
+        }),
+      } as unknown as JsonRecord
     },
   }))
   ctx.tools.register(defineTool({

@@ -13,6 +13,7 @@ dsh plugin --profile demo add ./bundle
 
 - `excel_validate_formulas` — 公式静默错误检测（列 pattern、hardcode、空行、循环引用、错误值）
 - `excel_compile_formula` — Formula IR → 确定性 Excel 公式
+- `excel_read` — 精确读取单元格状态（值/公式/类型/格式/合并/数据有效性）
 - `excel_repair_formulas` — 确定性修复 + 可选 LLM 修复，输出 `.repaired.xlsx` 并复验
   （可用 `autoTable` 自动识别表头）
 - `excel_diff_workbook` — 两个 workbook 的单元格差异

@@ -54,10 +54,19 @@ export type ExcelOperation =
       op: 'conditionalFormatting'
       range: string
       rules: Array<{
-        type: 'cellIs' | 'expression'
+        type: 'cellIs' | 'expression' | 'containsText' | 'dataBar' | 'colorScale' | 'iconSet' | 'top10'
         operator?: string
         formula?: string | number
         formula2?: string | number
+        text?: string
+        color?: string
+        minColor?: string
+        midColor?: string
+        maxColor?: string
+        iconSet?: string
+        rank?: number
+        percent?: boolean
+        bottom?: boolean
         style?: ExcelStyle
       }>
     }
@@ -65,8 +74,38 @@ export type ExcelOperation =
   | { op: 'subtotal'; sheet: string; range: string; groupColumn: string; summaryColumns: Array<{ column: string; function: 'sum' | 'average' | 'count' | 'max' | 'min' }>; addGrandTotal?: boolean }
   | { op: 'aggregateReport'; source: string; groupColumn: string; metrics: Array<{ column: string; function: 'sum' | 'average' | 'count' | 'counta' | 'max' | 'min' }>; outputSheet?: string }
   | { op: 'filterToRange'; source: string; criteria: Array<{ column: string; operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains'; value: string | number }>; target: string; matchAll?: boolean }
-  | { op: 'protectSheet'; sheet: string; password?: string }
+  | {
+      op: 'protectSheet'
+      sheet: string
+      password?: string
+      options?: {
+        selectLockedCells?: boolean
+        selectUnlockedCells?: boolean
+        formatCells?: boolean
+        formatColumns?: boolean
+        formatRows?: boolean
+        insertColumns?: boolean
+        insertRows?: boolean
+        deleteColumns?: boolean
+        deleteRows?: boolean
+        sort?: boolean
+        autoFilter?: boolean
+      }
+    }
   | { op: 'unprotectSheet'; sheet: string; password?: string }
+  | {
+      op: 'pageSetup'
+      sheet: string
+      printArea?: string
+      orientation?: 'portrait' | 'landscape'
+      fitToPage?: boolean
+      fitToWidth?: number
+      fitToHeight?: number
+      margins?: { top?: number; right?: number; bottom?: number; left?: number; header?: number; footer?: number }
+      centerHorizontally?: boolean
+      centerVertically?: boolean
+    }
+  | { op: 'definedName'; name: string; ref: string }
   | { op: 'mailMerge'; template: string; data: string; outputSheet?: string }
   | {
       op: 'addTable'
@@ -82,12 +121,27 @@ export interface ExcelStyle {
   bold?: boolean
   italic?: boolean
   underline?: boolean
+  fontSize?: number
+  fontName?: string
   fontColor?: string
   fill?: string
   numberFormat?: string
   hAlign?: 'left' | 'center' | 'right'
   vAlign?: 'top' | 'middle' | 'bottom'
   wrapText?: boolean
+  border?: BorderSpec
+}
+
+export interface BorderEdgeSpec {
+  style?: 'thin' | 'medium' | 'thick' | 'dashed' | 'dotted' | 'double'
+  color?: string
+}
+
+export interface BorderSpec {
+  top?: BorderEdgeSpec
+  bottom?: BorderEdgeSpec
+  left?: BorderEdgeSpec
+  right?: BorderEdgeSpec
 }
 
 export interface OperationWarning {
@@ -497,7 +551,19 @@ export async function applyOperationsToWorkbook(
       case 'protectSheet': {
         const sheet = findSheet(workbook, operation.sheet)
         if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
-        sheet.protect(operation.password ?? '', { selectLockedCells: true, selectUnlockedCells: true })
+        sheet.protect(operation.password ?? '', {
+          selectLockedCells: operation.options?.selectLockedCells ?? true,
+          selectUnlockedCells: operation.options?.selectUnlockedCells ?? true,
+          formatCells: operation.options?.formatCells ?? false,
+          formatColumns: operation.options?.formatColumns ?? false,
+          formatRows: operation.options?.formatRows ?? false,
+          insertColumns: operation.options?.insertColumns ?? false,
+          insertRows: operation.options?.insertRows ?? false,
+          deleteColumns: operation.options?.deleteColumns ?? false,
+          deleteRows: operation.options?.deleteRows ?? false,
+          sort: operation.options?.sort ?? false,
+          autoFilter: operation.options?.autoFilter ?? false,
+        })
         break
       }
       case 'unprotectSheet': {
@@ -508,6 +574,14 @@ export async function applyOperationsToWorkbook(
       }
       case 'mailMerge': {
         applyMailMerge(workbook, operation)
+        break
+      }
+      case 'pageSetup': {
+        applyPageSetup(workbook, operation)
+        break
+      }
+      case 'definedName': {
+        workbook.definedNames.add(operation.ref, operation.name)
         break
       }
       case 'addTable': {
@@ -789,6 +863,52 @@ function applyConditionalFormatting(
         formulae: [rule.formula, ...(rule.formula2 !== undefined ? [rule.formula2] : [])],
         style,
       }
+    }
+    if (rule.type === 'containsText') {
+      if (!rule.text) throw new Error('containsText conditional formatting requires text')
+      return {
+        type: 'containsText',
+        operator: 'containsText',
+        text: rule.text,
+        formulae: [`NOT(ISERROR(SEARCH("${rule.text}",A1)))`],
+        style,
+      }
+    }
+    if (rule.type === 'dataBar') {
+      return {
+        type: 'dataBar',
+        color: { argb: normalizeColor(rule.color ?? '638EC6') },
+        cfvo: [{ type: 'min' }, { type: 'max' }],
+      }
+    }
+    if (rule.type === 'colorScale') {
+      return {
+        type: 'colorScale',
+        cfvo: [
+          { type: 'min' },
+          { type: 'percentile', value: 50 },
+          { type: 'max' },
+        ],
+        color: [
+          { argb: normalizeColor(rule.minColor ?? 'F8696B') },
+          { argb: normalizeColor(rule.midColor ?? 'FFEB84') },
+          { argb: normalizeColor(rule.maxColor ?? '63BE7B') },
+        ],
+      }
+    }
+    if (rule.type === 'iconSet') {
+      return {
+        type: 'iconSet',
+        iconSet: rule.iconSet ?? '3Arrows',
+        cfvo: [
+          { type: 'percent', value: 0 },
+          { type: 'percent', value: 33 },
+          { type: 'percent', value: 67 },
+        ],
+      }
+    }
+    if (rule.type === 'top10') {
+      return { type: 'top10', rank: rule.rank ?? 10, percent: rule.percent ?? false, bottom: rule.bottom ?? false }
     }
     return { type: 'expression', formulae: [String(rule.formula ?? '')], style }
   })
@@ -1229,12 +1349,21 @@ function applyStyle(workbook: ExcelJS.Workbook, range: string, style: ExcelStyle
     for (let col = parsed.startCol; col <= parsed.endCol; col++) {
       const cell = parsed.sheet.getCell(`${numberToColumn(col)}${row}`)
       const font = cell.font ?? {}
-      if (style.bold !== undefined || style.italic !== undefined || style.underline !== undefined || style.fontColor !== undefined) {
+      if (
+        style.bold !== undefined ||
+        style.italic !== undefined ||
+        style.underline !== undefined ||
+        style.fontColor !== undefined ||
+        style.fontSize !== undefined ||
+        style.fontName !== undefined
+      ) {
         cell.font = {
           ...font,
           bold: style.bold ?? font.bold,
           italic: style.italic ?? font.italic,
           underline: style.underline ?? font.underline,
+          size: style.fontSize ?? font.size,
+          name: style.fontName ?? font.name,
           color: style.fontColor ? { argb: normalizeColor(style.fontColor) } : font.color,
         }
       }
@@ -1251,8 +1380,38 @@ function applyStyle(workbook: ExcelJS.Workbook, range: string, style: ExcelStyle
           wrapText: style.wrapText ?? alignment.wrapText,
         }
       }
+      if (style.border) {
+        const border: Record<string, ExcelJS.Border> = {}
+        for (const side of ['top', 'bottom', 'left', 'right'] as const) {
+          const edge = style.border[side]
+          if (edge) {
+            border[side] = {
+              style: edge.style ?? 'thin',
+              color: edge.color ? { argb: normalizeColor(edge.color) } : undefined,
+            }
+          }
+        }
+        cell.border = border
+      }
     }
   }
+}
+
+function applyPageSetup(
+  workbook: ExcelJS.Workbook,
+  options: Extract<ExcelOperation, { op: 'pageSetup' }>,
+): void {
+  const sheet = findSheet(workbook, options.sheet)
+  if (!sheet) throw new Error(`sheet not found: ${options.sheet}`)
+  const pageSetup = sheet.pageSetup
+  if (options.printArea) pageSetup.printArea = options.printArea
+  if (options.orientation) pageSetup.orientation = options.orientation
+  if (options.fitToPage !== undefined) pageSetup.fitToPage = options.fitToPage
+  if (options.fitToWidth !== undefined) pageSetup.fitToWidth = options.fitToWidth
+  if (options.fitToHeight !== undefined) pageSetup.fitToHeight = options.fitToHeight
+  if (options.margins) pageSetup.margins = { ...pageSetup.margins, ...options.margins }
+  if (options.centerHorizontally !== undefined) pageSetup.horizontalCentered = options.centerHorizontally
+  if (options.centerVertically !== undefined) pageSetup.verticalCentered = options.centerVertically
 }
 
 function normalizeColor(color: string): string {

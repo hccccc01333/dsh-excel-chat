@@ -8,6 +8,14 @@ const num = (description: string, required = false) => ({ type: 'number', descri
 const bool = (description: string) => ({ type: 'boolean', description })
 const cellMap = (description: string) => ({ type: 'object', additionalProperties: true, description, required: true })
 const stringList = (description: string) => ({ type: 'array', items: { type: 'string' }, description, required: true })
+const borderEdgeSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    style: { type: 'string', enum: ['thin', 'medium', 'thick', 'dashed', 'dotted', 'double'], description: 'Border line style.' },
+    color: text('Border color hex.'),
+  },
+}
 
 const opSchema = (op: string, properties: Record<string, unknown>): any => ({
   type: 'object',
@@ -85,12 +93,24 @@ export const excelOperationSchema = {
           bold: bool('Bold text.'),
           italic: bool('Italic text.'),
           underline: bool('Underline text.'),
+          fontSize: num('Font size in points.'),
+          fontName: text('Font name, e.g. "Arial" or "微软雅黑".'),
           fontColor: text('Font color as 6-digit hex, e.g. "FF0000".'),
           fill: text('Background fill color as 6-digit hex, e.g. "D9D9D9".'),
           numberFormat: text('Excel number format, e.g. "#,##0.00" or "0.00%".'),
           hAlign: { type: 'string', enum: ['left', 'center', 'right'], description: 'Horizontal alignment.' },
           vAlign: { type: 'string', enum: ['top', 'middle', 'bottom'], description: 'Vertical alignment.' },
           wrapText: bool('Wrap text.'),
+          border: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              top: borderEdgeSchema,
+              bottom: borderEdgeSchema,
+              left: borderEdgeSchema,
+              right: borderEdgeSchema,
+            },
+          },
         },
       },
     }),
@@ -117,10 +137,24 @@ export const excelOperationSchema = {
           type: 'object',
           additionalProperties: false,
           properties: {
-            type: { type: 'string', enum: ['cellIs', 'expression'], required: true, description: 'Rule type.' },
+            type: {
+              type: 'string',
+              enum: ['cellIs', 'expression', 'containsText', 'dataBar', 'colorScale', 'iconSet', 'top10'],
+              required: true,
+              description: 'Rule type: cellIs / expression / containsText / dataBar / colorScale / iconSet / top10.',
+            },
             operator: text('cellIs operator, e.g. "greaterThan", "lessThan", "equal", "between".'),
             formula: text('Threshold value (number as text) or expression formula.'),
             formula2: text('Upper bound for between.'),
+            text: text('Text to match for containsText.'),
+            color: text('Bar color hex for dataBar.'),
+            minColor: text('Low color hex for colorScale.'),
+            midColor: text('Mid color hex for colorScale.'),
+            maxColor: text('High color hex for colorScale.'),
+            iconSet: text('Icon set name for iconSet, e.g. "3Arrows".'),
+            rank: num('Rank for top10 (default 10).'),
+            percent: bool('top10 as top percent.'),
+            bottom: bool('top10 as bottom 10.'),
             style: {
               type: 'object',
               additionalProperties: false,
@@ -191,6 +225,23 @@ export const excelOperationSchema = {
     opSchema('protectSheet', {
       sheet: text('Sheet name.', true),
       password: text('Optional password; empty means protected without a password.'),
+      options: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          selectLockedCells: bool('Allow selecting locked cells (default true).'),
+          selectUnlockedCells: bool('Allow selecting unlocked cells (default true).'),
+          formatCells: bool('Allow formatting cells.'),
+          formatColumns: bool('Allow formatting columns.'),
+          formatRows: bool('Allow formatting rows.'),
+          insertColumns: bool('Allow inserting columns.'),
+          insertRows: bool('Allow inserting rows.'),
+          deleteColumns: bool('Allow deleting columns.'),
+          deleteRows: bool('Allow deleting rows.'),
+          sort: bool('Allow sorting.'),
+          autoFilter: bool('Allow using filters.'),
+        },
+      },
     }),
     opSchema('unprotectSheet', {
       sheet: text('Sheet name.', true),
@@ -200,6 +251,32 @@ export const excelOperationSchema = {
       template: text('Template range with {Placeholder} tokens, e.g. "Sheet1!A1:B1".', true),
       data: text('Data range with a header row matching the placeholders, e.g. "Sheet2!A1:C10".', true),
       outputSheet: text('Output sheet name (default "<template>合并").'),
+    }),
+    opSchema('pageSetup', {
+      sheet: text('Sheet name.', true),
+      printArea: text('Print area range without sheet, e.g. "A1:F40".'),
+      orientation: { type: 'string', enum: ['portrait', 'landscape'], description: 'Page orientation.' },
+      fitToPage: bool('Fit to page width/height.'),
+      fitToWidth: num('Pages wide for fit-to-page.'),
+      fitToHeight: num('Pages tall for fit-to-page.'),
+      margins: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          top: num('Top margin in inches.'),
+          right: num('Right margin in inches.'),
+          bottom: num('Bottom margin in inches.'),
+          left: num('Left margin in inches.'),
+          header: num('Header margin in inches.'),
+          footer: num('Footer margin in inches.'),
+        },
+      },
+      centerHorizontally: bool('Center horizontally on the page.'),
+      centerVertically: bool('Center vertically on the page.'),
+    }),
+    opSchema('definedName', {
+      name: text('Name without spaces, e.g. "SalesRange".', true),
+      ref: text('Absolute reference, e.g. "Sheet1!$A$1:$D$50".', true),
     }),
     opSchema('addTable', {
       name: text('Unique table name.', true),

@@ -11,6 +11,7 @@ import { llmTextFromContext } from './llm.js';
 import { excelOperationSchema } from './operation-schema.js';
 import { operateWorkbookFile } from './operations.js';
 import { repairWorkbookFile } from './repair.js';
+import { readWorkbookDetail } from './read.js';
 import { detectTableFromCells } from './tables.js';
 import { validate } from './validator.js';
 import { visionTextFromContext } from './vision.js';
@@ -58,6 +59,44 @@ export function apply(ctx) {
                 };
             }
             return result;
+        },
+    }));
+    ctx.tools.register(defineTool({
+        name: 'excel_read',
+        description: 'Precisely read cells from an .xlsx file: values, formulas, value types, number formats, font/fill/alignment, merged ranges, and data validation. Use before editing to inspect the exact cell state.',
+        parameters: {
+            path: {
+                type: 'string',
+                required: true,
+                description: 'Absolute path to an .xlsx file.',
+            },
+            sheet: {
+                type: 'string',
+                description: 'Restrict to one sheet (default all sheets).',
+            },
+            range: {
+                type: 'string',
+                description: 'A1 range on the selected sheet, e.g. "A1:D20".',
+            },
+            cells: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Exact cell ids to read, e.g. ["A1","D4"].',
+            },
+        },
+        output: {
+            schema: { type: 'object', additionalProperties: true },
+            render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+        },
+        async execute(args) {
+            const cells = Array.isArray(args.cells) ? args.cells.map((cell) => String(cell)) : undefined;
+            return {
+                sheets: await readWorkbookDetail(args.path, {
+                    sheet: typeof args.sheet === 'string' ? args.sheet : undefined,
+                    range: typeof args.range === 'string' ? args.range : undefined,
+                    cells,
+                }),
+            };
         },
     }));
     ctx.tools.register(defineTool({

@@ -119,10 +119,19 @@ export type ExcelOperation = {
     op: 'conditionalFormatting';
     range: string;
     rules: Array<{
-        type: 'cellIs' | 'expression';
+        type: 'cellIs' | 'expression' | 'containsText' | 'dataBar' | 'colorScale' | 'iconSet' | 'top10';
         operator?: string;
         formula?: string | number;
         formula2?: string | number;
+        text?: string;
+        color?: string;
+        minColor?: string;
+        midColor?: string;
+        maxColor?: string;
+        iconSet?: string;
+        rank?: number;
+        percent?: boolean;
+        bottom?: boolean;
         style?: ExcelStyle;
     }>;
 } | {
@@ -161,10 +170,45 @@ export type ExcelOperation = {
     op: 'protectSheet';
     sheet: string;
     password?: string;
+    options?: {
+        selectLockedCells?: boolean;
+        selectUnlockedCells?: boolean;
+        formatCells?: boolean;
+        formatColumns?: boolean;
+        formatRows?: boolean;
+        insertColumns?: boolean;
+        insertRows?: boolean;
+        deleteColumns?: boolean;
+        deleteRows?: boolean;
+        sort?: boolean;
+        autoFilter?: boolean;
+    };
 } | {
     op: 'unprotectSheet';
     sheet: string;
     password?: string;
+} | {
+    op: 'pageSetup';
+    sheet: string;
+    printArea?: string;
+    orientation?: 'portrait' | 'landscape';
+    fitToPage?: boolean;
+    fitToWidth?: number;
+    fitToHeight?: number;
+    margins?: {
+        top?: number;
+        right?: number;
+        bottom?: number;
+        left?: number;
+        header?: number;
+        footer?: number;
+    };
+    centerHorizontally?: boolean;
+    centerVertically?: boolean;
+} | {
+    op: 'definedName';
+    name: string;
+    ref: string;
 } | {
     op: 'mailMerge';
     template: string;
@@ -183,12 +227,25 @@ export interface ExcelStyle {
     bold?: boolean;
     italic?: boolean;
     underline?: boolean;
+    fontSize?: number;
+    fontName?: string;
     fontColor?: string;
     fill?: string;
     numberFormat?: string;
     hAlign?: 'left' | 'center' | 'right';
     vAlign?: 'top' | 'middle' | 'bottom';
     wrapText?: boolean;
+    border?: BorderSpec;
+}
+export interface BorderEdgeSpec {
+    style?: 'thin' | 'medium' | 'thick' | 'dashed' | 'dotted' | 'double';
+    color?: string;
+}
+export interface BorderSpec {
+    top?: BorderEdgeSpec;
+    bottom?: BorderEdgeSpec;
+    left?: BorderEdgeSpec;
+    right?: BorderEdgeSpec;
 }
 export interface OperationWarning {
     op: number;

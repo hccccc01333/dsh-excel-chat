@@ -304,6 +304,31 @@ test('style applies font, fill, number format, and alignment to a range', async 
   assert.equal(cell.alignment.wrapText, true)
 })
 
+test('style supports font size/name and per-side borders', async () => {
+  const path = await makeWorkbook(formulaFixture())
+  const outPath = join(join(path, '..'), 'bordered.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'style',
+    range: 'Sheet1!A1:B2',
+    style: {
+      fontSize: 14,
+      fontName: '微软雅黑',
+      border: {
+        top: { style: 'thin', color: 'FF0000' },
+        bottom: { style: 'double', color: '0000FF' },
+      },
+    },
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const cell = workbook.getWorksheet('Sheet1')!.getCell('A1')
+  assert.equal(cell.font.size, 14)
+  assert.equal(cell.font.name, '微软雅黑')
+  assert.equal(cell.border?.top?.style, 'thin')
+  assert.equal((cell.border?.top?.color as { argb?: string }).argb, 'FFFF0000')
+  assert.equal(cell.border?.bottom?.style, 'double')
+})
+
 test('setColumnWidth, setRowHeight, and freezePanes update sheet layout', async () => {
   const path = await makeWorkbook(formulaFixture())
   const outPath = join(join(path, '..'), 'layout.xlsx')
@@ -443,6 +468,39 @@ test('conditionalFormatting adds a cellIs rule with a red fill', async () => {
   assert.equal(entry!.rules[0]!.type, 'cellIs')
   assert.equal(entry!.rules[0]!.operator, 'greaterThan')
   assert.equal(entry!.rules[0]!.style?.fill?.bgColor?.argb, 'FFFF0000')
+})
+
+test('conditionalFormatting supports dataBar, containsText, and top10 rules', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('B2').value = 90
+    sheet.getCell('B3').value = 70
+    sheet.getCell('B4').value = 80
+    sheet.getCell('A2').value = '正常'
+    sheet.getCell('A3').value = '异常'
+    sheet.getCell('A4').value = '正常'
+  })
+  const outPath = join(join(path, '..'), 'cf-rich.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'conditionalFormatting',
+    range: 'Sheet1!B2:B4',
+    rules: [
+      { type: 'dataBar', color: '63BE7B' },
+      { type: 'top10', rank: 2 },
+    ],
+  }, {
+    op: 'conditionalFormatting',
+    range: 'Sheet1!A2:A4',
+    rules: [{ type: 'containsText', text: '异常', style: { fill: 'FF0000' } }],
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  const cf = (sheet as unknown as { conditionalFormattings: Array<{ rules: Array<{ type: string }> }> }).conditionalFormattings
+  const ruleTypes = cf.flatMap((entry) => entry.rules.map((rule) => rule.type))
+  assert.ok(ruleTypes.includes('dataBar'))
+  assert.ok(ruleTypes.includes('top10'))
+  assert.ok(ruleTypes.includes('containsText'))
 })
 
 test('autoFilter adds filter dropdowns to the header range', async () => {
@@ -601,6 +659,44 @@ test('protectSheet and unprotectSheet round-trip through a file', async () => {
   sheet.unprotect('secret')
   sheet.getCell('A1').value = 1 // still writable after unprotect
   assert.equal(sheet.getCell('A1').value, 1)
+})
+
+test('pageSetup sets print area, orientation, and margins', async () => {
+  const path = await makeWorkbook(formulaFixture())
+  const outPath = join(join(path, '..'), 'page.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'pageSetup',
+    sheet: 'Sheet1',
+    printArea: 'A1:D10',
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    margins: { top: 0.5, left: 0.3 },
+    centerHorizontally: true,
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const pageSetup = workbook.getWorksheet('Sheet1')!.pageSetup
+  assert.equal(pageSetup.printArea, 'A1:D10')
+  assert.equal(pageSetup.orientation, 'landscape')
+  assert.equal(pageSetup.fitToPage, true)
+  assert.equal(pageSetup.fitToWidth, 1)
+  assert.equal(pageSetup.margins?.top, 0.5)
+  assert.equal(pageSetup.horizontalCentered, true)
+})
+
+test('definedName registers a named range on the workbook', async () => {
+  const path = await makeWorkbook(formulaFixture())
+  const outPath = join(join(path, '..'), 'named.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'definedName',
+    name: 'SalesRange',
+    ref: "Sheet1!$A$1:$D$10",
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const names = workbook.definedNames.model as Array<{ name: string; ranges: string[] }>
+  assert.ok(names.some((entry) => entry.name === 'SalesRange' && entry.ranges.some((range) => range.includes('$A$1:$D$10'))))
 })
 
 test('mailMerge expands a template with placeholders per data record', async () => {
