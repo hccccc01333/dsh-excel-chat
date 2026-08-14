@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.13.0 — 2026-08-14
+
+- 新增 `excel_operate` 操作工具（面向日常 Excel 用户）：
+  - `set` 写值/公式、`fill` 拖拽填充（自动平移相对行列引用）、
+    `insertRows` / `deleteRows` 插入删除行（公式引用像 Excel 一样联动，含
+    跨表引用）、`addSheet` / `renameSheet`（引用同步更新）/ `deleteSheet`、
+    `clear` 清空、`merge` / `unmerge` 合并单元格。
+  - 每次操作后自动复验公式静默错误，返回 `validation` 结果；删除行时提示
+    引用了被删行的公式。
+- 测试规模 85 → 98，新增 operations 单元测试与插件级 `excel_operate` 调用测试。
+
 ## v0.12.0 — 2026-08-14
 
 - 包装对齐社区 dsh-plugin 最佳实践：npm 元数据补全（`exports` / `types` /

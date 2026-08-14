@@ -10,6 +10,7 @@ import { diffWorkbookFiles } from './diff.ts'
 import { formulaIrSchema } from './ir-schema.ts'
 import type { ColumnTable } from './ir.ts'
 import { llmTextFromContext } from './llm.ts'
+import { operateWorkbookFile, type ExcelOperation } from './operations.ts'
 import { repairWorkbookFile } from './repair.ts'
 import { detectTableFromCells } from './tables.ts'
 import { validate } from './validator.ts'
@@ -24,6 +25,53 @@ export const inject = ['tools']
 
 export function apply(ctx: Context) {
   console.log('[vera-formula-validator] plugin loaded')
+  ctx.tools.register(defineTool({
+    name: 'excel_operate',
+    description: 'Apply common Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (cell id -> value or =formula), fill (copy a source cell down/right a range with relative reference adjustment), insertRows / deleteRows (formula references shift like Excel), addSheet / renameSheet (references update) / deleteSheet, clear cells, merge / unmerge a range. Writes <path>.edited.xlsx and returns the post-operation validation result.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      operations: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: true,
+        },
+        required: true,
+        description: 'List of operations, each with an "op" field (set / fill / insertRows / deleteRows / addSheet / renameSheet / deleteSheet / clear / merge / unmerge).',
+      },
+      outPath: {
+        type: 'string',
+        description: 'Output .xlsx path (default: <path>.edited.xlsx).',
+      },
+      validateAfter: {
+        type: 'boolean',
+        description: 'Re-validate the edited workbook for silent formula errors (default true).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      const outPath = args.outPath ?? args.path.replace(/\.xlsx$/i, '.edited.xlsx')
+      const result = await operateWorkbookFile(
+        args.path,
+        args.operations as unknown as ExcelOperation[],
+        outPath,
+      )
+      if (args.validateAfter === false) {
+        return {
+          ...result,
+          validation: null,
+        } as unknown as JsonRecord
+      }
+      return result as unknown as JsonRecord
+    },
+  }))
   ctx.tools.register(defineTool({
     name: 'excel_validate_charts_visual',
     description: 'Export all charts from an .xlsx file to PNG using local Excel, then ask the configured vision-capable LLM to check visual quality (title, legend, labels, axes, crowding, trend readability).',

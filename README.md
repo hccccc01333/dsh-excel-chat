@@ -26,6 +26,7 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 | `excel_compile_formula` | Formula IR（binary / ratio / aggregate）→ 确定性 Excel 公式 |
 | `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复（`useLlm` / `autoTable` / `oraclePath`），输出 `.repaired.xlsx` 并复验 |
 | `excel_diff_workbook` | 两个 workbook 的单元格级 diff |
+| `excel_operate` | 常用 Excel 操作：写值/公式、拖拽填充、插入/删除行（公式引用联动）、工作表增删改名、合并/取消合并、清空；操作后自动复验公式 |
 | `excel_validate_charts` | 图表结构校验：类型、系列、缺失单元格、二维范围、日期排序 |
 | `excel_validate_charts_visual` | Excel 导出 PNG + 视觉 LLM 评审 |
 | `excel_export_charts` | 用本地 Excel 把图表导出为 PNG（Windows） |
@@ -54,10 +55,13 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
   供 `excel_repair_formulas` 的 `autoTable` 自动识别表头。
 - `src/score.ts` — `scoreWorkbookAgainstOracle`：oracle 单元格级判分，容忍公式
   大小写/空白与数字格式差异，输出准确率与 mismatch 明细。
+- `src/operations.ts` — Excel 操作 DSL：set / fill / insertRows / deleteRows /
+  addSheet / renameSheet / deleteSheet / clear / merge / unmerge；插入删除行
+  与重命名工作表时自动联动公式引用（含跨表引用）。
 - `src/benchmark.ts` — Pass@1 benchmark：确定性修复 → LLM 修复，与 oracle 对比判分。
 - `src/benchmark-cases.ts` — 11 个 benchmark 任务：范围端点、绝对引用、空行、
   跨表、多表、聚合结构、hardcode 等场景。
-- `src/index.ts` — dsh plugin entry exposing seven tools（validate / compile / repair / diff / chart structure / chart export / chart visual）。
+- `src/index.ts` — dsh plugin entry exposing eight tools（validate / compile / repair / diff / operate / chart structure / chart export / chart visual）。
 - `bundle/` — 可发布 dsh bundle：manifest + cordis.patch.yml + 编译产物。
 
 ## Run tests
