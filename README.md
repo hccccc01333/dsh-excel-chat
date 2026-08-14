@@ -1,22 +1,27 @@
-# VERA — Verified Excel Reasoning Agent
+# dsh-excel-chat — 和 Excel 对话，把活干完
 
-[![npm version](https://img.shields.io/npm/v/dsh-excel-vera-plugin)](https://www.npmjs.com/package/dsh-excel-vera-plugin)
-[![GitHub release](https://img.shields.io/github/v/release/hccccc01333/dsh-excel-vera-plugin)](https://github.com/hccccc01333/dsh-excel-vera-plugin/releases)
-[![license](https://img.shields.io/github/license/hccccc01333/dsh-excel-vera-plugin)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/dsh-excel-chat)](https://www.npmjs.com/package/dsh-excel-chat)
+[![GitHub release](https://img.shields.io/github/v/release/hccccc01333/dsh-excel-chat)](https://github.com/hccccc01333/dsh-excel-chat/releases)
+[![license](https://img.shields.io/github/license/hccccc01333/dsh-excel-chat)](LICENSE)
 
-独立项目目录（`D:\vera`），与 deepseek-harness 仓库工作区分离，通过已发布的
-`@deepseek-ai/dsh-*` npm 包运行。当前模块：
-
-- P0 Formula Pattern Validator — 确定性静默错误检测，无 LLM。
-- Formula IR + Compiler — 语义公式中间表示 → 确定性 Excel 公式。
-- Oracle 判分 + Pass@1 Benchmark — 修复结果与 ground truth 逐格对比。
+在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 里用自然语言
+操作 Excel：说一句“给 D 列加毛利公式、表头加粗、冻结首行、加筛选”，agent 会自动
+调用 `excel_operate` 完成；每次编辑后自动体检公式有没有被弄坏，也可以让它
+“检查这个表哪里算错了”并自动修复。所有工作都在对话里完成，不需要记 Excel 操作。
 
 ## 安装
 
 ```sh
-dsh plugin --profile demo add dsh-excel-vera-plugin   # 从 npm 安装（发布后可用）
+dsh plugin --profile demo add dsh-excel-chat          # 从 npm 安装
 dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 ```
+
+装完直接聊，例如：
+
+> 帮我把 report.xlsx 做成报表：D 列是毛利（收入减成本），E 列加合计，
+> 表头加粗填浅灰，冻结第一行，加筛选。
+
+> 检查 sales.xlsx 里 D 列公式是不是每行都是“收入-成本”，不对的帮我修掉。
 
 ## 工具
 
@@ -123,7 +128,7 @@ cd bundle && npm pack
 自动发布（GitHub Actions，需在仓库配置 `NPM_TOKEN` 自动化 token）：
 
 ```sh
-git tag v0.12.0 && git push origin v0.12.0
+git tag v0.18.0 && git push origin v0.18.0
 ```
 
 CI 会执行测试、构建、`npm pack` 校验 tag 与版本一致、发布 npm，并在 GitHub

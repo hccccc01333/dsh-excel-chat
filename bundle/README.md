@@ -1,11 +1,11 @@
-# dsh-excel-vera-plugin
+# dsh-excel-chat
 
-VERA（Verified Excel Reasoning Agent）的 dsh 插件 bundle。
+在 DeepSeek Harness 里对话完成 Excel 工作的 dsh 插件。
 
 安装（从 npm 或本地 bundle）：
 
 ```sh
-dsh plugin --profile demo add dsh-excel-vera-plugin
+dsh plugin --profile demo add dsh-excel-chat
 dsh plugin --profile demo add ./bundle
 ```
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.18.0 — 2026-08-14
+
+- 更名为 `dsh-excel-chat`：定位从“公式验证/修复工具”升级为“在 DeepSeek Harness
+  里对话完成 Excel 工作”。npm 新包已发布，旧包 `dsh-excel-vera-plugin` 弃用并
+  提示改名；GitHub 仓库同步改名（旧链接自动跳转）。
+- README / bundle README / npm description 重写为对话优先：安装即聊，示例场景、
+  能力清单、自动体检闭环。原名 VERA 保留为内部代号。
+
 ## v0.17.0 — 2026-08-14
 
 - 对话直用打通：`excel_operate` 的 operations 改为严格的 27 操作判别联合 schema

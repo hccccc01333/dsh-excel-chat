@@ -1,7 +1,7 @@
 {
-  "name": "dsh-excel-vera-plugin",
-  "version": "0.17.0",
-  "description": "VERA - Verified Excel Reasoning Agent dsh plugin: silent formula-error detection, semantic Formula IR compilation, deterministic + LLM repair, oracle scoring, Pass@1 benchmark, and chart validation.",
+  "name": "dsh-excel-chat",
+  "version": "0.18.0",
+  "description": "Talk to Excel in DeepSeek Harness: create/edit spreadsheets, formulas, styles, filters, and tables by conversation; auto-verifies formulas after every edit, repairs silent errors, and validates charts.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,12 +16,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hccccc01333/dsh-excel-vera-plugin.git"
+    "url": "git+https://github.com/hccccc01333/dsh-excel-chat.git"
   },
   "bugs": {
-    "url": "https://github.com/hccccc01333/dsh-excel-vera-plugin/issues"
+    "url": "https://github.com/hccccc01333/dsh-excel-chat/issues"
   },
-  "homepage": "https://github.com/hccccc01333/dsh-excel-vera-plugin",
+  "homepage": "https://github.com/hccccc01333/dsh-excel-chat",
   "files": [
     "dist",
     "cordis.patch.yml",
