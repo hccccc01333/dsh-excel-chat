@@ -2,6 +2,23 @@
 
 在 DeepSeek Harness 里对话完成 Excel 工作的 dsh 插件。
 
+[![npm version](https://img.shields.io/npm/v/dsh-excel-chat)](https://www.npmjs.com/package/dsh-excel-chat)
+
+## 一分钟上手（使用者）
+
+前提：已安装 DeepSeek Harness（`dsh` CLI 或桌面端）。
+
+```sh
+dsh plugin --profile demo add dsh-excel-chat
+dsh web --profile demo
+```
+
+对话示例：“帮我把 report.xlsx 做成报表：D 列毛利、E 列合计、表头加粗、冻结首行、
+加筛选”；“检查 sales.xlsx 的公式哪里错了并修复”；“按区域生成透视表和柱状图”。
+
+平台说明：公式校验/修复、读写、样式、汇总、合并、邮件合并跨平台；图表创建/改参、
+原生透视表、图表导出需要 Windows + 本机 Excel。
+
 安装（从 npm 或本地 bundle）：
 
 ```sh

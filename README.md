@@ -23,6 +23,28 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 
 > 检查 sales.xlsx 里 D 列公式是不是每行都是“收入-成本”，不对的帮我修掉。
 
+## 给使用者：一分钟上手
+
+前提：已安装 DeepSeek Harness（`dsh` CLI 或桌面端）。
+
+```sh
+dsh plugin --profile demo add dsh-excel-chat      # 从 npm 安装
+# 或从 GitHub 安装：
+# dsh plugin --profile demo add github:hccccc01333/dsh-excel-chat
+dsh web --profile demo                             # 打开对话界面
+```
+
+然后在对话里直接说：
+
+- “帮我把 report.xlsx 做成报表：D 列毛利、E 列合计、表头加粗、冻结首行、加筛选”
+- “检查 sales.xlsx 的 D 列公式有没有错，不对的修掉”
+- “按区域生成透视表，金额合计，再生成柱状图”
+
+平台说明：公式校验/修复、读写单元格、样式、汇总、合并、邮件合并等功能跨平台；
+图表创建/改参、原生透视表、图表 PNG 导出需要 Windows + 本机安装 Excel。
+
+锁定版本：`dsh plugin --profile demo add dsh-excel-chat@0.23.0`（不写版本默认 latest）。
+
 ## 工具
 
 | 工具 | 作用 |
@@ -171,6 +193,12 @@ Windows 上 `cordis.yml` 的入口路径必须是 `file:///D:/vera/src/index.ts`
 `reference-offset` anomaly with confidence = majority support fraction (e.g. 3/4 = 0.75).
 
 The tool accepts either `cells` (a map) or `path` (an absolute `.xlsx` path) — exactly one.
+
+## 相关链接
+
+- npm：<https://www.npmjs.com/package/dsh-excel-chat>
+- GitHub：<https://github.com/hccccc01333/dsh-excel-chat>
+- 社区收录：[awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 
 ## Known limitations (P0)
 
