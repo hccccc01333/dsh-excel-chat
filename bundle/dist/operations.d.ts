@@ -117,6 +117,20 @@ export type ExcelOperation = {
     numberFormat?: string;
     outputSheet?: string;
 } | {
+    op: 'preset';
+    role: 'ops' | 'product' | 'data';
+    source: string;
+    groupColumn: string;
+    metrics: Array<{
+        column: string;
+        function: 'sum' | 'average' | 'count' | 'counta' | 'max' | 'min';
+    }>;
+    filter?: {
+        column: string;
+        operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains';
+        value: string | number;
+    };
+} | {
     op: 'dataValidation';
     range: string;
     type: 'list' | 'whole' | 'decimal' | 'date' | 'textLength' | 'custom';

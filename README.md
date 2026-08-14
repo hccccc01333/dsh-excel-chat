@@ -25,7 +25,8 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 
 > 检查 sales.xlsx 里 D 列公式是不是每行都是“收入-成本”，不对的帮我修掉。
 
-完整使用指南见 [docs/usage.md](docs/usage.md)。
+完整使用指南见 [docs/usage.md](docs/usage.md)，岗位用法（运营/产品/数分）见
+[docs/roles.md](docs/roles.md)。
 
 ## 给使用者：一分钟上手
 

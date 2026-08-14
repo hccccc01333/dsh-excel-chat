@@ -320,6 +320,10 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 applyReport(workbook, operation);
                 break;
             }
+            case 'preset': {
+                applyPreset(workbook, operation);
+                break;
+            }
             case 'dataValidation': {
                 applyDataValidation(workbook, operation);
                 break;
@@ -895,6 +899,54 @@ function applyReport(workbook, options) {
                     summary.getCell(`${col}${row}`).numFmt = options.numberFormat;
                 }
             });
+        }
+    }
+}
+const ROLE_LABELS = {
+    ops: '运营报表',
+    product: '产品分析',
+    data: '数据分析',
+};
+/**
+ * Role-based one-shot preset: 运营 gets a report with data bars, 产品 and 数分
+ * get a report with color scales, and 数分 additionally writes a filtered copy.
+ */
+function applyPreset(workbook, options) {
+    const parsed = parseRange(workbook, options.source);
+    const sheet = parsed.sheet;
+    const summarySheet = `${sheet.name}-${ROLE_LABELS[options.role]}`;
+    if (options.filter) {
+        const filterSheetName = `${sheet.name}-筛选`;
+        if (!findSheet(workbook, filterSheetName))
+            workbook.addWorksheet(filterSheetName);
+        applyFilterToRange(workbook, {
+            op: 'filterToRange',
+            source: options.source,
+            criteria: [options.filter],
+            target: `${filterSheetName}!A1`,
+        });
+    }
+    applyReport(workbook, {
+        op: 'report',
+        source: options.source,
+        groupColumn: options.groupColumn,
+        metrics: options.metrics,
+        numberFormat: '#,##0.00',
+        outputSheet: summarySheet,
+    });
+    for (const metric of options.metrics) {
+        const col = numberToColumn(columnToNumber(metric.column));
+        const range = `${sheet.name}!${col}${parsed.startRow}:${col}${sheet.rowCount}`;
+        if (options.role === 'ops') {
+            applyConditionalFormatting(workbook, range, [{ type: 'dataBar', color: '63BE7B' }]);
+        }
+        else {
+            applyConditionalFormatting(workbook, range, [{
+                    type: 'colorScale',
+                    minColor: 'F8696B',
+                    midColor: 'FFEB84',
+                    maxColor: '63BE7B',
+                }]);
         }
     }
 }

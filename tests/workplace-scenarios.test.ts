@@ -118,3 +118,39 @@ test('场景5：report 一条指令产出经营报表（排序+汇总+动态透�
   assert.equal(orders.getCell('F2').numFmt, '#,##0.00')
   assert.equal(summary.getCell('B2').numFmt, '#,##0.00')
 })
+
+test('场景6：preset 岗位模板（运营/产品/数分）', async () => {
+  const path = await makeSalesWorkbook()
+  const runPreset = async (role: 'ops' | 'product' | 'data', filter?: unknown, outName?: string): Promise<string> => {
+    const out = join(join(path, '..'), `${outName ?? role}.xlsx`)
+    await applyOperationsToWorkbook(path, [{
+      op: 'preset',
+      role,
+      source: '订单!A1:F7',
+      groupColumn: 'B',
+      metrics: [{ column: 'F', function: 'sum' }],
+      ...(filter ? { filter } : {}),
+    }], out)
+    return out
+  }
+
+  const opsOut = await runPreset('ops', undefined, '运营.xlsx')
+  const opsCells = await readWorkbookCells(await readFile(opsOut))
+  assert.equal(opsCells['订单-运营报表!A2'], '华东')
+  const opsWorkbook = new ExcelJS.Workbook()
+  await opsWorkbook.xlsx.readFile(opsOut)
+  const opsCf = (opsWorkbook.getWorksheet('订单') as unknown as { conditionalFormattings: Array<{ rules: Array<{ type: string }> }> }).conditionalFormattings
+  assert.ok(opsCf.some((entry) => entry.rules.some((rule) => rule.type === 'dataBar')))
+
+  const productOut = await runPreset('product', undefined, '产品.xlsx')
+  const productWorkbook = new ExcelJS.Workbook()
+  await productWorkbook.xlsx.readFile(productOut)
+  const productCf = (productWorkbook.getWorksheet('订单') as unknown as { conditionalFormattings: Array<{ rules: Array<{ type: string }> }> }).conditionalFormattings
+  assert.ok(productCf.some((entry) => entry.rules.some((rule) => rule.type === 'colorScale')))
+
+  const dataOut = await runPreset('data', { column: 'B', operator: 'eq', value: '华东' }, '数分.xlsx')
+  const dataCells = await readWorkbookCells(await readFile(dataOut))
+  assert.equal(dataCells['订单-数据分析!A2'], '华东')
+  assert.equal(dataCells['订单-筛选!A1'], '日期')
+  assert.ok(Object.values(dataCells).some((value) => value === '华东'))
+})

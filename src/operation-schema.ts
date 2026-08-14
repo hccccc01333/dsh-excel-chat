@@ -106,6 +106,32 @@ export const excelOperationSchema = {
       numberFormat: text('Optional number format for metric cells, e.g. "#,##0.00".'),
       outputSheet: text('Summary sheet name (default "<source>汇总").'),
     }),
+    opSchema('preset', {
+      role: { type: 'string', enum: ['ops', 'product', 'data'], required: true, description: '岗位：ops=运营 / product=产品 / data=数分。' },
+      source: text('Source data range including the header row, e.g. "订单!A1:F7".', true),
+      groupColumn: text('Column letter to group by.', true),
+      metrics: {
+        type: 'array',
+        required: true,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            column: text('Metric column letter.', true),
+            function: { type: 'string', enum: ['sum', 'average', 'count', 'counta', 'max', 'min'], required: true, description: 'Aggregation function.' },
+          },
+        },
+      },
+      filter: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          column: text('Column letter to filter by (数分 preset writes a filtered copy).', true),
+          operator: { type: 'string', enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains'], required: true, description: 'Comparison operator.' },
+          value: { oneOf: [{ type: 'string' }, { type: 'number' }], required: true, description: 'Comparison value.' },
+        },
+      },
+    }),
     opSchema('style', {
       range: rangeSchema,
       style: {
