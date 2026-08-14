@@ -18,6 +18,16 @@ export type ExcelOperation = {
     row: number;
     count: number;
 } | {
+    op: 'insertColumns';
+    sheet: string;
+    column: string;
+    count: number;
+} | {
+    op: 'deleteColumns';
+    sheet: string;
+    column: string;
+    count: number;
+} | {
     op: 'addSheet';
     name: string;
 } | {
@@ -36,7 +46,65 @@ export type ExcelOperation = {
 } | {
     op: 'unmerge';
     range: string;
+} | {
+    op: 'copyRange';
+    source: string;
+    target: string;
+    move?: boolean;
+} | {
+    op: 'fillSeries';
+    start: string;
+    target: string;
+    step?: number;
+} | {
+    op: 'style';
+    range: string;
+    style: ExcelStyle;
+} | {
+    op: 'setColumnWidth';
+    sheet: string;
+    column: string;
+    width: number;
+} | {
+    op: 'setRowHeight';
+    sheet: string;
+    row: number;
+    height: number;
+} | {
+    op: 'freezePanes';
+    sheet: string;
+    row: number;
+    column: string;
+} | {
+    op: 'findReplace';
+    find: string;
+    replace: string;
+    sheet?: string;
+    matchCase?: boolean;
+} | {
+    op: 'duplicateSheet';
+    name: string;
+    newName: string;
+} | {
+    op: 'hideSheet';
+    name: string;
+    hidden?: boolean;
+} | {
+    op: 'setTabColor';
+    name: string;
+    color: string;
 };
+export interface ExcelStyle {
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    fontColor?: string;
+    fill?: string;
+    numberFormat?: string;
+    hAlign?: 'left' | 'center' | 'right';
+    vAlign?: 'top' | 'middle' | 'bottom';
+    wrapText?: boolean;
+}
 export interface OperationWarning {
     op: number;
     message: string;

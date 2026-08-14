@@ -52,6 +52,29 @@ test('set writes values and formulas into a workbook copy', async () => {
   assert.equal(cells['Sheet1!E1'], 'total')
 })
 
+test('set types numbers, dates, and booleans instead of writing text', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const outPath = join(join(path, '..'), 'typed.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'set',
+    cells: {
+      'Sheet1!A1': '100',
+      'Sheet1!A2': '2026-01-15',
+      'Sheet1!A3': 'true',
+      'Sheet1!A4': 'abc',
+    },
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('A1').value, 100)
+  assert.ok(sheet.getCell('A2').value instanceof Date)
+  assert.equal(sheet.getCell('A3').value, true)
+  assert.equal(sheet.getCell('A4').value, 'abc')
+})
+
 test('fill down copies a formula and shifts relative rows, keeping absolute rows', async () => {
   const path = await makeWorkbook((workbook) => {
     const sheet = workbook.addWorksheet('Sheet1')
@@ -104,6 +127,40 @@ test('insertRows also shifts cross-sheet references into the edited sheet', asyn
   assert.equal(cells['Sheet2!E3'], '=Sheet1!B4*2')
 })
 
+test('insertColumns shifts formula references to the right', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A2').value = 1
+    sheet.getCell('B2').value = { formula: 'A2*2' }
+    sheet.getCell('C2').value = { formula: 'B2*2' }
+  })
+  const cells = await readAfter(path, [{ op: 'insertColumns', sheet: 'Sheet1', column: 'B', count: 1 }])
+  assert.equal(cells['Sheet1!B2'], undefined) // inserted empty column
+  assert.equal(cells['Sheet1!C2'], '=A2*2')   // old B2
+  assert.equal(cells['Sheet1!D2'], '=C2*2')   // old C2, reference shifted
+})
+
+test('deleteColumns removes columns and shifts references after the deletion', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A2').value = 1
+    sheet.getCell('B2').value = { formula: 'A2*2' }
+    sheet.getCell('C2').value = { formula: 'B2*2' }
+    sheet.getCell('D2').value = { formula: 'C2*2' }
+  })
+  const outPath = join(join(path, '..'), 'delcol.xlsx')
+  const result = await applyOperationsToWorkbook(path, [
+    { op: 'deleteColumns', sheet: 'Sheet1', column: 'B', count: 1 },
+  ], outPath)
+  assert.ok(result.warnings.some((warning) => /references a deleted column/.test(warning.message)))
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('B2').formula, 'B2*2')  // old C2, reference into deleted B left with a warning
+  assert.equal(sheet.getCell('C2').formula, 'B2*2')  // old D2, reference shifted C -> B
+  assert.equal(sheet.getCell('D2').value, null)
+})
+
 test('renameSheet updates references across the workbook', async () => {
   const path = await makeWorkbook((workbook) => {
     const sheet1 = workbook.addWorksheet('Sheet1')
@@ -153,6 +210,139 @@ test('clear empties the selected cells', async () => {
   assert.equal(cells['Sheet1!D3'], undefined)
   assert.equal(cells['Sheet1!B3'], undefined)
   assert.equal(cells['Sheet1!D2'], '=B2-C2')
+})
+
+test('copyRange copies values and shifts formulas by the destination offset', async () => {
+  const path = await makeWorkbook(formulaFixture())
+  const outPath = join(join(path, '..'), 'copied.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'copyRange', source: 'Sheet1!B2:D3', target: 'Sheet1!E2' },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('E2').value, 10)
+  assert.equal(sheet.getCell('F2').value, 4)
+  assert.equal(sheet.getCell('G2').formula, 'E2-F2') // formula shifted +3 columns
+  assert.equal(sheet.getCell('G3').formula, 'E3-F3')
+})
+
+test('copyRange with move clears the source range', async () => {
+  const path = await makeWorkbook(formulaFixture())
+  const outPath = join(join(path, '..'), 'moved.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'copyRange', source: 'Sheet1!B2:C2', target: 'Sheet1!E2', move: true },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('B2').value, null)
+  assert.equal(sheet.getCell('E2').value, 10)
+})
+
+test('fillSeries fills numeric and date sequences', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 1
+    sheet.getCell('C1').value = new Date(2026, 0, 1)
+  })
+  const outPath = join(join(path, '..'), 'series.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'fillSeries', start: 'Sheet1!A1', target: 'Sheet1!A1:A5' },
+    { op: 'fillSeries', start: 'Sheet1!C1', target: 'Sheet1!C1:C3' },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('A5').value, 5)
+  const third = sheet.getCell('C3').value as Date
+  assert.equal(third.getFullYear(), 2026)
+  assert.equal(third.getMonth(), 0)
+  assert.equal(third.getDate(), 3)
+})
+
+test('style applies font, fill, number format, and alignment to a range', async () => {
+  const path = await makeWorkbook(formulaFixture())
+  const outPath = join(join(path, '..'), 'styled.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'style',
+    range: 'Sheet1!A1:B2',
+    style: {
+      bold: true,
+      fontColor: 'FF0000',
+      fill: 'FFFF00',
+      numberFormat: '#,##0.00',
+      hAlign: 'center',
+      wrapText: true,
+    },
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const cell = workbook.getWorksheet('Sheet1')!.getCell('A1')
+  assert.equal(cell.font.bold, true)
+  assert.equal(cell.font.color.argb, 'FFFF0000')
+  assert.equal((cell.fill as { fgColor?: { argb?: string } }).fgColor?.argb, 'FFFFFF00')
+  assert.equal(cell.numFmt, '#,##0.00')
+  assert.equal(cell.alignment.horizontal, 'center')
+  assert.equal(cell.alignment.wrapText, true)
+})
+
+test('setColumnWidth, setRowHeight, and freezePanes update sheet layout', async () => {
+  const path = await makeWorkbook(formulaFixture())
+  const outPath = join(join(path, '..'), 'layout.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'setColumnWidth', sheet: 'Sheet1', column: 'B', width: 24 },
+    { op: 'setRowHeight', sheet: 'Sheet1', row: 1, height: 30 },
+    { op: 'freezePanes', sheet: 'Sheet1', row: 2, column: 'B' },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getColumn('B').width, 24)
+  assert.equal(sheet.getRow(1).height, 30)
+  assert.equal(sheet.views[0]!.state, 'frozen')
+  assert.equal(sheet.views[0]!.ySplit, 1)
+})
+
+test('findReplace swaps text across cells and reports the count', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'old name'
+    sheet.getCell('A2').value = 'OLD NAME'
+    sheet.getCell('A3').value = 'keep'
+  })
+  const outPath = join(join(path, '..'), 'replaced.xlsx')
+  const result = await applyOperationsToWorkbook(path, [
+    { op: 'findReplace', find: 'old', replace: 'new', sheet: 'Sheet1', matchCase: false },
+  ], outPath)
+  assert.equal(result.warnings[0]!.message, 'findReplace replaced 2 occurrence(s)')
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('A1').value, 'new name')
+  assert.equal(sheet.getCell('A2').value, 'new NAME')
+  assert.equal(sheet.getCell('A3').value, 'keep')
+})
+
+test('duplicateSheet copies values and merges; hideSheet and setTabColor update the sheet', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 1
+    sheet.mergeCells('A1:B1')
+  })
+  const outPath = join(join(path, '..'), 'sheets.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'duplicateSheet', name: 'Sheet1', newName: 'Copy' },
+    { op: 'hideSheet', name: 'Copy' },
+    { op: 'setTabColor', name: 'Copy', color: '00AA00' },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const copy = workbook.getWorksheet('Copy')!
+  assert.equal(copy.getCell('A1').value, 1)
+  assert.deepEqual(copy.model.merges, ['A1:B1'])
+  assert.equal(copy.state, 'hidden')
+  assert.equal(copy.properties.tabColor?.argb, 'FF00AA00')
 })
 
 test('operateWorkbookFile returns post-operation validation and flags broken patterns', async () => {

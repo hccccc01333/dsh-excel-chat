@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.14.0 — 2026-08-14
+
+- `excel_operate` 扩展到职场级：
+  - 值类型识别：`set`/`fill` 自动把数字、日期、布尔写成真正的类型，不再把
+    `100` 写成文本（文本数字会让 SUM 类公式静默失效）。
+  - 列操作：`insertColumns` / `deleteColumns`，公式列引用联动（含跨表引用），
+    删除列时警告引用了被删列的公式。
+  - 数据操作：`copyRange` / `moveRange`（公式按目标偏移调整）、`fillSeries`
+    （数字/日期序列）。
+  - 格式与视图：`style`（粗体/斜体/下划线/字体色/填充/数字格式/对齐/自动换行）、
+    `setColumnWidth` / `setRowHeight` / `freezePanes`。
+  - 查找与工作表：`findReplace`（大小写可选，返回替换次数）、`duplicateSheet`、
+    `hideSheet`、`setTabColor`。
+- 测试规模 98 → 108，覆盖全部新操作与值类型。
+
 ## v0.13.0 — 2026-08-14
 
 - 新增 `excel_operate` 操作工具（面向日常 Excel 用户）：

@@ -27,7 +27,7 @@ export function apply(ctx: Context) {
   console.log('[vera-formula-validator] plugin loaded')
   ctx.tools.register(defineTool({
     name: 'excel_operate',
-    description: 'Apply common Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (cell id -> value or =formula), fill (copy a source cell down/right a range with relative reference adjustment), insertRows / deleteRows (formula references shift like Excel), addSheet / renameSheet (references update) / deleteSheet, clear cells, merge / unmerge a range. Writes <path>.edited.xlsx and returns the post-operation validation result.',
+    description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill (drag-fill with reference adjustment), insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel, including cross-sheet), addSheet / renameSheet (references update) / deleteSheet / duplicateSheet / hideSheet / setTabColor, clear, merge / unmerge, copyRange / moveRange (formulas adjust), fillSeries (numeric/date), style (bold/italic/underline/colors/numberFormat/alignment/wrap), setColumnWidth / setRowHeight / freezePanes, findReplace. Writes <path>.edited.xlsx and returns the post-operation validation result.',
     parameters: {
       path: {
         type: 'string',
