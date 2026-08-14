@@ -25,7 +25,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -97,7 +96,6 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: read
-      id-token: write
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -112,7 +110,9 @@ jobs:
       - name: Publish tarball
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish ./dist/*.tgz --provenance --access public
+        # Provenance is omitted while the source repository is private;
+        # sigstore only supports public source repos.
+        run: npm publish ./dist/*.tgz --access public
 
   release:
     name: GitHub Release with tarball
