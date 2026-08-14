@@ -17,7 +17,8 @@ dsh plugin --profile demo add ./bundle
   （可用 `autoTable` 自动识别表头）
 - `excel_diff_workbook` — 两个 workbook 的单元格差异
 - `excel_operate` — 职场级 Excel 操作（写值自动类型识别、填充/序列、插入/删除
-  行列、复制/移动、样式、冻结、查找替换、工作表管理、合并），操作后自动复验公式
+  行列、复制/移动、排序、样式、数据有效性、条件格式、冻结、查找替换、工作表
+  管理、合并），操作后自动复验公式
 - `excel_validate_charts` — 图表结构校验
 - `excel_export_charts` — 用本地 Excel 把图表导出为 PNG（Windows）
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.15.0 — 2026-08-14
+
+- `excel_operate` 继续扩展：
+  - `sortRange`：按一个或多个键排序（升序/降序），支持跳过表头行，稳定排序。
+  - `dataValidation`：下拉列表（`list`）与数值/日期/文本长度校验（`between` 等
+    运算符、错误提示、允许空值）。
+  - `conditionalFormatting`：`cellIs` / `expression` 条件格式（如“大于 80 标红”）。
+  - 删除行列时，引用被删单元格的公式现在转成 `#REF!`，与 Excel 原生行为一致；
+    修复了删除后引用误判为 `#REF!` 的顺序问题。
+- 测试规模 108 → 112。
+
 ## v0.14.0 — 2026-08-14
 
 - `excel_operate` 扩展到职场级：

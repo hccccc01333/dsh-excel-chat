@@ -73,8 +73,11 @@ function parseRange(workbook, range) {
  * editedSheet is set, only references pointing into that sheet are shifted.
  */
 export function shiftFormulaReferences(formula, baseSheet, editedSheet, options = {}) {
-    const { rowDelta, colDelta, rowThreshold, colThreshold } = options;
-    if ((rowDelta ?? 0) === 0 && (colDelta ?? 0) === 0)
+    const { rowDelta, colDelta, rowThreshold, colThreshold, rowDeletedStart, rowDeletedEnd, colDeletedStart, colDeletedEnd } = options;
+    if ((rowDelta ?? 0) === 0 &&
+        (colDelta ?? 0) === 0 &&
+        rowDeletedStart === undefined &&
+        colDeletedStart === undefined)
         return formula;
     const hasEquals = formula.trimStart().startsWith('=');
     const raw = hasEquals ? formula.trimStart().slice(1) : formula;
@@ -85,12 +88,12 @@ export function shiftFormulaReferences(formula, baseSheet, editedSheet, options 
         const colon = text.indexOf(':');
         const startToken = colon >= 0 ? text.slice(0, colon) : text;
         const endToken = colon >= 0 ? text.slice(colon + 1) : null;
-        const newStart = shiftPointToken(startToken, ref.start, baseSheet, editedSheet, { rowDelta, colDelta, rowThreshold, colThreshold });
+        const newStart = shiftPointToken(startToken, ref.start, baseSheet, editedSheet, { rowDelta, colDelta, rowThreshold, colThreshold, rowDeletedStart, rowDeletedEnd, colDeletedStart, colDeletedEnd });
         if (endToken === null) {
             edits.push({ start: ref.range.start, end: ref.range.end, text: newStart });
         }
         else {
-            const newEnd = shiftPointToken(endToken, ref.end, baseSheet, editedSheet, { rowDelta, colDelta, rowThreshold, colThreshold });
+            const newEnd = shiftPointToken(endToken, ref.end, baseSheet, editedSheet, { rowDelta, colDelta, rowThreshold, colThreshold, rowDeletedStart, rowDeletedEnd, colDeletedStart, colDeletedEnd });
             edits.push({ start: ref.range.start, end: ref.range.end, text: `${newStart}:${newEnd}` });
         }
     }
@@ -104,7 +107,7 @@ function shiftPointToken(token, point, baseSheet, editedSheet, options) {
     const effectiveSheet = normalizeSheet(point.sheet ?? baseSheet);
     if (editedSheet && effectiveSheet !== normalizeSheet(editedSheet))
         return token;
-    const { rowDelta, colDelta, rowThreshold, colThreshold } = options;
+    const { rowDelta, colDelta, rowThreshold, colThreshold, rowDeletedStart, rowDeletedEnd, colDeletedStart, colDeletedEnd, } = options;
     const colMatch = /^(.*?)(\$?)([A-Za-z]{1,3})(\$?)(\d+)$/.exec(token);
     const wholeColMatch = /^(.*?)(\$?)([A-Za-z]{1,3})$/.exec(token);
     const hasRow = colMatch !== null;
@@ -113,6 +116,11 @@ function shiftPointToken(token, point, baseSheet, editedSheet, options) {
     const col = hasRow ? colMatch[3] : wholeColMatch?.[3] ?? null;
     const absRow = hasRow ? colMatch[4] === '$' : false;
     const row = hasRow ? Number(colMatch[5]) : null;
+    const currentColNumber = col ? columnToNumber(col) : null;
+    if ((rowDeletedStart !== undefined && row !== null && !absRow && row >= rowDeletedStart && row <= (rowDeletedEnd ?? rowDeletedStart)) ||
+        (colDeletedStart !== undefined && currentColNumber !== null && !absCol && currentColNumber >= colDeletedStart && currentColNumber <= (colDeletedEnd ?? colDeletedStart))) {
+        return '#REF!';
+    }
     let newCol = col;
     if (col && !absCol && colDelta) {
         const current = columnToNumber(col);
@@ -176,6 +184,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 for (const formulaCell of collectDeletedRangeRefs(workbook, sheet.name, operation.row, end)) {
                     warnings.push({ op: index, message: `formula ${formulaCell} references a deleted row in ${sheet.name}` });
                 }
+                markDeletedRowRefs(workbook, sheet.name, operation.row, end);
                 sheet.spliceRows(operation.row, operation.count);
                 shiftWorkbookRows(workbook, sheet.name, end + 1, -operation.count);
                 break;
@@ -202,6 +211,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 for (const formulaCell of collectDeletedColumnRefs(workbook, sheet.name, columnNumber, end)) {
                     warnings.push({ op: index, message: `formula ${formulaCell} references a deleted column in ${sheet.name}` });
                 }
+                markDeletedColumnRefs(workbook, sheet.name, columnNumber, end);
                 sheet.spliceColumns(columnNumber, operation.count);
                 shiftWorkbookColumns(workbook, sheet.name, end + 1, -operation.count);
                 break;
@@ -298,6 +308,19 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 if (!sheet)
                     throw new Error(`sheet not found: ${operation.name}`);
                 sheet.properties.tabColor = { argb: normalizeColor(operation.color) };
+                break;
+            }
+            case 'sortRange': {
+                sortRange(workbook, operation.range, operation.keys, operation.headerRows ?? 0);
+                warnings.push({ op: index, message: 'sortRange moved cell content; formulas outside the range still point to their original addresses' });
+                break;
+            }
+            case 'dataValidation': {
+                applyDataValidation(workbook, operation);
+                break;
+            }
+            case 'conditionalFormatting': {
+                applyConditionalFormatting(workbook, operation.range, operation.rules);
                 break;
             }
         }
@@ -415,6 +438,163 @@ function collectDeletedColumnRefs(workbook, editedSheet, start, end) {
         });
     });
     return hits;
+}
+function markDeletedRowRefs(workbook, editedSheet, start, end) {
+    const edited = normalizeSheet(editedSheet);
+    workbook.eachSheet((sheet) => {
+        sheet.eachRow({ includeEmpty: false }, (row) => {
+            row.eachCell({ includeEmpty: false }, (cell) => {
+                if (!cell.formula)
+                    return;
+                const formula = `=${cell.formula}`;
+                const rewritten = shiftFormulaReferences(formula, sheet.name, edited, {
+                    rowDeletedStart: start,
+                    rowDeletedEnd: end,
+                });
+                if (rewritten !== formula)
+                    cell.value = { formula: rewritten.slice(1) };
+            });
+        });
+    });
+}
+function markDeletedColumnRefs(workbook, editedSheet, start, end) {
+    const edited = normalizeSheet(editedSheet);
+    workbook.eachSheet((sheet) => {
+        sheet.eachRow({ includeEmpty: false }, (row) => {
+            row.eachCell({ includeEmpty: false }, (cell) => {
+                if (!cell.formula)
+                    return;
+                const formula = `=${cell.formula}`;
+                const rewritten = shiftFormulaReferences(formula, sheet.name, edited, {
+                    colDeletedStart: start,
+                    colDeletedEnd: end,
+                });
+                if (rewritten !== formula)
+                    cell.value = { formula: rewritten.slice(1) };
+            });
+        });
+    });
+}
+function sortRange(workbook, range, keys, headerRows) {
+    const parsed = parseRange(workbook, range);
+    const keyColumns = keys.map((key) => ({
+        column: columnToNumber(key.column),
+        direction: key.direction ?? 'asc',
+    }));
+    for (const key of keyColumns) {
+        if (key.column < parsed.startCol || key.column > parsed.endCol) {
+            throw new Error(`sort key column outside range: ${numberToColumn(key.column)}`);
+        }
+    }
+    if (headerRows < 0 || headerRows >= parsed.endRow - parsed.startRow + 1) {
+        throw new Error(`invalid headerRows: ${headerRows}`);
+    }
+    const rows = [];
+    for (let row = parsed.startRow + headerRows; row <= parsed.endRow; row++) {
+        const cells = {};
+        const keyValues = [];
+        for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+            const letter = numberToColumn(col);
+            const cell = parsed.sheet.getCell(`${letter}${row}`);
+            cells[letter] = cell.value;
+            if (keyColumns.some((key) => key.column === col))
+                keyValues.push(cell.value);
+        }
+        rows.push({ cells, keys: keyValues });
+    }
+    rows.sort((a, b) => compareSortRows(a.keys, b.keys, keyColumns.map((key) => key.direction)));
+    for (let index = 0; index < rows.length; index++) {
+        const targetRow = parsed.startRow + headerRows + index;
+        for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+            const letter = numberToColumn(col);
+            parsed.sheet.getCell(`${letter}${targetRow}`).value = rows[index].cells[letter] ?? null;
+        }
+    }
+}
+function compareSortRows(a, b, directions) {
+    for (let index = 0; index < a.length; index++) {
+        const comparison = compareSortValue(a[index], b[index]);
+        if (comparison !== 0)
+            return directions[index] === 'desc' ? -comparison : comparison;
+    }
+    return 0;
+}
+function compareSortValue(a, b) {
+    if (typeof a === 'number' && typeof b === 'number')
+        return a - b;
+    if (a instanceof Date && b instanceof Date)
+        return a.getTime() - b.getTime();
+    const left = a === null || a === undefined ? '' : String(a);
+    const right = b === null || b === undefined ? '' : String(b);
+    return left < right ? -1 : left > right ? 1 : 0;
+}
+function applyDataValidation(workbook, options) {
+    const parsed = parseRange(workbook, options.range);
+    const validation = {
+        type: options.type,
+        operator: options.operator,
+        formulae: [],
+        allowBlank: options.allowBlank,
+        showInputMessage: options.showInputMessage,
+        prompt: options.prompt,
+        showErrorMessage: options.showErrorMessage,
+        errorStyle: options.errorStyle,
+        errorTitle: options.errorTitle,
+        error: options.error,
+    };
+    if (options.type === 'list') {
+        if (!options.formula1)
+            throw new Error('list data validation requires formula1 (comma-separated items or a range)');
+        validation.formulae = [looksLikeRange(options.formula1) ? options.formula1 : `"${options.formula1}"`];
+    }
+    else if (options.formula1 !== undefined) {
+        validation.formulae = [options.formula1];
+        if (options.formula2 !== undefined)
+            validation.formulae.push(options.formula2);
+    }
+    for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+        for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+            parsed.sheet.getCell(`${numberToColumn(col)}${row}`).dataValidation = validation;
+        }
+    }
+}
+function looksLikeRange(value) {
+    return /^[A-Za-z]{1,3}\d+:[A-Za-z]{1,3}\d+$/.test(value) || /[!$]/.test(value);
+}
+function applyConditionalFormatting(workbook, range, rules) {
+    const parsed = parseRange(workbook, range);
+    const mapped = rules.map((rule) => {
+        const style = rule.style ? excelStyleToWorkbookStyle(rule.style) : undefined;
+        if (rule.type === 'cellIs') {
+            if (!rule.operator || rule.formula === undefined) {
+                throw new Error('cellIs conditional formatting requires operator and formula');
+            }
+            return {
+                type: 'cellIs',
+                operator: rule.operator,
+                formulae: [rule.formula, ...(rule.formula2 !== undefined ? [rule.formula2] : [])],
+                style,
+            };
+        }
+        return { type: 'expression', formulae: [String(rule.formula ?? '')], style };
+    });
+    const ref = `${numberToColumn(parsed.startCol)}${parsed.startRow}:${numberToColumn(parsed.endCol)}${parsed.endRow}`;
+    parsed.sheet.addConditionalFormatting({ ref, rules: mapped });
+}
+function excelStyleToWorkbookStyle(style) {
+    const result = {};
+    if (style.bold !== undefined || style.italic !== undefined || style.underline !== undefined || style.fontColor !== undefined) {
+        result.font = {
+            bold: style.bold,
+            italic: style.italic,
+            underline: style.underline,
+            color: style.fontColor ? { argb: normalizeColor(style.fontColor) } : undefined,
+        };
+    }
+    if (style.fill !== undefined) {
+        result.fill = { type: 'pattern', pattern: 'solid', bgColor: { argb: normalizeColor(style.fill) } };
+    }
+    return result;
 }
 function copyRange(workbook, sourceRange, targetCell, move) {
     const parsed = parseRange(workbook, sourceRange);

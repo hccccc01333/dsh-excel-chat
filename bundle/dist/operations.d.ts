@@ -93,6 +93,38 @@ export type ExcelOperation = {
     op: 'setTabColor';
     name: string;
     color: string;
+} | {
+    op: 'sortRange';
+    range: string;
+    keys: Array<{
+        column: string;
+        direction?: 'asc' | 'desc';
+    }>;
+    headerRows?: number;
+} | {
+    op: 'dataValidation';
+    range: string;
+    type: 'list' | 'whole' | 'decimal' | 'date' | 'textLength' | 'custom';
+    operator?: 'between' | 'notBetween' | 'equal' | 'notEqual' | 'greaterThan' | 'lessThan' | 'greaterThanOrEqual' | 'lessThanOrEqual';
+    formula1?: string;
+    formula2?: string;
+    allowBlank?: boolean;
+    showInputMessage?: boolean;
+    prompt?: string;
+    showErrorMessage?: boolean;
+    errorStyle?: 'stop' | 'warning' | 'information';
+    error?: string;
+    errorTitle?: string;
+} | {
+    op: 'conditionalFormatting';
+    range: string;
+    rules: Array<{
+        type: 'cellIs' | 'expression';
+        operator?: string;
+        formula?: string | number;
+        formula2?: string | number;
+        style?: ExcelStyle;
+    }>;
 };
 export interface ExcelStyle {
     bold?: boolean;
@@ -128,6 +160,10 @@ export declare function shiftFormulaReferences(formula: string, baseSheet: strin
     colDelta?: number;
     rowThreshold?: number;
     colThreshold?: number;
+    rowDeletedStart?: number;
+    rowDeletedEnd?: number;
+    colDeletedStart?: number;
+    colDeletedEnd?: number;
 }): string;
 export declare function applyOperationsToWorkbook(inputPath: string, operations: ExcelOperation[], outputPath: string): Promise<ApplyOperationsResult>;
 export declare function operateWorkbookFile(path: string, operations: ExcelOperation[], outputPath: string): Promise<OperateResult>;

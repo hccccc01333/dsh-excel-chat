@@ -26,7 +26,7 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 | `excel_compile_formula` | Formula IR（binary / ratio / aggregate）→ 确定性 Excel 公式 |
 | `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复（`useLlm` / `autoTable` / `oraclePath`），输出 `.repaired.xlsx` 并复验 |
 | `excel_diff_workbook` | 两个 workbook 的单元格级 diff |
-| `excel_operate` | 职场级 Excel 操作：写值（自动识别数字/日期/布尔）、拖拽填充、序列填充、插入/删除行列（公式引用联动含跨表）、复制/移动区域、样式格式化、列宽行高、冻结窗格、查找替换、工作表增删改/复制/隐藏/标签色、合并；操作后自动复验公式 |
+| `excel_operate` | 职场级 Excel 操作：写值（自动类型识别）、填充/序列、插入/删除行列（引用联动 + `#REF!`）、复制/移动、排序、样式、数据有效性下拉、条件格式、冻结窗格、查找替换、工作表管理、合并；操作后自动复验公式 |
 | `excel_validate_charts` | 图表结构校验：类型、系列、缺失单元格、二维范围、日期排序 |
 | `excel_validate_charts_visual` | Excel 导出 PNG + 视觉 LLM 评审 |
 | `excel_export_charts` | 用本地 Excel 把图表导出为 PNG（Windows） |
@@ -56,10 +56,11 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 - `src/score.ts` — `scoreWorkbookAgainstOracle`：oracle 单元格级判分，容忍公式
   大小写/空白与数字格式差异，输出准确率与 mismatch 明细。
 - `src/operations.ts` — Excel 操作 DSL：set（自动类型识别）/ fill / fillSeries /
-  insertRows / deleteRows / insertColumns / deleteColumns（公式引用联动，含跨表）/
-  copyRange / moveRange / style / setColumnWidth / setRowHeight / freezePanes /
-  findReplace / addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet /
-  setTabColor / clear / merge / unmerge。
+  insertRows / deleteRows / insertColumns / deleteColumns（公式引用联动，含跨表，
+  被删单元格引用转 `#REF!`）/ sortRange（多键排序）/ copyRange / moveRange /
+  style / dataValidation（下拉与数值校验）/ conditionalFormatting / setColumnWidth /
+  setRowHeight / freezePanes / findReplace / addSheet / renameSheet / deleteSheet /
+  duplicateSheet / hideSheet / setTabColor / clear / merge / unmerge。
 - `src/benchmark.ts` — Pass@1 benchmark：确定性修复 → LLM 修复，与 oracle 对比判分。
 - `src/benchmark-cases.ts` — 11 个 benchmark 任务：范围端点、绝对引用、空行、
   跨表、多表、聚合结构、hardcode 等场景。

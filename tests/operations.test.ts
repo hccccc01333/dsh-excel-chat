@@ -156,9 +156,26 @@ test('deleteColumns removes columns and shifts references after the deletion', a
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.readFile(outPath)
   const sheet = workbook.getWorksheet('Sheet1')!
-  assert.equal(sheet.getCell('B2').formula, 'B2*2')  // old C2, reference into deleted B left with a warning
+  assert.equal(sheet.getCell('B2').formula, '#REF!*2') // old C2, reference into deleted B became #REF!
   assert.equal(sheet.getCell('C2').formula, 'B2*2')  // old D2, reference shifted C -> B
   assert.equal(sheet.getCell('D2').value, null)
+})
+
+test('deleteRows turns references into deleted rows into #REF!', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('D2').value = { formula: 'B2-C2' }
+    sheet.getCell('D3').value = { formula: 'B3-C3' }
+    sheet.getCell('E2').value = { formula: 'D2+D3' }
+  })
+  const outPath = join(join(path, '..'), 'ref.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'deleteRows', sheet: 'Sheet1', row: 3, count: 1 },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('E2').formula, 'D2+#REF!')
 })
 
 test('renameSheet updates references across the workbook', async () => {
@@ -343,6 +360,89 @@ test('duplicateSheet copies values and merges; hideSheet and setTabColor update 
   assert.deepEqual(copy.model.merges, ['A1:B1'])
   assert.equal(copy.state, 'hidden')
   assert.equal(copy.properties.tabColor?.argb, 'FF00AA00')
+})
+
+test('sortRange sorts by one key descending and keeps the header row in place', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'Name'
+    sheet.getCell('B1').value = 'Score'
+    sheet.getCell('A2').value = 'Alice'
+    sheet.getCell('B2').value = 90
+    sheet.getCell('A3').value = 'Bob'
+    sheet.getCell('B3').value = 70
+    sheet.getCell('A4').value = 'Carol'
+    sheet.getCell('B4').value = 80
+  })
+  const outPath = join(join(path, '..'), 'sorted.xlsx')
+  const result = await applyOperationsToWorkbook(path, [
+    { op: 'sortRange', range: 'Sheet1!A1:B4', keys: [{ column: 'B', direction: 'desc' }], headerRows: 1 },
+  ], outPath)
+  assert.ok(result.warnings.some((warning) => warning.message.startsWith('sortRange')))
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('A1').value, 'Name')
+  assert.equal(sheet.getCell('A2').value, 'Alice')
+  assert.equal(sheet.getCell('A3').value, 'Carol')
+  assert.equal(sheet.getCell('A4').value, 'Bob')
+})
+
+test('dataValidation adds a dropdown list and numeric between rules', async () => {
+  const path = await makeWorkbook(formulaFixture())
+  const outPath = join(join(path, '..'), 'validated.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'dataValidation', range: 'Sheet1!A2:A4', type: 'list', formula1: '高,中,低', allowBlank: true },
+    {
+      op: 'dataValidation',
+      range: 'Sheet1!B2:B4',
+      type: 'whole',
+      operator: 'between',
+      formula1: '1',
+      formula2: '100',
+      error: '必须填写 1-100 的整数',
+      errorTitle: '输入错误',
+    },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('A2').dataValidation?.type, 'list')
+  assert.deepEqual(sheet.getCell('A2').dataValidation?.formulae, ['"高,中,低"'])
+  assert.equal(sheet.getCell('B3').dataValidation?.type, 'whole')
+  assert.equal(sheet.getCell('B3').dataValidation?.operator, 'between')
+  assert.deepEqual(sheet.getCell('B3').dataValidation?.formulae, [1, 100])
+  assert.equal(sheet.getCell('B3').dataValidation?.error, '必须填写 1-100 的整数')
+})
+
+test('conditionalFormatting adds a cellIs rule with a red fill', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('B2').value = 90
+    sheet.getCell('B3').value = 70
+    sheet.getCell('B4').value = 80
+  })
+  const outPath = join(join(path, '..'), 'cf.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'conditionalFormatting',
+    range: 'Sheet1!B2:B4',
+    rules: [{
+      type: 'cellIs',
+      operator: 'greaterThan',
+      formula: 80,
+      style: { fill: 'FF0000', bold: true, fontColor: 'FFFFFF' },
+    }],
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  const cf = (sheet as unknown as { conditionalFormattings?: Array<{ ref: string; rules: Array<{ type: string; operator: string; style?: { fill?: { bgColor?: { argb?: string } } } }> }> }).conditionalFormattings
+  const entry = cf?.[0]
+  assert.ok(entry, 'conditional formatting missing')
+  assert.equal(entry!.ref, 'B2:B4')
+  assert.equal(entry!.rules[0]!.type, 'cellIs')
+  assert.equal(entry!.rules[0]!.operator, 'greaterThan')
+  assert.equal(entry!.rules[0]!.style?.fill?.bgColor?.argb, 'FFFF0000')
 })
 
 test('operateWorkbookFile returns post-operation validation and flags broken patterns', async () => {

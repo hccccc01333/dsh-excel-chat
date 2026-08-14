@@ -1,6 +1,6 @@
 {
   "name": "dsh-excel-vera-plugin",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "VERA - Verified Excel Reasoning Agent dsh plugin: silent formula-error detection, semantic Formula IR compilation, deterministic + LLM repair, oracle scoring, Pass@1 benchmark, and chart validation.",
   "license": "MIT",
   "type": "module",
