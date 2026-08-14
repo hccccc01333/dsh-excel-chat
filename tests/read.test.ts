@@ -52,3 +52,15 @@ test('readWorkbookDetail can read a single exact cell', async () => {
   assert.equal(sheets[0]!.cells.length, 1)
   assert.equal(sheets[0]!.cells[0]!.id, 'Sheet1!B1')
 })
+
+test('readWorkbookDetail caps rows with maxRows and marks the result truncated', async () => {
+  const path = await makeWorkbook()
+  const sheets = await readWorkbookDetail(path, { sheet: 'Sheet1', range: 'A1:E30', maxRows: 2 })
+  assert.equal(sheets.length, 1)
+  const result = sheets[0]!
+  assert.equal(result.range, 'A1:E2')
+  assert.equal(result.truncated, true)
+  assert.equal(result.cells.length, 6)
+  const next = await readWorkbookDetail(path, { sheet: 'Sheet1', range: 'A3:E30', maxRows: 2 })
+  assert.equal(next[0]!.range, 'A3:E4')
+})

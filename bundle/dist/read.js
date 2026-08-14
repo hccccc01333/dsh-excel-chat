@@ -70,7 +70,8 @@ export async function readWorkbookDetail(path, options = {}) {
         const startCol = parsed?.startCol ?? 1;
         const startRow = parsed?.startRow ?? 1;
         const endCol = parsed?.endCol ?? sheet.columnCount;
-        const endRow = parsed?.endRow ?? sheet.rowCount;
+        const fullEndRow = parsed?.endRow ?? sheet.rowCount;
+        const endRow = options.maxRows ? Math.min(fullEndRow, startRow + options.maxRows - 1) : fullEndRow;
         const requested = options.cells ? new Set(options.cells.map((id) => `${id.split('!').pop()?.toUpperCase()}`)) : null;
         const cells = [];
         for (let row = startRow; row <= endRow; row++) {
@@ -87,6 +88,7 @@ export async function readWorkbookDetail(path, options = {}) {
         results.push({
             sheet: sheet.name,
             range: `${numberToColumn(startCol)}${startRow}:${numberToColumn(endCol)}${endRow}`,
+            truncated: endRow < fullEndRow,
             cells,
         });
     }

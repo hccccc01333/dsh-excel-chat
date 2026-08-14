@@ -25,6 +25,8 @@ export interface ReadCell {
 export interface ReadSheetResult {
   sheet: string
   range: string
+  /** True when maxRows capped the read range; the caller should continue with the next page. */
+  truncated?: boolean
   cells: ReadCell[]
 }
 
@@ -33,6 +35,8 @@ export interface ReadWorkbookOptions {
   /** A1 range on the selected sheet, e.g. "A1:D20". */
   range?: string
   cells?: string[]
+  /** Cap the number of rows read. Combine with a start row in range for paging. */
+  maxRows?: number
 }
 
 function colorToHex(color: Partial<ExcelJS.Color> | undefined): string | undefined {
@@ -99,7 +103,8 @@ export async function readWorkbookDetail(path: string, options: ReadWorkbookOpti
     const startCol = parsed?.startCol ?? 1
     const startRow = parsed?.startRow ?? 1
     const endCol = parsed?.endCol ?? sheet.columnCount
-    const endRow = parsed?.endRow ?? sheet.rowCount
+    const fullEndRow = parsed?.endRow ?? sheet.rowCount
+    const endRow = options.maxRows ? Math.min(fullEndRow, startRow + options.maxRows - 1) : fullEndRow
     const requested = options.cells ? new Set(options.cells.map((id) => `${id.split('!').pop()?.toUpperCase()}`)) : null
     const cells: ReadCell[] = []
     for (let row = startRow; row <= endRow; row++) {
@@ -114,6 +119,7 @@ export async function readWorkbookDetail(path: string, options: ReadWorkbookOpti
     results.push({
       sheet: sheet.name,
       range: `${numberToColumn(startCol)}${startRow}:${numberToColumn(endCol)}${endRow}`,
+      truncated: endRow < fullEndRow,
       cells,
     })
   }

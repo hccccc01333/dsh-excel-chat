@@ -19,6 +19,8 @@ export interface ReadCell {
 export interface ReadSheetResult {
     sheet: string;
     range: string;
+    /** True when maxRows capped the read range; the caller should continue with the next page. */
+    truncated?: boolean;
     cells: ReadCell[];
 }
 export interface ReadWorkbookOptions {
@@ -26,6 +28,8 @@ export interface ReadWorkbookOptions {
     /** A1 range on the selected sheet, e.g. "A1:D20". */
     range?: string;
     cells?: string[];
+    /** Cap the number of rows read. Combine with a start row in range for paging. */
+    maxRows?: number;
 }
 /** Precisely read cells (values, formulas, types, and formats) from an .xlsx file. */
 export declare function readWorkbookDetail(path: string, options?: ReadWorkbookOptions): Promise<ReadSheetResult[]>;

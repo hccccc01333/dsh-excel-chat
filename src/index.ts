@@ -2,6 +2,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { readFile } from 'node:fs/promises'
 import { createLlmRepairAdvisor } from './advisor.ts'
+import { autofixWorkbookFile } from './autofix.ts'
 import { validateCharts } from './chart-validator.ts'
 import {
   createChartWithExcel,
@@ -18,6 +19,7 @@ import { llmTextFromContext } from './llm.ts'
 import { excelOperationSchema } from './operation-schema.ts'
 import { operateWorkbookFile, type ExcelOperation } from './operations.ts'
 import { createPivotTable, type PivotValueSpec } from './pivot.ts'
+import { profileWorkbook } from './profile.ts'
 import { repairWorkbookFile } from './repair.ts'
 import { readWorkbookDetail } from './read.ts'
 import { detectTableFromCells } from './tables.ts'
@@ -187,7 +189,7 @@ export function apply(ctx: Context) {
   }))
   ctx.tools.register(defineTool({
     name: 'excel_read',
-    description: 'Precisely read cells from an .xlsx file: values, formulas, value types, number formats, font/fill/alignment, merged ranges, and data validation. Use before editing to inspect the exact cell state.',
+    description: 'Precisely read cells from an .xlsx file: values, formulas, value types, number formats, font/fill/alignment, merged ranges, and data validation. Use before editing to inspect the exact cell state. For large sheets, run excel_profile first, then read page by page with range + maxRows (e.g. range "A1:E101" maxRows 100, then "A102:E201" maxRows 100).',
     parameters: {
       path: {
         type: 'string',
@@ -207,6 +209,10 @@ export function apply(ctx: Context) {
         items: { type: 'string' },
         description: 'Exact cell ids to read, e.g. ["A1","D4"].',
       },
+      maxRows: {
+        type: 'number',
+        description: 'Cap the number of rows read (the result marks truncated). Combine with a range start row for paging through large sheets.',
+      },
     },
     output: {
       schema: { type: 'object', additionalProperties: true },
@@ -218,9 +224,35 @@ export function apply(ctx: Context) {
         sheet: typeof args.sheet === 'string' ? args.sheet : undefined,
         range: typeof args.range === 'string' ? args.range : undefined,
         cells,
+        maxRows: typeof args.maxRows === 'number' && args.maxRows > 0 ? args.maxRows : undefined,
       })
       // dsh requires lossless JSON: strip optional undefined fields explicitly.
       return JSON.parse(JSON.stringify({ sheets })) as unknown as JsonRecord
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_profile',
+    description: 'Compact structural digest of an .xlsx file: per-sheet dimensions, detected header row, formula-cell count, and per-column dtype/missing/unique counts, numeric min/max/mean, date range, top values, and samples, plus the range to read first. Use this before excel_read on large or unfamiliar files so the conversation does not dump whole sheets.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      sheet: {
+        type: 'string',
+        description: 'Restrict to one sheet (default all sheets).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      return await profileWorkbook(
+        args.path as string,
+        typeof args.sheet === 'string' ? args.sheet : undefined,
+      ) as unknown as JsonRecord
     },
   }))
   ctx.tools.register(defineTool({
@@ -515,6 +547,74 @@ export function apply(ctx: Context) {
         return await repairWorkbookFile(args.path as string, advisor, cells, oracleCells, outputPath) as unknown as JsonRecord
       }
       return await repairWorkbookFile(args.path as string, undefined, undefined, oracleCells, outputPath) as unknown as JsonRecord
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_autofix',
+    description: 'One-call self-healing loop for an .xlsx file: validate formulas, apply deterministic repairs for reference-pattern anomalies, optionally ask an LLM to repair the rest via Formula IR, re-validate the repaired copy, and report a plain-language before/after summary. Use after edits or when the user asks to "check and fix" a workbook.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      useLlm: {
+        type: 'boolean',
+        description: 'Ask the configured LLM to repair anomalies the deterministic generator cannot fix.',
+      },
+      autoTable: {
+        type: 'boolean',
+        description: 'Detect the header row from cell content when no table schema is provided.',
+      },
+      provider: {
+        type: 'string',
+        description: 'LLM provider route (default "deepseek").',
+      },
+      model: {
+        type: 'string',
+        description: 'LLM model id. Required when useLlm is true.',
+      },
+      table: {
+        type: 'object',
+        additionalProperties: true,
+        description: 'Table schema { sheet, columns } for LLM repair compilation. Required when useLlm is true unless autoTable is enabled.',
+      },
+      outPath: {
+        type: 'string',
+        description: 'Output .xlsx path (default: <path>.repaired.xlsx).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args, exec) {
+      const outputPath = typeof args.outPath === 'string' && args.outPath ? args.outPath : undefined
+      if (!args.useLlm) {
+        return await autofixWorkbookFile(args.path as string, { outPath: outputPath }) as unknown as JsonRecord
+      }
+      if (!args.model) {
+        throw new Error('model is required when useLlm is true')
+      }
+      let table = args.table as unknown as ColumnTable | undefined
+      let cells: Record<string, string> | undefined
+      if (!table) {
+        if (!args.autoTable) {
+          throw new Error('table (or autoTable: true) is required when useLlm is true')
+        }
+        cells = await readWorkbookCells(await readFile(args.path))
+        const detected = detectTableFromCells(cells)
+        if (!detected) {
+          throw new Error('autoTable could not detect a header row; provide table explicitly')
+        }
+        table = detected
+      }
+      const advisor = createLlmRepairAdvisor(
+        llmTextFromContext(ctx, args.provider ?? 'deepseek', args.model),
+        table,
+        exec.signal,
+      )
+      return await autofixWorkbookFile(args.path as string, { advisor, outPath: outputPath }) as unknown as JsonRecord
     },
   }))
   ctx.tools.register(defineTool({
