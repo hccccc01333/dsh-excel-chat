@@ -33,7 +33,7 @@ export interface RatioFormulaIR {
 }
 export interface FunctionFormulaIR {
     operation: 'function';
-    name: 'VLOOKUP' | 'INDEX' | 'MATCH' | 'ROUND' | 'TEXT' | 'SUMIF' | 'COUNTIF' | 'AVERAGE' | 'MEDIAN' | 'MAX' | 'MIN' | 'COUNT' | 'COUNTA' | 'TODAY' | 'YEAR' | 'MONTH' | 'DAY' | 'DATE' | 'DATEDIF' | 'EOMONTH' | 'SUMIFS' | 'AVERAGEIFS' | 'COUNTIFS';
+    name: 'VLOOKUP' | 'INDEX' | 'MATCH' | 'ROUND' | 'ROUNDUP' | 'ROUNDDOWN' | 'TEXT' | 'CONCATENATE' | 'LEFT' | 'RIGHT' | 'MID' | 'IF' | 'XLOOKUP' | 'SUMIF' | 'COUNTIF' | 'AVERAGE' | 'MEDIAN' | 'MAX' | 'MIN' | 'COUNT' | 'COUNTA' | 'TODAY' | 'YEAR' | 'MONTH' | 'DAY' | 'DATE' | 'DATEDIF' | 'EOMONTH' | 'SUMIFS' | 'AVERAGEIFS' | 'COUNTIFS';
     args: OperandIR[];
 }
 export type FormulaIR = BinaryFormulaIR | AggregateFormulaIR | RatioFormulaIR | FunctionFormulaIR;

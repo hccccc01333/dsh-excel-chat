@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { readFile } from 'node:fs/promises';
 import { columnToNumber, numberToColumn } from './formula.js';
+import { stripPivotTableParts } from './workbook.js';
 function colorToHex(color) {
     if (!color || typeof color.argb !== 'string')
         return undefined;
@@ -60,7 +61,7 @@ function describeCell(sheet, column, row) {
 /** Precisely read cells (values, formulas, types, and formats) from an .xlsx file. */
 export async function readWorkbookDetail(path, options = {}) {
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(await readFile(path));
+    await workbook.xlsx.load(stripPivotTableParts(await readFile(path)));
     const results = [];
     for (const sheet of workbook.worksheets) {
         if (options.sheet && sheet.name.toLowerCase() !== options.sheet.toLowerCase())

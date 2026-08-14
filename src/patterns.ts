@@ -84,6 +84,9 @@ export function detectPatternAnomalies(cells: Record<string, string>): ColumnPat
   for (const [id, content] of Object.entries(cells)) {
     const trimmed = content.trim()
     if (!trimmed.startsWith('=')) continue
+    // SUBTOTAL rows are aggregate summary rows by design (subtotal/grand total);
+    // they follow a different shape than data rows and should not be flagged.
+    if (/SUBTOTAL\(/i.test(trimmed)) continue
     let cell
     let parsed
     try {

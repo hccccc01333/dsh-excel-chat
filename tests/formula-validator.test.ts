@@ -143,6 +143,17 @@ test('detects Excel error values like #REF! and #DIV/0!', () => {
   assert.ok(errors.some((anomaly) => anomaly.cell === 'A3'))
 })
 
+test('subtotal summary rows are not reported as pattern anomalies', () => {
+  const result = validate({
+    D2: '=B2-C2',
+    D3: '=B3-C3',
+    D4: '=SUBTOTAL(9,B2:B3)',
+    D5: '=B5-C5',
+  })
+  assert.equal(result.anomalies.filter((anomaly) => anomaly.kind === 'reference-offset').length, 0)
+  assert.equal(result.anomalies.filter((anomaly) => anomaly.kind === 'structure-mismatch').length, 0)
+})
+
 test('shiftFormulaRow shifts relative rows and preserves absolute rows', () => {
   assert.equal(shiftFormulaRow('=B3-C3', 1), '=B4-C4')
   assert.equal(shiftFormulaRow('=SUM(B3:C3)', 1), '=SUM(B4:C4)')

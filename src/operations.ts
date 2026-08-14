@@ -8,7 +8,7 @@ import {
   type RefPoint,
 } from './formula.ts'
 import { validate, type ValidationResult } from './validator.ts'
-import { readWorkbookCells } from './workbook.ts'
+import { readWorkbookCells, stripPivotTableParts } from './workbook.ts'
 import { diffCellMaps, writePatchLog, type PatchLog } from './diff.ts'
 import { readFile } from 'node:fs/promises'
 
@@ -372,7 +372,7 @@ export async function applyOperationsToWorkbook(
   outputPath: string,
 ): Promise<ApplyOperationsResult> {
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.readFile(inputPath)
+  await workbook.xlsx.load(stripPivotTableParts(await readFile(inputPath)) as any)
   const warnings: OperationWarning[] = []
 
   operations.forEach((operation, index) => {

@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
-import { cellContent } from './workbook.ts'
+import { readFile } from 'node:fs/promises'
+import { cellContent, stripPivotTableParts } from './workbook.ts'
 
 export interface CellPatch {
   id: string
@@ -34,7 +35,7 @@ export async function applyPatchesToWorkbook(
   outputPath: string = inputPath,
 ): Promise<void> {
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.readFile(inputPath)
+  await workbook.xlsx.load(stripPivotTableParts(await readFile(inputPath)) as any)
   for (const patch of patches) {
     const bang = patch.id.lastIndexOf('!')
     const sheetName = bang >= 0

@@ -120,3 +120,56 @@ test('compiles INDEX, SUMIF, and date functions', () => {
   )
   assert.equal(compileFormula({ operation: 'function', name: 'TODAY', args: [] }, base), '=TODAY()')
 })
+
+test('compiles IF, XLOOKUP, and text functions', () => {
+  const base = {
+    baseCell: 'F2',
+    table: { sheet: 'Sheet1', columns: { product: 'A', amount: 'B', name: 'C' } },
+  }
+  assert.equal(
+    compileFormula({
+      operation: 'function',
+      name: 'IF',
+      args: [
+        { kind: 'cell', cell: 'B2>0' },
+        { kind: 'column', column: 'amount' },
+        { kind: 'constant', value: 0 },
+      ],
+    }, base),
+    '=IF(B2>0,B2,0)',
+  )
+  assert.equal(
+    compileFormula({
+      operation: 'function',
+      name: 'XLOOKUP',
+      args: [
+        { kind: 'column', column: 'product' },
+        { kind: 'range', range: 'Sheet2!$A$1:$A$10' },
+        { kind: 'range', range: 'Sheet2!$B$1:$B$10' },
+      ],
+    }, base),
+    '=XLOOKUP(A2,Sheet2!$A$1:$A$10,Sheet2!$B$1:$B$10)',
+  )
+  assert.equal(
+    compileFormula({
+      operation: 'function',
+      name: 'CONCATENATE',
+      args: [
+        { kind: 'column', column: 'name' },
+        { kind: 'constant', value: 1 },
+      ],
+    }, base),
+    '=CONCATENATE(C2,1)',
+  )
+  assert.equal(
+    compileFormula({
+      operation: 'function',
+      name: 'ROUNDUP',
+      args: [
+        { kind: 'column', column: 'amount' },
+        { kind: 'constant', value: 0 },
+      ],
+    }, base),
+    '=ROUNDUP(B2,0)',
+  )
+})

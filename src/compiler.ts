@@ -17,7 +17,8 @@ export interface CompileContext {
 const BINARY_OPERATORS = new Set(['+', '-', '*', '/'])
 const AGGREGATE_FUNCTIONS = new Set(['SUMIFS', 'AVERAGEIFS', 'COUNTIFS', 'SUM'])
 const FUNCTION_NAMES = new Set([
-  'VLOOKUP', 'INDEX', 'MATCH', 'ROUND', 'TEXT', 'SUMIF', 'COUNTIF', 'AVERAGE', 'MEDIAN',
+  'VLOOKUP', 'INDEX', 'MATCH', 'ROUND', 'ROUNDUP', 'ROUNDDOWN', 'TEXT', 'CONCATENATE',
+  'LEFT', 'RIGHT', 'MID', 'IF', 'XLOOKUP', 'SUMIF', 'COUNTIF', 'AVERAGE', 'MEDIAN',
   'MAX', 'MIN', 'COUNT', 'COUNTA', 'TODAY', 'YEAR', 'MONTH', 'DAY', 'DATE', 'DATEDIF',
   'EOMONTH', 'SUMIFS', 'AVERAGEIFS', 'COUNTIFS',
 ])

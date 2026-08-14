@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
-import { cellContent } from './workbook.js';
+import { readFile } from 'node:fs/promises';
+import { cellContent, stripPivotTableParts } from './workbook.js';
 export function applyPatches(cells, patches) {
     const result = { ...cells };
     for (const patch of patches) {
@@ -19,7 +20,7 @@ export function revertPatches(cells, patches) {
 }
 export async function applyPatchesToWorkbook(inputPath, patches, outputPath = inputPath) {
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(inputPath);
+    await workbook.xlsx.load(stripPivotTableParts(await readFile(inputPath)));
     for (const patch of patches) {
         const bang = patch.id.lastIndexOf('!');
         const sheetName = bang >= 0

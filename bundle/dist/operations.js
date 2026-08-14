@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula, } from './formula.js';
 import { validate } from './validator.js';
-import { readWorkbookCells } from './workbook.js';
+import { readWorkbookCells, stripPivotTableParts } from './workbook.js';
 import { diffCellMaps, writePatchLog } from './diff.js';
 import { readFile } from 'node:fs/promises';
 const RANGE_LINE = /^([A-Za-z]{1,3})(\d+):([A-Za-z]{1,3})(\d+)$/;
@@ -151,7 +151,7 @@ function cellContentOf(cell) {
 }
 export async function applyOperationsToWorkbook(inputPath, operations, outputPath) {
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(inputPath);
+    await workbook.xlsx.load(stripPivotTableParts(await readFile(inputPath)));
     const warnings = [];
     operations.forEach((operation, index) => {
         switch (operation.op) {

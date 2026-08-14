@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import { readFile } from 'node:fs/promises'
 import { columnToNumber, numberToColumn } from './formula.ts'
+import { stripPivotTableParts } from './workbook.ts'
 
 export interface ReadCell {
   id: string
@@ -90,7 +91,7 @@ function describeCell(sheet: ExcelJS.Worksheet, column: string, row: number): Re
 /** Precisely read cells (values, formulas, types, and formats) from an .xlsx file. */
 export async function readWorkbookDetail(path: string, options: ReadWorkbookOptions = {}): Promise<ReadSheetResult[]> {
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(await readFile(path) as any)
+  await workbook.xlsx.load(stripPivotTableParts(await readFile(path)) as any)
   const results: ReadSheetResult[] = []
   for (const sheet of workbook.worksheets) {
     if (options.sheet && sheet.name.toLowerCase() !== options.sheet.toLowerCase()) continue

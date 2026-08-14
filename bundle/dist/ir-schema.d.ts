@@ -14,7 +14,7 @@ export declare const formulaIrSchema: {
             };
             readonly name: {
                 readonly type: 'string';
-                readonly enum: readonly ['VLOOKUP', 'INDEX', 'MATCH', 'ROUND', 'TEXT', 'SUMIF', 'COUNTIF', 'AVERAGE', 'MEDIAN', 'MAX', 'MIN', 'COUNT', 'COUNTA', 'TODAY', 'YEAR', 'MONTH', 'DAY', 'DATE', 'DATEDIF', 'EOMONTH', 'SUMIFS', 'AVERAGEIFS', 'COUNTIFS'];
+                readonly enum: readonly ['VLOOKUP', 'INDEX', 'MATCH', 'ROUND', 'ROUNDUP', 'ROUNDDOWN', 'TEXT', 'CONCATENATE', 'LEFT', 'RIGHT', 'MID', 'IF', 'XLOOKUP', 'SUMIF', 'COUNTIF', 'AVERAGE', 'MEDIAN', 'MAX', 'MIN', 'COUNT', 'COUNTA', 'TODAY', 'YEAR', 'MONTH', 'DAY', 'DATE', 'DATEDIF', 'EOMONTH', 'SUMIFS', 'AVERAGEIFS', 'COUNTIFS'];
                 readonly required: true;
             };
             readonly args: {

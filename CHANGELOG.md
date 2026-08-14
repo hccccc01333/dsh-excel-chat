@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.24.0 — 2026-08-14
+
+- 兼容修复：含原生数据透视表的文件此前会让 ExcelJS 读取崩溃，现在读写/校验/
+  操作前自动剥离透视锚点（`stripPivotTableParts`），透视文件可正常读、查、改
+  （重写时透视部件不保留，属 ExcelJS 限制）。
+- 误报修复：`SUBTOTAL` 分类汇总行不再被当作列 pattern 异常，操作后验证更干净。
+- 公式函数扩展：新增 `IF`、`XLOOKUP`、`CONCATENATE`、`LEFT`、`RIGHT`、`MID`、
+  `ROUNDUP`、`ROUNDDOWN`，与 LLM 修复顾问同步支持。
+- 测试规模 139 → 142。
+
 ## v0.23.1 — 2026-08-14
 
 - 正式对外包装：README 与 npm 页新增“给使用者：一分钟上手”（安装命令、

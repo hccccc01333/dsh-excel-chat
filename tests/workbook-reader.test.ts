@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import ExcelJS from 'exceljs'
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { fileURLToPath } from 'node:url'
 import { readWorkbookCells, validateWorkbookFile } from '../src/workbook.ts'
 import { validate } from '../src/validator.ts'
@@ -43,4 +44,24 @@ test('validateWorkbookFile reads a real .xlsx file', async () => {
   await writeFile(fixturePath, data)
   const result = await validateWorkbookFile(fixturePath)
   assert.ok(result.anomalies.some((item) => item.kind === 'reference-offset' && item.cell === 'Sales!D4'))
+})
+
+test('reads a workbook with pivot tableParts without crashing', async () => {
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Sheet1')
+  sheet.getCell('A1').value = 42
+  const files = unzipSync(new Uint8Array(await workbook.xlsx.writeBuffer()))
+  const sheetXml = strFromU8(files['xl/worksheets/sheet1.xml']!)
+  files['xl/worksheets/sheet1.xml'] = strToU8(
+    sheetXml.replace('</worksheet>', '<tableParts count="1"><tablePart r:id="rId9"/></tableParts></worksheet>'),
+  )
+  files['xl/worksheets/_rels/sheet1.xml.rels'] = strToU8(
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../pivotTables/pivotTable1.xml"/>' +
+    '</Relationships>',
+  )
+  files['xl/pivotTables/pivotTable1.xml'] = strToU8('<pivotTableDefinition/>')
+  const cells = await readWorkbookCells(Buffer.from(zipSync(files)))
+  assert.equal(cells['Sheet1!A1'], '42')
 })
