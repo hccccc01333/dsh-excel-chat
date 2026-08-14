@@ -7,6 +7,8 @@ export interface PivotOptions {
     /** Source data range including the header row, e.g. "订单!A1:F7". */
     range: string;
     rows: string[];
+    columns?: string[];
+    filters?: string[];
     values: PivotValueSpec[];
     outputSheet?: string;
 }

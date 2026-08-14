@@ -24,7 +24,7 @@ dsh plugin --profile demo add ./bundle
 - `excel_validate_charts` — 图表结构校验
 - `excel_create_chart` / `excel_modify_chart` — 用本地 Excel 创建与修改图表（类型、
   标题、图例、坐标轴，Windows）
-- `excel_create_pivot` — 原生数据透视表（行字段 + 值字段，Windows）
+- `excel_create_pivot` — 原生数据透视表（多行/列字段、筛选器 + 值字段，Windows）
 - `excel_export_charts` — 用本地 Excel 把图表导出为 PNG（Windows）
 
 构建（源码安装时 `prepare` 自动执行）：

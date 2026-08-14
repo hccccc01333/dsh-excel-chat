@@ -24,7 +24,7 @@ export function apply(ctx) {
     console.log('[vera-formula-validator] plugin loaded');
     ctx.tools.register(defineTool({
         name: 'excel_create_pivot',
-        description: 'Create a native Excel pivot table (pivotCache + pivotTable) from a source range: choose a row field and value fields (sum/count/average/max/min). The pivot renders in Excel and can be refreshed when source data changes.',
+        description: 'Create a native Excel pivot table (pivotCache + pivotTable) from a source range: choose one or more row fields, optional column fields and report filters, plus value fields (sum/count/average/max/min). The pivot renders in Excel and can be refreshed when source data changes.',
         parameters: {
             path: {
                 type: 'string',
@@ -45,7 +45,17 @@ export function apply(ctx) {
                 type: 'array',
                 items: { type: 'string' },
                 required: true,
-                description: 'Row field column letters (one supported for now), e.g. ["B"].',
+                description: 'Row field column letters, e.g. ["B"] or ["B","C"].',
+            },
+            columns: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Optional column field column letters.',
+            },
+            filters: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Optional report filter column letters.',
             },
             values: {
                 type: 'array',
@@ -82,6 +92,8 @@ export function apply(ctx) {
                 sheet: args.sheet,
                 range: args.range,
                 rows: args.rows.map(String),
+                columns: Array.isArray(args.columns) ? args.columns.map(String) : undefined,
+                filters: Array.isArray(args.filters) ? args.filters.map(String) : undefined,
                 values,
                 outputSheet: typeof args.outputSheet === 'string' ? args.outputSheet : undefined,
             }, outPath);

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.23.0 — 2026-08-14
+
+- 原生透视扩展：`excel_create_pivot` 支持多个行字段、列字段、报表筛选器，
+  叠加原有的多值字段（求和/计数/平均/最大/最小），达到日常透视用法。
+- 测试规模 138 → 139（多行 + 列字段端到端：Excel COM 生成 → 拆包验证
+  `rowFields count="2"` / `colFields count="1"`）。
+
 ## v0.22.0 — 2026-08-14
 
 - 原生数据透视表：新增 `excel_create_pivot` 工具，驱动 Excel COM 生成真正的

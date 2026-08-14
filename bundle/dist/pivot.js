@@ -27,9 +27,21 @@ try {
   $pivotSheet.Name = $config.pivotSheet
   $cache = $wb.PivotCaches().Create(1, $range)
   $pt = $pivotSheet.PivotTables().Add($cache, $pivotSheet.Range("A3"), "PivotTable1")
-  $rowField = $pt.PivotFields($config.rowField)
-  $rowField.Orientation = 1
-  $rowField.Position = 1
+  for ($i = 0; $i -lt $config.rowFields.Count; $i++) {
+    $pf = $pt.PivotFields($config.rowFields[$i])
+    $pf.Orientation = 1
+    $pf.Position = $i + 1
+  }
+  for ($i = 0; $i -lt $config.columnFields.Count; $i++) {
+    $pf = $pt.PivotFields($config.columnFields[$i])
+    $pf.Orientation = 2
+    $pf.Position = $i + 1
+  }
+  for ($i = 0; $i -lt $config.filterFields.Count; $i++) {
+    $pf = $pt.PivotFields($config.filterFields[$i])
+    $pf.Orientation = 3
+    $pf.Position = $i + 1
+  }
   for ($i = 0; $i -lt $config.valueFields.Count; $i++) {
     $pf = $pt.PivotFields($config.valueFields[$i].name)
     $pf.Orientation = 4
@@ -47,8 +59,8 @@ try {
  * and pivot table are produced by Excel itself, so the output is always valid.
  */
 export async function createPivotTable(inputPath, options, outPath) {
-    if (options.rows.length !== 1)
-        throw new Error('pivot rows currently supports exactly one row field');
+    if (options.rows.length < 1)
+        throw new Error('pivot requires at least one row field');
     if (options.values.length < 1)
         throw new Error('pivot requires at least one value field');
     if (process.platform !== 'win32') {
@@ -68,10 +80,15 @@ export async function createPivotTable(inputPath, options, outPath) {
     const startRow = Number(rangeMatch[2]);
     const endCol = columnToNumber(rangeMatch[3]);
     const endRow = Number(rangeMatch[4]);
-    const rowFieldCol = columnToNumber(options.rows[0]);
-    if (rowFieldCol < startCol || rowFieldCol > endCol)
-        throw new Error(`row field outside range: ${options.rows[0]}`);
-    const rowField = String(source.getCell(`${numberToColumn(rowFieldCol)}${startRow}`).value ?? options.rows[0]);
+    const resolveField = (letter, label) => {
+        const col = columnToNumber(letter);
+        if (col < startCol || col > endCol)
+            throw new Error(`${label} outside range: ${letter}`);
+        return String(source.getCell(`${numberToColumn(col)}${startRow}`).value ?? letter);
+    };
+    const rowFields = options.rows.map((letter) => resolveField(letter, 'row field'));
+    const columnFields = (options.columns ?? []).map((letter) => resolveField(letter, 'column field'));
+    const filterFields = (options.filters ?? []).map((letter) => resolveField(letter, 'filter field'));
     const valueFields = options.values.map((value) => {
         const col = columnToNumber(value.column);
         if (col < startCol || col > endCol)
@@ -83,8 +100,12 @@ export async function createPivotTable(inputPath, options, outPath) {
     });
     const groupValues = new Set();
     for (let row = startRow + 1; row <= endRow; row++) {
-        const raw = source.getCell(`${numberToColumn(rowFieldCol)}${row}`).value;
-        groupValues.add(raw === null || raw === undefined ? '' : String(raw));
+        const key = rowFields.map((_name, index) => {
+            const letter = options.rows[index];
+            const raw = source.getCell(`${letter}${row}`).value;
+            return raw === null || raw === undefined ? '' : String(raw);
+        }).join('|');
+        groupValues.add(key);
     }
     const config = {
         workbookPath: inputPath,
@@ -92,7 +113,9 @@ export async function createPivotTable(inputPath, options, outPath) {
         sheet: options.sheet,
         range: rangeBody,
         pivotSheet: options.outputSheet ?? `${options.sheet}透视`,
-        rowField,
+        rowFields,
+        columnFields,
+        filterFields,
         valueFields,
     };
     const configPath = join(tmpdir(), `vera-pivot-${randomUUID()}.json`);

@@ -37,3 +37,22 @@ test('createPivotTable builds a native pivot via Excel COM', { skip: !excelAvail
   )
   assert.ok(pivotTableXml.includes('金额') || pivotTableXml.includes('Sum of 金额'))
 })
+
+test('createPivotTable supports multiple row fields and column fields', { skip: !excelAvailable, timeout: 180000 }, async () => {
+  const source = await makeSalesWorkbook()
+  const outPath = join(join(source, '..'), 'pivot-multi.xlsx')
+  const result = await createPivotTable(source, {
+    sheet: '订单',
+    range: '订单!A1:F7',
+    rows: ['B', 'C'],
+    columns: ['A'],
+    values: [{ column: 'F', function: 'sum' }],
+  }, outPath)
+  assert.equal(result.groups, 6) // distinct 区域|产品 combinations
+  const files = unzipSync(new Uint8Array(await readFile(outPath)))
+  const pivotTableXml = strFromU8(
+    files[Object.keys(files).find((key) => key.startsWith('xl/pivotTables/') && key.endsWith('.xml'))!] ?? new Uint8Array(0),
+  )
+  assert.ok(/rowFields count="2"/.test(pivotTableXml))
+  assert.ok(/colFields count="1"/.test(pivotTableXml))
+})

@@ -39,7 +39,7 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 | `excel_export_charts` | 用本地 Excel 把图表导出为 PNG（Windows） |
 | `excel_create_chart` | 用本地 Excel 创建图表：数据范围、类型、标题（Windows） |
 | `excel_modify_chart` | 修改图表参数：类型、标题、图例、坐标轴（Windows） |
-| `excel_create_pivot` | 原生数据透视表（pivotCache + pivotTable）：行字段 + 值字段（求和/计数/平均/最大/最小），Excel 生成、可刷新（Windows） |
+| `excel_create_pivot` | 原生数据透视表（pivotCache + pivotTable）：多行字段、列字段、报表筛选器 + 值字段（求和/计数/平均/最大/最小），Excel 生成、可刷新（Windows） |
 
 ## Modules
 
