@@ -504,6 +504,46 @@ test('conditionalFormatting supports dataBar, containsText, and top10 rules', as
   assert.ok(ruleTypes.includes('containsText'))
 })
 
+test('conditionalFormatting supports duplicate, blank, error, average, and timePeriod rules', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A2').value = 'x'
+    sheet.getCell('A3').value = 'x'
+    sheet.getCell('B2').value = 1
+    sheet.getCell('B3').value = 2
+  })
+  const outPath = join(join(path, '..'), 'cf-more.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'conditionalFormatting',
+    range: 'Sheet1!A2:A4',
+    rules: [
+      { type: 'duplicateValues', style: { fill: 'FFEB84' } },
+      { type: 'blanks', style: { fill: 'F8696B' } },
+      { type: 'errors', style: { fill: 'FF0000' } },
+    ],
+  }, {
+    op: 'conditionalFormatting',
+    range: 'Sheet1!B2:B4',
+    rules: [
+      { type: 'aboveAverage' },
+      { type: 'timePeriod', timePeriod: 'today' },
+      { type: 'notContainsText', text: 'x' },
+    ],
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  const cf = (sheet as unknown as { conditionalFormattings: Array<{ rules: Array<{ type: string; formulae?: string[] }> }> }).conditionalFormattings
+  const types = cf.flatMap((entry) => entry.rules.map((rule) => rule.type))
+  assert.ok(types.includes('aboveAverage'))
+  assert.ok(types.includes('timePeriod'))
+  const formulae = cf.flatMap((entry) => entry.rules.flatMap((rule) => rule.formulae ?? []))
+  assert.ok(formulae.some((formula) => formula.includes('ISBLANK')))
+  assert.ok(formulae.some((formula) => formula.includes('ISERROR')))
+  assert.ok(formulae.some((formula) => formula.includes('COUNTIF') && formula.includes('>1')))
+  assert.ok(formulae.some((formula) => formula.includes('SEARCH("x"')))
+})
+
 test('autoFilter adds filter dropdowns to the header range', async () => {
   const path = await makeWorkbook((workbook) => {
     const sheet = workbook.addWorksheet('Sheet1')

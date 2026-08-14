@@ -148,11 +148,12 @@ export type ExcelOperation = {
     op: 'conditionalFormatting';
     range: string;
     rules: Array<{
-        type: 'cellIs' | 'expression' | 'containsText' | 'dataBar' | 'colorScale' | 'iconSet' | 'top10';
+        type: 'cellIs' | 'expression' | 'containsText' | 'notContainsText' | 'blanks' | 'noBlanks' | 'errors' | 'noErrors' | 'duplicateValues' | 'uniqueValues' | 'aboveAverage' | 'belowAverage' | 'timePeriod' | 'dataBar' | 'colorScale' | 'iconSet' | 'top10';
         operator?: string;
         formula?: string | number;
         formula2?: string | number;
         text?: string;
+        timePeriod?: 'today' | 'yesterday' | 'tomorrow' | 'last7Days' | 'thisMonth' | 'lastMonth' | 'nextMonth' | 'thisWeek' | 'lastWeek' | 'nextWeek';
         color?: string;
         minColor?: string;
         midColor?: string;

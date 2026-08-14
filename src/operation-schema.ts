@@ -188,14 +188,19 @@ export const excelOperationSchema = {
           properties: {
             type: {
               type: 'string',
-              enum: ['cellIs', 'expression', 'containsText', 'dataBar', 'colorScale', 'iconSet', 'top10'],
+              enum: [
+                'cellIs', 'expression', 'containsText', 'notContainsText', 'blanks', 'noBlanks',
+                'errors', 'noErrors', 'duplicateValues', 'uniqueValues', 'aboveAverage',
+                'belowAverage', 'timePeriod', 'dataBar', 'colorScale', 'iconSet', 'top10',
+              ],
               required: true,
-              description: 'Rule type: cellIs / expression / containsText / dataBar / colorScale / iconSet / top10.',
+              description: 'Rule type: cellIs / expression / containsText / notContainsText / blanks / noBlanks / errors / noErrors / duplicateValues / uniqueValues / aboveAverage / belowAverage / timePeriod / dataBar / colorScale / iconSet / top10.',
             },
             operator: text('cellIs operator, e.g. "greaterThan", "lessThan", "equal", "between".'),
             formula: text('Threshold value (number as text) or expression formula.'),
             formula2: text('Upper bound for between.'),
             text: text('Text to match for containsText.'),
+            timePeriod: { type: 'string', enum: ['today', 'yesterday', 'tomorrow', 'last7Days', 'thisMonth', 'lastMonth', 'nextMonth', 'thisWeek', 'lastWeek', 'nextWeek'], description: 'Date period for timePeriod.' },
             color: text('Bar color hex for dataBar.'),
             minColor: text('Low color hex for colorScale.'),
             midColor: text('Mid color hex for colorScale.'),

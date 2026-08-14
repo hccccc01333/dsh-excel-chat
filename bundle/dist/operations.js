@@ -659,6 +659,41 @@ function applyConditionalFormatting(workbook, range, rules) {
                 style,
             };
         }
+        if (rule.type === 'notContainsText') {
+            if (!rule.text)
+                throw new Error('notContainsText conditional formatting requires text');
+            return {
+                type: 'expression',
+                formulae: [`ISERROR(SEARCH("${rule.text}",A1))`],
+                style,
+            };
+        }
+        if (rule.type === 'blanks') {
+            return { type: 'expression', formulae: ['ISBLANK(A1)'], style };
+        }
+        if (rule.type === 'noBlanks') {
+            return { type: 'expression', formulae: ['NOT(ISBLANK(A1))'], style };
+        }
+        if (rule.type === 'errors') {
+            return { type: 'expression', formulae: ['ISERROR(A1)'], style };
+        }
+        if (rule.type === 'noErrors') {
+            return { type: 'expression', formulae: ['NOT(ISERROR(A1))'], style };
+        }
+        if (rule.type === 'duplicateValues' || rule.type === 'uniqueValues') {
+            const range = `$${numberToColumn(parsed.startCol)}$${parsed.startRow}:$${numberToColumn(parsed.endCol)}$${parsed.endRow}`;
+            const formula = rule.type === 'duplicateValues' ? `COUNTIF(${range},A1)>1` : `COUNTIF(${range},A1)=1`;
+            return { type: 'expression', formulae: [formula], style };
+        }
+        if (rule.type === 'aboveAverage') {
+            return { type: 'aboveAverage', style };
+        }
+        if (rule.type === 'belowAverage') {
+            return { type: 'aboveAverage', aboveAverage: false, style };
+        }
+        if (rule.type === 'timePeriod') {
+            return { type: 'timePeriod', timePeriod: rule.timePeriod ?? 'today', style };
+        }
         if (rule.type === 'dataBar') {
             return {
                 type: 'dataBar',
