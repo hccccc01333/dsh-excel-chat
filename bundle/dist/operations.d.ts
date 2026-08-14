@@ -256,6 +256,8 @@ export interface ApplyOperationsResult {
 }
 export interface OperateResult extends ApplyOperationsResult {
     outputPath: string;
+    /** Path of the audit log (.patch.json) written next to the output file. */
+    patchLog: string;
     validation: ValidationResult;
 }
 export declare function findSheet(workbook: ExcelJS.Workbook, name: string): ExcelJS.Worksheet | undefined;

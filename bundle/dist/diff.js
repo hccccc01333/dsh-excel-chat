@@ -46,6 +46,6 @@ export async function readPatchLog(path) {
 export async function applyPatchLog(inputPath, log, outputPath = inputPath) {
     await applyPatchesToWorkbook(inputPath, log.patches, outputPath);
 }
-export async function rollbackPatchLog(path, log) {
-    await applyPatchesToWorkbook(path, log.patches.map((patch) => ({ ...patch, oldValue: patch.newValue, newValue: patch.oldValue })), path);
+export async function rollbackPatchLog(path, log, outPath = path) {
+    await applyPatchesToWorkbook(path, log.patches.map((patch) => ({ ...patch, oldValue: patch.newValue, newValue: patch.oldValue })), outPath);
 }

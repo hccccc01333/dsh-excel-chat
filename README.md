@@ -30,9 +30,10 @@ dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 | `excel_validate_formulas` | 静默公式错误检测：列 pattern 偏移、结构不匹配、hardcode、空行、循环引用、`#REF!`/`#DIV/0!` 等错误值 |
 | `excel_compile_formula` | Formula IR（binary / ratio / aggregate）→ 确定性 Excel 公式 |
 | `excel_read` | 精确读取：值/公式/类型/数字格式/字体/填充/对齐/合并/数据有效性，编辑前看清单元格状态 |
+| `excel_undo` | 按 `excel_operate` 自动生成的 `.patch.json` 审计日志回滚编辑 |
 | `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复（`useLlm` / `autoTable` / `oraclePath` / `outPath`），输出修复副本并复验 |
 | `excel_diff_workbook` | 两个 workbook 的单元格级 diff |
-| `excel_operate` | 精细化 Excel 操作：写值、填充/序列、行列增删、复制/移动、排序、分类汇总、动态透视报表、高级筛选、样式（字号/字体/边框）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、命名区域、冻结窗格、查找替换、工作表保护（细化权限）、邮件合并、工作表管理、合并；操作后自动复验公式 |
+| `excel_operate` | 精细化 Excel 操作：写值、填充/序列、行列增删、复制/移动、排序、分类汇总、动态透视报表、高级筛选、样式（字号/字体/边框）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、命名区域、冻结窗格、查找替换、工作表保护（细化权限）、邮件合并、工作表管理、合并；操作后自动复验公式并写审计日志 |
 | `excel_validate_charts` | 图表结构校验：类型、系列、缺失单元格、二维范围、日期排序 |
 | `excel_validate_charts_visual` | Excel 导出 PNG + 视觉 LLM 评审 |
 | `excel_export_charts` | 用本地 Excel 把图表导出为 PNG（Windows） |

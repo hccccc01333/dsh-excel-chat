@@ -66,10 +66,10 @@ export async function applyPatchLog(inputPath: string, log: PatchLog, outputPath
   await applyPatchesToWorkbook(inputPath, log.patches, outputPath)
 }
 
-export async function rollbackPatchLog(path: string, log: PatchLog): Promise<void> {
+export async function rollbackPatchLog(path: string, log: PatchLog, outPath: string = path): Promise<void> {
   await applyPatchesToWorkbook(
     path,
     log.patches.map((patch) => ({ ...patch, oldValue: patch.newValue, newValue: patch.oldValue })),
-    path,
+    outPath,
   )
 }

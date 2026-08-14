@@ -10,6 +10,7 @@ import {
   shiftFormulaReferences,
   type ExcelOperation,
 } from '../src/operations.ts'
+import { readPatchLog, rollbackPatchLog } from '../src/diff.ts'
 import { readWorkbookCells } from '../src/workbook.ts'
 
 async function makeWorkbook(ops: (workbook: ExcelJS.Workbook) => void): Promise<string> {
@@ -732,6 +733,20 @@ test('operateWorkbookFile returns post-operation validation and flags broken pat
   ], outPath)
   assert.equal(result.outputPath, outPath)
   assert.ok(result.validation.anomalies.some((anomaly) => anomaly.kind === 'reference-offset' && anomaly.cell === 'Sheet1!D4'))
+})
+
+test('operateWorkbookFile writes a patch log and rollback restores the original cells', async () => {
+  const path = await makeWorkbook(formulaFixture())
+  const outPath = join(join(path, '..'), 'undo-edit.xlsx')
+  const result = await operateWorkbookFile(path, [
+    { op: 'set', cells: { 'Sheet1!D4': '=B4-C3' } },
+    { op: 'style', range: 'Sheet1!A1:B2', style: { bold: true } },
+  ], outPath)
+  assert.ok(result.patchLog.endsWith('.patch.json'))
+  const before = await readWorkbookCells(await readFile(path))
+  await rollbackPatchLog(outPath, await readPatchLog(result.patchLog), outPath)
+  const restored = await readWorkbookCells(await readFile(outPath))
+  assert.deepEqual(restored, before)
 })
 
 test('shiftFormulaReferences moves relative rows only when gated by the threshold', () => {

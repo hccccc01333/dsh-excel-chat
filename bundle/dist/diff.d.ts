@@ -17,5 +17,5 @@ export interface PatchLog {
 export declare function writePatchLog(path: string, log: PatchLog): Promise<void>;
 export declare function readPatchLog(path: string): Promise<PatchLog>;
 export declare function applyPatchLog(inputPath: string, log: PatchLog, outputPath?: string): Promise<void>;
-export declare function rollbackPatchLog(path: string, log: PatchLog): Promise<void>;
+export declare function rollbackPatchLog(path: string, log: PatchLog, outPath?: string): Promise<void>;
 //# sourceMappingURL=diff.d.ts.map

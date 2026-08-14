@@ -11,7 +11,7 @@ import {
 } from './chart-visual.ts'
 import { readChartInfos } from './charts.ts'
 import { compileFormula } from './compiler.ts'
-import { diffWorkbookFiles } from './diff.ts'
+import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.ts'
 import { formulaIrSchema } from './ir-schema.ts'
 import type { ColumnTable } from './ir.ts'
 import { llmTextFromContext } from './llm.ts'
@@ -32,6 +32,36 @@ export const inject = ['tools']
 
 export function apply(ctx: Context) {
   console.log('[vera-formula-validator] plugin loaded')
+  ctx.tools.register(defineTool({
+    name: 'excel_undo',
+    description: 'Roll back an excel_operate edit using its .patch.json audit log: every changed cell is restored to the pre-edit state. Content-level undo (inserted/deleted rows and columns are not removed, but their cells are restored).',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to the edited .xlsx file to roll back.',
+      },
+      patchPath: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to the .patch.json audit log written by excel_operate.',
+      },
+      outPath: {
+        type: 'string',
+        description: 'Output .xlsx path (default: roll back in place).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      const log = await readPatchLog(args.patchPath as string)
+      const target = typeof args.outPath === 'string' && args.outPath ? args.outPath : (args.path as string)
+      await rollbackPatchLog(args.path as string, log, target)
+      return { rolledBack: target, patches: log.patches.length } as unknown as JsonRecord
+    },
+  }))
   ctx.tools.register(defineTool({
     name: 'excel_operate',
     description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill, fillSeries, insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel), copyRange (move:true moves), sortRange, subtotal (group summaries), aggregateReport (dynamic pivot-style summary with live SUMIFS formulas), filterToRange (advanced filter), style, dataValidation, conditionalFormatting, autoFilter, addTable, setColumnWidth / setRowHeight / freezePanes, findReplace, protectSheet / unprotectSheet, mailMerge (expand {Placeholder} templates per data row), addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor, clear, merge / unmerge. The operations array is a strict union on "op": choose the matching object shape. Example: {"operations":[{"op":"set","cells":{"Sheet1!A1":"100"}},{"op":"style","range":"Sheet1!A1:C1","style":{"bold":true}}]}. Writes <path>.edited.xlsx (or outPath) and returns the post-operation validation result.',

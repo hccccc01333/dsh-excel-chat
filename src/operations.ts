@@ -9,6 +9,7 @@ import {
 } from './formula.ts'
 import { validate, type ValidationResult } from './validator.ts'
 import { readWorkbookCells } from './workbook.ts'
+import { diffCellMaps, writePatchLog, type PatchLog } from './diff.ts'
 import { readFile } from 'node:fs/promises'
 
 export type ExcelOperation =
@@ -155,6 +156,8 @@ export interface ApplyOperationsResult {
 
 export interface OperateResult extends ApplyOperationsResult {
   outputPath: string
+  /** Path of the audit log (.patch.json) written next to the output file. */
+  patchLog: string
   validation: ValidationResult
 }
 
@@ -1507,7 +1510,23 @@ export async function operateWorkbookFile(
   outputPath: string,
 ): Promise<OperateResult> {
   const result = await applyOperationsToWorkbook(path, operations, outputPath)
-  const cells = await readWorkbookCells(await readFile(outputPath))
-  const validation = validate(cells)
-  return { ...result, outputPath, validation }
+  const [before, after] = await Promise.all([
+    readWorkbookCells(await readFile(path)),
+    readWorkbookCells(await readFile(outputPath)),
+  ])
+  const patchLogPath = `${outputPath}.patch.json`
+  const log: PatchLog = {
+    version: 1,
+    createdAt: new Date().toISOString(),
+    sourcePath: path,
+    patches: diffCellMaps(before, after).map((entry) => ({
+      id: entry.id,
+      kind: 'formula',
+      oldValue: entry.oldValue ?? '',
+      newValue: entry.newValue ?? '',
+    })),
+  }
+  await writePatchLog(patchLogPath, log)
+  const validation = validate(after)
+  return { ...result, outputPath, patchLog: patchLogPath, validation }
 }

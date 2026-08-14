@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula, } from './formula.js';
 import { validate } from './validator.js';
 import { readWorkbookCells } from './workbook.js';
+import { diffCellMaps, writePatchLog } from './diff.js';
 import { readFile } from 'node:fs/promises';
 const RANGE_LINE = /^([A-Za-z]{1,3})(\d+):([A-Za-z]{1,3})(\d+)$/;
 export function findSheet(workbook, name) {
@@ -1246,7 +1247,23 @@ function applyMerge(workbook, range, unmerge) {
 }
 export async function operateWorkbookFile(path, operations, outputPath) {
     const result = await applyOperationsToWorkbook(path, operations, outputPath);
-    const cells = await readWorkbookCells(await readFile(outputPath));
-    const validation = validate(cells);
-    return { ...result, outputPath, validation };
+    const [before, after] = await Promise.all([
+        readWorkbookCells(await readFile(path)),
+        readWorkbookCells(await readFile(outputPath)),
+    ]);
+    const patchLogPath = `${outputPath}.patch.json`;
+    const log = {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        sourcePath: path,
+        patches: diffCellMaps(before, after).map((entry) => ({
+            id: entry.id,
+            kind: 'formula',
+            oldValue: entry.oldValue ?? '',
+            newValue: entry.newValue ?? '',
+        })),
+    };
+    await writePatchLog(patchLogPath, log);
+    const validation = validate(after);
+    return { ...result, outputPath, patchLog: patchLogPath, validation };
 }
