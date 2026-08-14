@@ -41,7 +41,7 @@ agent 会自动调用工具完成，并把结果文件路径告诉你。
 | `excel_compile_formula` | 语义 Formula IR（binary/ratio/aggregate/function）→ 确定性公式 |
 | `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复，输出修复副本并复验 |
 | `excel_autofix` | 一键自愈：体检 → 确定性修复（可选 LLM）→ 复检 → 人话汇报 |
-| `excel_operate` | 30+ 种精细化操作：写值、填充/序列、行列增删、复制/移动、排序、分类汇总、动态透视报表、高级筛选、样式（字号/边框）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、命名区域、冻结窗格、查找替换、工作表保护、邮件合并、工作表管理、合并；自动写审计日志 |
+| `excel_operate` | 30+ 种精细化操作：写值、填充/序列、行列增删、复制/移动、排序、分类汇总、动态透视报表、高级筛选、样式（字号/边框）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、命名区域、冻结窗格、查找替换、工作表保护、邮件合并、工作表管理、合并、数据清洗（去重/填缺失/删空行空列/去空格/大小写/分列）；自动写审计日志 |
 | `excel_undo` | 按审计日志回滚一次 `excel_operate` 编辑 |
 | `excel_diff_workbook` | 两个 workbook 的单元格级差异 |
 | `excel_validate_charts` | 图表结构校验 |
@@ -78,6 +78,17 @@ agent 会用一次 `excel_operate` 完成 set + style + freezePanes + autoFilter
 
 `excel_autofix` 一条命令完成“体检 → 确定性修复（可选 `useLlm: true` 走 LLM）
 → 复检 → 汇报”，输出修复副本与修复前后的异常数。
+
+### 数据清洗
+
+> 把 sales.xlsx 按“产品”去重（保留第一条），B 列空值填 0，去掉名称首尾空格，
+> 再把 SKU 列按 “-” 分成两列。
+
+一次 `excel_operate` 的 operations 数组完成：`dedupeRows` →
+`fillMissing`（mode: value / forward / left）→ `trimText` →
+`splitColumn`（自动在右侧插入新列，已有列右移、公式引用联动）。
+还有 `removeEmptyRows` / `removeEmptyColumns` / `changeCase`
+（upper / lower / proper）。
 
 ### 数据分析（透视 / 汇总 / 高级筛选）
 

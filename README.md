@@ -62,13 +62,16 @@ dsh web --profile demo                             # 打开对话界面
 | `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复（`useLlm` / `autoTable` / `oraclePath` / `outPath`），输出修复副本并复验 |
 | `excel_autofix` | 一键自愈闭环：体检 → 确定性修复（可选 LLM）→ 复检 → 人话汇报，输出修复副本 |
 | `excel_diff_workbook` | 两个 workbook 的单元格级 diff |
-| `excel_operate` | 精细化 Excel 操作：写值、填充/序列、行列增删、复制/移动、排序、`report` 一键报表模板（排序+汇总+动态透视+筛选+样式+冻结+格式）、分类汇总、动态透视报表、高级筛选、样式（字号/字体/边框）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、命名区域、冻结窗格、查找替换、工作表保护（细化权限）、邮件合并、工作表管理、合并；操作后自动复验公式并写审计日志 |
+| `excel_operate` | 精细化 Excel 操作：写值、填充/序列、行列增删、复制/移动、排序、`report` 一键报表模板（排序+汇总+动态透视+筛选+样式+冻结+格式）、分类汇总、动态透视报表、高级筛选、样式（字号/字体/边框）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、命名区域、冻结窗格、查找替换、工作表保护（细化权限）、邮件合并、工作表管理、合并、数据清洗（去重/填充缺失/删空行空列/去空格/大小写转换/分列）；操作后自动复验公式并写审计日志 |
 | `excel_validate_charts` | 图表结构校验：类型、系列、缺失单元格、二维范围、日期排序 |
 | `excel_validate_charts_visual` | Excel 导出 PNG + 视觉 LLM 评审 |
 | `excel_export_charts` | 用本地 Excel 把图表导出为 PNG（Windows） |
 | `excel_create_chart` | 用本地 Excel 创建图表：数据范围、类型、标题（Windows） |
 | `excel_modify_chart` | 修改图表参数：类型、标题、图例、坐标轴（Windows） |
 | `excel_create_pivot` | 原生数据透视表（pivotCache + pivotTable）：多行字段、列字段、报表筛选器 + 值字段（求和/计数/平均/最大/最小），Excel 生成、可刷新（Windows） |
+
+生态功能整合对照（复刻了哪些主流 AI + Excel 方案的效果）见
+[docs/ecosystem-parity.md](docs/ecosystem-parity.md)。
 
 ## Modules
 

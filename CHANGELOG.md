@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.30.0 — 2026-08-14
+
+- 复刻 SheetMind / Excel-Agent 的数据清洗效果，`excel_operate` 新增 7 个清洗
+  操作：`dedupeRows`（按列去重、保留首/末行）、`fillMissing`（固定值/向上/
+  向左填充）、`removeEmptyRows` / `removeEmptyColumns`、`trimText`、
+  `changeCase`（upper/lower/proper）、`splitColumn`（按分隔符分列，自动插入
+  右侧新列并联动公式引用）。
+- 新增 [docs/ecosystem-parity.md](docs/ecosystem-parity.md) 生态功能复刻
+  对照表：逐仓库记录核心效果、整合状态与缺口，作为后续迭代路线图。
+- 测试规模 152 → 159。
+
 ## v0.29.0 — 2026-08-14
 
 - 借鉴 SpreadsheetLLM 的结构化表格编码思路，新增 `excel_profile`：大表速览

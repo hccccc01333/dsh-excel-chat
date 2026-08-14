@@ -265,6 +265,36 @@ export type ExcelOperation = {
     totalsRow?: boolean;
     showRowStripes?: boolean;
     showColumnStripes?: boolean;
+} | {
+    op: 'dedupeRows';
+    sheet: string;
+    columns?: string[];
+    keep?: 'first' | 'last';
+} | {
+    op: 'fillMissing';
+    range: string;
+    mode: 'value' | 'forward' | 'left';
+    value?: string | number;
+} | {
+    op: 'removeEmptyRows';
+    range: string;
+} | {
+    op: 'removeEmptyColumns';
+    range: string;
+} | {
+    op: 'trimText';
+    range: string;
+} | {
+    op: 'changeCase';
+    range: string;
+    case: 'upper' | 'lower' | 'proper';
+} | {
+    op: 'splitColumn';
+    sheet: string;
+    column: string;
+    delimiter: string;
+    startRow: number;
+    endRow?: number;
 };
 export interface ExcelStyle {
     bold?: boolean;

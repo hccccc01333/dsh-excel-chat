@@ -392,5 +392,33 @@ export const excelOperationSchema = {
         opSchema('clear', { cells: stringList('Cell ids to clear, e.g. ["Sheet1!A1"].') }),
         opSchema('merge', { range: rangeSchema }),
         opSchema('unmerge', { range: rangeSchema }),
+        opSchema('dedupeRows', {
+            sheet: text('Sheet name.', true),
+            columns: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Column letters that define a duplicate (default: all columns).',
+            },
+            keep: { type: 'string', enum: ['first', 'last'], description: 'Which occurrence to keep (default first).' },
+        }),
+        opSchema('fillMissing', {
+            range: rangeSchema,
+            mode: { type: 'string', enum: ['value', 'forward', 'left'], required: true, description: 'Fill mode: value (fixed value), forward (copy nearest non-empty cell above), left (copy nearest non-empty cell to the left).' },
+            value: { oneOf: [{ type: 'string' }, { type: 'number' }], description: 'Fill value, required when mode is "value".' },
+        }),
+        opSchema('removeEmptyRows', { range: rangeSchema }),
+        opSchema('removeEmptyColumns', { range: rangeSchema }),
+        opSchema('trimText', { range: rangeSchema }),
+        opSchema('changeCase', {
+            range: rangeSchema,
+            case: { type: 'string', enum: ['upper', 'lower', 'proper'], required: true, description: 'Case conversion: upper / lower / proper (capitalize each word).' },
+        }),
+        opSchema('splitColumn', {
+            sheet: text('Sheet name.', true),
+            column: text('Source column letter, e.g. "A".', true),
+            delimiter: text('Delimiter to split on, e.g. "-" or " ".', true),
+            startRow: num('First data row (1-based).', true),
+            endRow: num('Last data row (default: last used row).'),
+        }),
     ],
 };

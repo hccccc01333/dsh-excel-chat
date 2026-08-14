@@ -159,6 +159,13 @@ export type ExcelOperation =
       showRowStripes?: boolean
       showColumnStripes?: boolean
     }
+  | { op: 'dedupeRows'; sheet: string; columns?: string[]; keep?: 'first' | 'last' }
+  | { op: 'fillMissing'; range: string; mode: 'value' | 'forward' | 'left'; value?: string | number }
+  | { op: 'removeEmptyRows'; range: string }
+  | { op: 'removeEmptyColumns'; range: string }
+  | { op: 'trimText'; range: string }
+  | { op: 'changeCase'; range: string; case: 'upper' | 'lower' | 'proper' }
+  | { op: 'splitColumn'; sheet: string; column: string; delimiter: string; startRow: number; endRow?: number }
 
 export interface ExcelStyle {
   bold?: boolean
@@ -408,6 +415,52 @@ function cellContentOf(cell: ExcelJS.Cell): string {
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
+/** Delete rows with the same reference-shift semantics as the deleteRows op. */
+function deleteRowsFromSheet(
+  workbook: ExcelJS.Workbook,
+  sheetName: string,
+  start: number,
+  count: number,
+  warnings: OperationWarning[],
+  opIndex: number,
+): void {
+  const sheet = findSheet(workbook, sheetName)
+  if (!sheet) throw new Error(`sheet not found: ${sheetName}`)
+  if (start < 1 || count < 1) throw new Error(`invalid deleteRows: row=${start} count=${count}`)
+  const end = start + count - 1
+  for (const formulaCell of collectDeletedRangeRefs(workbook, sheetName, start, end)) {
+    warnings.push({ op: opIndex, message: `formula ${formulaCell} references a deleted row in ${sheetName}` })
+  }
+  markDeletedRowRefs(workbook, sheetName, start, end)
+  sheet.spliceRows(start, count)
+  shiftWorkbookRows(workbook, sheetName, end + 1, -count)
+}
+
+/** Delete columns with the same reference-shift semantics as the deleteColumns op. */
+function deleteColumnsFromSheet(
+  workbook: ExcelJS.Workbook,
+  sheetName: string,
+  column: number,
+  count: number,
+  warnings: OperationWarning[],
+  opIndex: number,
+): void {
+  const sheet = findSheet(workbook, sheetName)
+  if (!sheet) throw new Error(`sheet not found: ${sheetName}`)
+  if (column < 1 || count < 1) throw new Error(`invalid deleteColumns: column=${column} count=${count}`)
+  const end = column + count - 1
+  for (const formulaCell of collectDeletedColumnRefs(workbook, sheetName, column, end)) {
+    warnings.push({ op: opIndex, message: `formula ${formulaCell} references a deleted column in ${sheetName}` })
+  }
+  markDeletedColumnRefs(workbook, sheetName, column, end)
+  sheet.spliceColumns(column, count)
+  shiftWorkbookColumns(workbook, sheetName, end + 1, -count)
+}
+
+function properCase(text: string): string {
+  return text.toLowerCase().replace(/(^|\s)(\S)/g, (_match, sep: string, char: string) => `${sep}${char.toUpperCase()}`)
+}
+
 export async function applyOperationsToWorkbook(
   inputPath: string,
   operations: ExcelOperation[],
@@ -438,16 +491,7 @@ export async function applyOperationsToWorkbook(
         break
       }
       case 'deleteRows': {
-        const sheet = findSheet(workbook, operation.sheet)
-        if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
-        if (operation.row < 1 || operation.count < 1) throw new Error(`invalid deleteRows: row=${operation.row} count=${operation.count}`)
-        const end = operation.row + operation.count - 1
-        for (const formulaCell of collectDeletedRangeRefs(workbook, sheet.name, operation.row, end)) {
-          warnings.push({ op: index, message: `formula ${formulaCell} references a deleted row in ${sheet.name}` })
-        }
-        markDeletedRowRefs(workbook, sheet.name, operation.row, end)
-        sheet.spliceRows(operation.row, operation.count)
-        shiftWorkbookRows(workbook, sheet.name, end + 1, -operation.count)
+        deleteRowsFromSheet(workbook, operation.sheet, operation.row, operation.count, warnings, index)
         break
       }
       case 'insertColumns': {
@@ -460,17 +504,168 @@ export async function applyOperationsToWorkbook(
         break
       }
       case 'deleteColumns': {
+        deleteColumnsFromSheet(workbook, operation.sheet, columnToNumber(operation.column), operation.count, warnings, index)
+        break
+      }
+      case 'dedupeRows': {
+        const sheet = findSheet(workbook, operation.sheet)
+        if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
+        const columns = operation.columns && operation.columns.length > 0
+          ? operation.columns.map((column) => columnToNumber(column))
+          : Array.from({ length: sheet.columnCount }, (_, i) => i + 1)
+        const keep = operation.keep ?? 'first'
+        const rowsToDelete: number[] = []
+        const seen = new Set<string>()
+        const visit = (row: number) => {
+          const key = columns.map((col) => cellContentOf(sheet.getCell(`${numberToColumn(col)}${row}`))).join('\u0001')
+          if (seen.has(key)) rowsToDelete.push(row)
+          else seen.add(key)
+        }
+        if (keep === 'first') {
+          for (let row = 1; row <= sheet.rowCount; row++) visit(row)
+        } else {
+          for (let row = sheet.rowCount; row >= 1; row--) visit(row)
+        }
+        for (const row of rowsToDelete.sort((a, b) => b - a)) {
+          deleteRowsFromSheet(workbook, sheet.name, row, 1, warnings, index)
+        }
+        warnings.push({ op: index, message: `dedupeRows removed ${rowsToDelete.length} duplicate row(s) from ${sheet.name}` })
+        break
+      }
+      case 'fillMissing': {
+        const parsed = parseRange(workbook, operation.range)
+        if (operation.mode === 'value' && operation.value === undefined) {
+          throw new Error('value is required when fillMissing mode is "value"')
+        }
+        let filled = 0
+        for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+          for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+            const cell = parsed.sheet.getCell(`${numberToColumn(col)}${row}`)
+            if (cellContentOf(cell) !== '') continue
+            if (operation.mode === 'value') {
+              writeContent(cell, String(operation.value))
+              filled++
+            } else if (operation.mode === 'forward') {
+              for (let above = row - 1; above >= parsed.startRow; above--) {
+                const source = parsed.sheet.getCell(`${numberToColumn(col)}${above}`)
+                if (cellContentOf(source) === '') continue
+                if (!source.formula) cell.value = source.value
+                filled++
+                break
+              }
+            } else {
+              for (let left = col - 1; left >= parsed.startCol; left--) {
+                const source = parsed.sheet.getCell(`${numberToColumn(left)}${row}`)
+                if (cellContentOf(source) === '') continue
+                if (!source.formula) cell.value = source.value
+                filled++
+                break
+              }
+            }
+          }
+        }
+        warnings.push({ op: index, message: `fillMissing filled ${filled} cell(s)` })
+        break
+      }
+      case 'removeEmptyRows': {
+        const parsed = parseRange(workbook, operation.range)
+        const emptyRows: number[] = []
+        for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+          let empty = true
+          for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+            if (cellContentOf(parsed.sheet.getCell(`${numberToColumn(col)}${row}`)) !== '') {
+              empty = false
+              break
+            }
+          }
+          if (empty) emptyRows.push(row)
+        }
+        for (const row of emptyRows.sort((a, b) => b - a)) {
+          deleteRowsFromSheet(workbook, parsed.sheet.name, row, 1, warnings, index)
+        }
+        warnings.push({ op: index, message: `removeEmptyRows removed ${emptyRows.length} fully empty row(s) in ${operation.range}` })
+        break
+      }
+      case 'removeEmptyColumns': {
+        const parsed = parseRange(workbook, operation.range)
+        const emptyCols: number[] = []
+        for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+          let empty = true
+          for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+            if (cellContentOf(parsed.sheet.getCell(`${numberToColumn(col)}${row}`)) !== '') {
+              empty = false
+              break
+            }
+          }
+          if (empty) emptyCols.push(col)
+        }
+        for (const col of emptyCols.sort((a, b) => b - a)) {
+          deleteColumnsFromSheet(workbook, parsed.sheet.name, col, 1, warnings, index)
+        }
+        warnings.push({ op: index, message: `removeEmptyColumns removed ${emptyCols.length} fully empty column(s) in ${operation.range}` })
+        break
+      }
+      case 'trimText': {
+        const parsed = parseRange(workbook, operation.range)
+        let trimmed = 0
+        for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+          for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+            const cell = parsed.sheet.getCell(`${numberToColumn(col)}${row}`)
+            if (cell.formula || typeof cell.value !== 'string') continue
+            const next = cell.value.trim()
+            if (next !== cell.value) {
+              cell.value = next
+              trimmed++
+            }
+          }
+        }
+        warnings.push({ op: index, message: `trimText trimmed ${trimmed} cell(s)` })
+        break
+      }
+      case 'changeCase': {
+        const parsed = parseRange(workbook, operation.range)
+        let changed = 0
+        const convert = (text: string) =>
+          operation.case === 'upper' ? text.toUpperCase() : operation.case === 'lower' ? text.toLowerCase() : properCase(text)
+        for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+          for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+            const cell = parsed.sheet.getCell(`${numberToColumn(col)}${row}`)
+            if (cell.formula || typeof cell.value !== 'string') continue
+            const next = convert(cell.value)
+            if (next !== cell.value) {
+              cell.value = next
+              changed++
+            }
+          }
+        }
+        warnings.push({ op: index, message: `changeCase converted ${changed} cell(s) to ${operation.case}` })
+        break
+      }
+      case 'splitColumn': {
         const sheet = findSheet(workbook, operation.sheet)
         if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
         const columnNumber = columnToNumber(operation.column)
-        if (columnNumber < 1 || operation.count < 1) throw new Error(`invalid deleteColumns: column=${operation.column} count=${operation.count}`)
-        const end = columnNumber + operation.count - 1
-        for (const formulaCell of collectDeletedColumnRefs(workbook, sheet.name, columnNumber, end)) {
-          warnings.push({ op: index, message: `formula ${formulaCell} references a deleted column in ${sheet.name}` })
+        const endRow = operation.endRow ?? sheet.rowCount
+        const partsByRow = new Map<number, string[]>()
+        let maxParts = 1
+        for (let row = operation.startRow; row <= endRow; row++) {
+          const text = cellContentOf(sheet.getCell(`${operation.column}${row}`))
+          if (!text) continue
+          const parts = text.split(operation.delimiter).map((part) => part.trim())
+          maxParts = Math.max(maxParts, parts.length)
+          partsByRow.set(row, parts)
         }
-        markDeletedColumnRefs(workbook, sheet.name, columnNumber, end)
-        sheet.spliceColumns(columnNumber, operation.count)
-        shiftWorkbookColumns(workbook, sheet.name, end + 1, -operation.count)
+        if (maxParts > 1) {
+          sheet.spliceColumns(columnNumber + 1, 0, ...Array.from({ length: maxParts - 1 }, () => []))
+          shiftWorkbookColumns(workbook, sheet.name, columnNumber + 1, maxParts - 1)
+        }
+        for (const [row, parts] of partsByRow) {
+          for (let i = 0; i < maxParts; i++) {
+            // Split results are text fragments: preserve exactness (e.g. "01").
+            sheet.getCell(`${numberToColumn(columnNumber + i)}${row}`).value = parts[i] ?? ''
+          }
+        }
+        warnings.push({ op: index, message: `splitColumn split ${partsByRow.size} row(s) into up to ${maxParts} columns` })
         break
       }
       case 'addSheet': {

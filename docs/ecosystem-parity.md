@@ -1,0 +1,27 @@
+# 生态功能复刻对照表
+
+dsh-excel-chat 的定位：把主流 AI + Excel 方案的用户可见功能效果，整合进
+DeepSeek Harness 的一个插件里。下表记录每个生态仓库的“核心效果”、我们
+复刻到哪一步、以及缺口。
+
+| 生态仓库 | 核心功能效果 | 我们的整合状态 | 缺口 / 下一批 |
+|---|---|---|---|
+| ChatExcel | 对话改表：写值、公式、筛选、排序、汇总、透视，多轮会话 | `excel_operate` 30+ 操作 + 对话即工具调用，已覆盖 | 多轮会话间的上下文记忆与自检引导（可增强 advisor 提示） |
+| ExcelGenius2 | 多智能体任务分解 + 反思，复杂表格任务一次完成 | `excel_autofix` 反思闭环已有；`report` / `preset` 一键多步模板已有 | 任务级编排：`excel_task` 把“目标+步骤”串成一次执行并逐步校验 |
+| SheetMind | 数据清洗、公式、图表、透视、报表 + 自愈（self-healing） | 清洗操作本轮补齐：去重 / 填缺失 / 删空行空列 / 去空格 / 大小写 / 分列；公式修复、图表、透视已有 | 更多清洗规则：异常值检测、数字格式统一、文本标准化（全角/半角） |
+| Excel-Agent | 多模态表格理解 + 自然语言公式生成 | `excel_profile` 结构化速览 + `excel_compile_formula` IR 编译已有 | 大表语义摘要（按列意图描述），截图/图片理解（接入 VLM） |
+| sv-excel-agent | Agent 文件操作 + 图表导出 | 已有（`excel_export_charts` 等，Windows + Excel） | — |
+| excel-mcp-server / local-workbook-mcp | 通过 MCP 把 Excel 操作暴露给任意 LLM 客户端 | 未做 | MCP 适配层（若 DeepSeek Harness 支持 MCP 工具，再接入） |
+| SpreadsheetBench / Spreadsheet-RL | 真实数据集评测 + RL 训练（outcome reward） | oracle 判分 + 11 个合成 benchmark 已有 | 把公开真实数据集转成 BenchmarkTask，作为 RL reward |
+| SheetCopilot | 多步任务规划（从指令到完整操作序列） | `preset`（运营/产品/数分模板）+ `report` 已有 | 更多岗位模板 + 指令级规划缓存 |
+| SpreadsheetLLM | 表格结构化编码，省 token | `excel_profile` + `excel_read` `maxRows` 分页已有 | 列级语义标注、按意图只读相关行列 |
+| cellm / agent-xlsx / xeli | 单元格内 AI 生成/修复公式 | `excel_compile_formula` + `excel_repair_formulas` 已有 | 公式自然语言解释（把公式讲成人话） |
+| office-ai-agent | Office 文档联动（Excel/Word/PPT） | `mailMerge`（Excel→Word 式模板）已有 | Word/PPT 生成（超出当前范围，暂缓） |
+
+## 已复刻效果清单（按版本）
+
+- v0.29.0 — SpreadsheetLLM 式大表速览（`excel_profile` + `maxRows` 分页）；
+  SheetMind 式一键自愈（`excel_autofix`）。
+- v0.30.0 — SheetMind / Excel-Agent 式数据清洗：`dedupeRows`、`fillMissing`、
+  `removeEmptyRows`、`removeEmptyColumns`、`trimText`、`changeCase`、
+  `splitColumn`。

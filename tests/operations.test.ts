@@ -857,3 +857,107 @@ test('shiftFormulaReferences moves relative rows only when gated by the threshol
   // Cross-sheet reference stays; same-sheet reference shifts.
   assert.equal(shiftFormulaReferences('=Sheet2!B3-C3', 'Sheet1', 'Sheet1', { rowDelta: 1, rowThreshold: 3 }), '=Sheet2!B3-C4')
 })
+
+function cleaningFixture(): (workbook: ExcelJS.Workbook) => void {
+  return (workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '名称'
+    sheet.getCell('B1').value = '数量'
+    sheet.getCell('C1').value = '备注'
+    sheet.getCell('A2').value = '苹果'
+    sheet.getCell('B2').value = 10
+    sheet.getCell('A3').value = '苹果'
+    sheet.getCell('B3').value = 10
+    sheet.getCell('A4').value = '香蕉'
+    sheet.getCell('B4').value = 5
+    sheet.getCell('A5').value = '  橘子 '
+    sheet.getCell('B5').value = 8
+    sheet.getCell('A7').value = '梨'
+    sheet.getCell('B7').value = 3
+    sheet.getCell('A8').value = 'SKU-01'
+    sheet.getCell('A9').value = 'SKU-02'
+  }
+}
+
+test('dedupeRows removes duplicate rows and keeps first or last occurrence', async () => {
+  const path = await makeWorkbook(cleaningFixture())
+  const first = await readAfter(path, [{ op: 'dedupeRows', sheet: 'Sheet1', keep: 'first' }])
+  assert.equal(first['Sheet1!A2'], '苹果')
+  assert.equal(first['Sheet1!A3'], '香蕉')
+  const firstApples = Object.keys(first).filter((id) => /^Sheet1!A\d+$/.test(id) && first[id] === '苹果').length
+  assert.equal(firstApples, 1)
+  const last = await readAfter(path, [{ op: 'dedupeRows', sheet: 'Sheet1', keep: 'last' }])
+  assert.equal(last['Sheet1!A2'], '苹果')
+  assert.equal(last['Sheet1!A3'], '香蕉')
+  const lastApples = Object.keys(last).filter((id) => /^Sheet1!A\d+$/.test(id) && last[id] === '苹果').length
+  assert.equal(lastApples, 1)
+})
+
+test('dedupeRows can key on specific columns only', async () => {
+  const path = await makeWorkbook(cleaningFixture())
+  const cells = await readAfter(path, [{ op: 'dedupeRows', sheet: 'Sheet1', columns: ['A'] }])
+  const names = Object.keys(cells).filter((id) => /^Sheet1!A\d+$/.test(id)).map((id) => cells[id])
+  assert.deepEqual(names, ['名称', '苹果', '香蕉', '  橘子 ', '梨', 'SKU-01', 'SKU-02'])
+})
+
+test('fillMissing fills blanks with a fixed value or forward from above', async () => {
+  const path = await makeWorkbook(cleaningFixture())
+  const fixed = await readAfter(path, [{ op: 'fillMissing', range: 'Sheet1!A2:B9', mode: 'value', value: '无' }])
+  assert.equal(fixed['Sheet1!A6'], '无')
+  assert.equal(fixed['Sheet1!B6'], '无')
+  const forward = await readAfter(path, [{ op: 'fillMissing', range: 'Sheet1!A2:B9', mode: 'forward' }])
+  assert.equal(forward['Sheet1!A6'], '  橘子 ')
+  assert.equal(forward['Sheet1!B6'], '8')
+})
+
+test('removeEmptyRows deletes fully empty rows inside the range', async () => {
+  const path = await makeWorkbook(cleaningFixture())
+  const cells = await readAfter(path, [{ op: 'removeEmptyRows', range: 'Sheet1!A2:B9' }])
+  assert.equal(cells['Sheet1!A6'], '梨')
+  assert.equal(cells['Sheet1!A7'], 'SKU-01')
+})
+
+test('removeEmptyColumns deletes fully empty columns inside the range', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '名称'
+    sheet.getCell('B1').value = '数量'
+    sheet.getCell('A2').value = '苹果'
+    sheet.getCell('B2').value = 10
+  })
+  const outPath = join(join(path, '..'), 'no-empty-col.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'removeEmptyColumns', range: 'Sheet1!A1:C9' }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(await readFile(outPath))
+  assert.equal(workbook.getWorksheet('Sheet1')!.columnCount, 2)
+})
+
+test('trimText and changeCase normalize text cells', async () => {
+  const path = await makeWorkbook(cleaningFixture())
+  const trimmed = await readAfter(path, [{ op: 'trimText', range: 'Sheet1!A2:A9' }])
+  assert.equal(trimmed['Sheet1!A5'], '橘子')
+  const upper = await readAfter(path, [{ op: 'changeCase', range: 'Sheet1!A2:A9', case: 'upper' }])
+  assert.equal(upper['Sheet1!A2'], '苹果')
+  const proper = await readAfter(path, [{
+    op: 'set',
+    cells: { 'Sheet1!A5': 'orange juice' },
+  }, { op: 'changeCase', range: 'Sheet1!A5:A5', case: 'proper' }])
+  assert.equal(proper['Sheet1!A5'], 'Orange Juice')
+})
+
+test('splitColumn splits text into new columns and shifts existing columns right', async () => {
+  const path = await makeWorkbook(cleaningFixture())
+  const cells = await readAfter(path, [{
+    op: 'splitColumn',
+    sheet: 'Sheet1',
+    column: 'A',
+    delimiter: '-',
+    startRow: 8,
+    endRow: 9,
+  }])
+  assert.equal(cells['Sheet1!A8'], 'SKU')
+  assert.equal(cells['Sheet1!B8'], '01')
+  assert.equal(cells['Sheet1!A9'], 'SKU')
+  assert.equal(cells['Sheet1!B9'], '02')
+  assert.equal(cells['Sheet1!C2'], '10')
+})
