@@ -295,6 +295,26 @@ export type ExcelOperation = {
     delimiter: string;
     startRow: number;
     endRow?: number;
+} | {
+    op: 'highlightRows';
+    sheet: string;
+    range: string;
+    criteria: Array<{
+        column: string;
+        operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains';
+        value: string | number;
+    }>;
+    style?: ExcelStyle;
+} | {
+    op: 'fuzzyMatch';
+    source: string;
+    sourceKey: string;
+    target: string;
+    targetKey: string;
+    valueColumn: string;
+    outputColumn: string;
+    threshold?: number;
+    scoreColumn?: string;
 };
 export interface ExcelStyle {
     bold?: boolean;

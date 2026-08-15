@@ -14,6 +14,7 @@ import {
 import { readChartInfos } from './charts.ts'
 import { compileFormula } from './compiler.ts'
 import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.ts'
+import { buildWorkbookInsight } from './insight.ts'
 import { formulaIrSchema } from './ir-schema.ts'
 import type { ColumnTable } from './ir.ts'
 import { llmTextFromContext } from './llm.ts'
@@ -158,7 +159,7 @@ export function apply(ctx: Context) {
   }))
   ctx.tools.register(defineTool({
     name: 'excel_operate',
-    description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill, fillSeries, insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel), copyRange (move:true moves), sortRange, report (one-shot report template: sort + subtotals + dynamic SUMIFS summary + filter + header style + freeze + number format), preset (role templates: ops 运营 = report + data bars; product 产品 = report + color scale; data 数分 = report + color scale + filtered copy), subtotal (group summaries), aggregateReport (dynamic pivot-style summary with live SUMIFS formulas), filterToRange (advanced filter), style, dataValidation, conditionalFormatting, autoFilter, addTable, importCsv / exportCsv (RFC 4180 with formula-injection guard), setColumnWidth / setRowHeight / freezePanes, findReplace, protectSheet / unprotectSheet, mailMerge (expand {Placeholder} templates per data row), addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor, clear, merge / unmerge, dedupeRows (remove duplicate rows by key columns, keep first/last), fillMissing (fill blanks with a value / forward from above / from the left), removeEmptyRows / removeEmptyColumns, trimText (strip whitespace), changeCase (upper / lower / proper), splitColumn (text to columns by delimiter). The operations array is a strict union on "op": choose the matching object shape. Example: {"operations":[{"op":"set","cells":{"Sheet1!A1":"100"}},{"op":"style","range":"Sheet1!A1:C1","style":{"bold":true}}]}. Writes <path>.edited.xlsx (or outPath) and returns the post-operation validation result.',
+    description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill, fillSeries, insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel), copyRange (move:true moves), sortRange, report (one-shot report template: sort + subtotals + dynamic SUMIFS summary + filter + header style + freeze + number format), preset (role templates: ops 运营 = report + data bars; product 产品 = report + color scale; data 数分 = report + color scale + filtered copy), subtotal (group summaries), aggregateReport (dynamic pivot-style summary with live SUMIFS formulas), filterToRange (advanced filter), style, dataValidation, conditionalFormatting, autoFilter, addTable, importCsv / exportCsv (RFC 4180 with formula-injection guard), setColumnWidth / setRowHeight / freezePanes, findReplace, protectSheet / unprotectSheet, mailMerge (expand {Placeholder} templates per data row), addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor, clear, merge / unmerge, dedupeRows (remove duplicate rows by key columns, keep first/last), fillMissing (fill blanks with a value / forward from above / from the left), removeEmptyRows / removeEmptyColumns, trimText (strip whitespace), changeCase (upper / lower / proper), splitColumn (text to columns by delimiter), highlightRows (highlight whole rows matching criteria, e.g. find and highlight a customer), fuzzyMatch (two-table fuzzy match by similarity and write the matched value back, e.g. reconcile names). The operations array is a strict union on "op": choose the matching object shape. Example: {"operations":[{"op":"set","cells":{"Sheet1!A1":"100"}},{"op":"style","range":"Sheet1!A1:C1","style":{"bold":true}}]}. Writes <path>.edited.xlsx (or outPath) and returns the post-operation validation result.',
     parameters: {
       path: {
         type: 'string',
@@ -288,6 +289,31 @@ export function apply(ctx: Context) {
     },
     async execute(args) {
       return await buildWorkbookMenu(
+        args.path as string,
+        typeof args.sheet === 'string' ? args.sheet : undefined,
+      ) as unknown as JsonRecord
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_insight',
+    description: 'Data insight report for an .xlsx file: per-sheet plain-language summary plus heuristic anomaly findings (missing values, suspicious duplicates, outlier/negative values, text whitespace, formula presence) and concrete next-step suggestions. Call when the user asks "summarize this file", "帮我看看这表有什么问题", or wants to know what the data says before doing anything.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      sheet: {
+        type: 'string',
+        description: 'Restrict to one sheet (default all sheets).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      return await buildWorkbookInsight(
         args.path as string,
         typeof args.sheet === 'string' ? args.sheet : undefined,
       ) as unknown as JsonRecord

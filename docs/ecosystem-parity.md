@@ -7,9 +7,9 @@ DeepSeek Harness 的一个插件里。下表记录每个生态仓库的“核心
 | 生态仓库 | 核心功能效果 | 我们的整合状态 | 缺口 / 下一批 |
 |---|---|---|---|
 | ChatExcel | 对话改表：写值、公式、筛选、排序、汇总、透视，多轮会话 | `excel_operate` 30+ 操作 + 对话即工具调用，已覆盖；入口由 `excel_menu` 兜底 | 多轮会话间的上下文记忆与自检引导（可增强 advisor 提示） |
-| ExcelGenius2 | 多智能体任务分解 + 反思，复杂表格任务一次完成 | `excel_autofix` 反思闭环已有；`report` / `preset` 一键多步模板已有 | 任务级编排：`excel_task` 把“目标+步骤”串成一次执行并逐步校验 |
-| SheetMind | 数据清洗、公式、图表、透视、报表 + 自愈（self-healing） | 清洗操作本轮补齐：去重 / 填缺失 / 删空行空列 / 去空格 / 大小写 / 分列；公式修复、图表、透视已有 | 更多清洗规则：异常值检测、数字格式统一、文本标准化（全角/半角） |
-| Excel-Agent | 多模态表格理解 + 自然语言公式生成 | `excel_profile` 结构化速览 + `excel_compile_formula` IR 编译已有 | 大表语义摘要（按列意图描述），截图/图片理解（接入 VLM） |
+| ExcelGenius2 | 多智能体任务分解 + 反思；一键上传→摘要+异常检测 | `excel_autofix` 反思闭环、`excel_insight` 摘要+异常已有；`report` / `preset` 一键多步模板已有 | 任务级编排：`excel_task` 把“目标+步骤”串成一次执行并逐步校验 |
+| SheetMind | 数据清洗、公式、图表、透视、报表、模糊匹配 + 自愈 | 清洗操作、`fuzzyMatch` 两表模糊匹配、公式修复、图表、透视已有 | 数字格式统一、文本标准化（全角/半角） |
+| Excel-Agent | 多模态表格理解 + 自然语言公式生成 + 整行条件高亮 | `excel_profile` / `excel_insight` / `highlightRows` / `excel_compile_formula` 已有 | 截图/图片理解（接入 VLM），公式自然语言解释 |
 | sv-excel-agent | Agent 文件操作 + 图表导出 | 已有（`excel_export_charts` 等，Windows + Excel） | — |
 | excel-mcp-server / local-workbook-mcp | 通过 MCP 把 Excel 操作暴露给任意 LLM 客户端 | 未做 | MCP 适配层（若 DeepSeek Harness 支持 MCP 工具，再接入） |
 | SpreadsheetBench / Spreadsheet-RL | 真实数据集评测 + RL 训练（outcome reward） | oracle 判分 + 11 个合成 benchmark 已有 | 把公开真实数据集转成 BenchmarkTask，作为 RL reward |
@@ -28,3 +28,6 @@ DeepSeek Harness 的一个插件里。下表记录每个生态仓库的“核心
 - v0.31.0 — 交互入口：`excel_menu` 文件感知能力菜单（给文件就出可选方案 +
   示例话术），系统提示注册“业务目标优先、模糊就给选项、先做后改可回滚”
   的交互策略，解决用户不会描述的问题。
+- v0.32.0 — 复刻三个生态效果：`excel_insight` 数据摘要+异常检测
+  （ExcelGenius2）、`highlightRows` 整行条件高亮（Excel-Agent）、
+  `fuzzyMatch` 两表模糊匹配（SheetMind）。

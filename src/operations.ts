@@ -166,6 +166,24 @@ export type ExcelOperation =
   | { op: 'trimText'; range: string }
   | { op: 'changeCase'; range: string; case: 'upper' | 'lower' | 'proper' }
   | { op: 'splitColumn'; sheet: string; column: string; delimiter: string; startRow: number; endRow?: number }
+  | {
+      op: 'highlightRows'
+      sheet: string
+      range: string
+      criteria: Array<{ column: string; operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains'; value: string | number }>
+      style?: ExcelStyle
+    }
+  | {
+      op: 'fuzzyMatch'
+      source: string
+      sourceKey: string
+      target: string
+      targetKey: string
+      valueColumn: string
+      outputColumn: string
+      threshold?: number
+      scoreColumn?: string
+    }
 
 export interface ExcelStyle {
   bold?: boolean
@@ -461,6 +479,28 @@ function properCase(text: string): string {
   return text.toLowerCase().replace(/(^|\s)(\S)/g, (_match, sep: string, char: string) => `${sep}${char.toUpperCase()}`)
 }
 
+/**
+ * Normalized similarity in [0, 1] for fuzzy matching: exact match is 1,
+ * otherwise 1 minus the Levenshtein distance ratio over the longer string.
+ * Callers normalize (trim/lowercase) before calling.
+ */
+function similarity(a: string, b: string): number {
+  if (a === b) return 1
+  if (a.length === 0 || b.length === 0) return 0
+  if (a.length > b.length) return similarity(b, a)
+  const previous = Array.from({ length: a.length + 1 }, (_, i) => i)
+  let current = new Array<number>(a.length + 1)
+  for (let j = 1; j <= b.length; j++) {
+    current[0] = j
+    for (let i = 1; i <= a.length; i++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      current[i] = Math.min(previous[i]! + 1, current[i - 1]! + 1, previous[i - 1]! + cost)
+    }
+    for (let i = 0; i <= a.length; i++) previous[i] = current[i]!
+  }
+  return 1 - (previous[a.length]! / b.length)
+}
+
 export async function applyOperationsToWorkbook(
   inputPath: string,
   operations: ExcelOperation[],
@@ -666,6 +706,61 @@ export async function applyOperationsToWorkbook(
           }
         }
         warnings.push({ op: index, message: `splitColumn split ${partsByRow.size} row(s) into up to ${maxParts} columns` })
+        break
+      }
+      case 'highlightRows': {
+        const sheet = findSheet(workbook, operation.sheet)
+        if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
+        const parsed = parseRange(workbook, operation.range)
+        const style = operation.style ?? { fill: 'FFFF00' }
+        let matched = 0
+        for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+          let rowMatches = operation.criteria.every((criterion) => {
+            const cell = sheet.getCell(`${criterion.column}${row}`)
+            return matchesCriterion(cell.value, criterion.operator, criterion.value)
+          })
+          if (!rowMatches) continue
+          matched++
+          applyStyle(workbook, `${sheet.name}!${numberToColumn(parsed.startCol)}${row}:${numberToColumn(parsed.endCol)}${row}`, style)
+        }
+        warnings.push({ op: index, message: `highlightRows highlighted ${matched} row(s) in ${operation.range}` })
+        break
+      }
+      case 'fuzzyMatch': {
+        const sourceParsed = parseRange(workbook, operation.source)
+        const targetParsed = parseRange(workbook, operation.target)
+        const targetKeyCol = columnToNumber(operation.targetKey)
+        const targetValueCol = columnToNumber(operation.valueColumn)
+        const targetRows: Array<{ key: string; value: string }> = []
+        for (let row = targetParsed.startRow; row <= targetParsed.endRow; row++) {
+          const key = cellContentOf(targetParsed.sheet.getCell(`${numberToColumn(targetKeyCol)}${row}`)).trim().toLowerCase()
+          if (!key) continue
+          targetRows.push({ key, value: cellContentOf(targetParsed.sheet.getCell(`${numberToColumn(targetValueCol)}${row}`)) })
+        }
+        const threshold = operation.threshold ?? 0.6
+        const outputCol = columnToNumber(operation.outputColumn)
+        const scoreCol = operation.scoreColumn ? columnToNumber(operation.scoreColumn) : null
+        const sourceKeyCol = columnToNumber(operation.sourceKey)
+        let matched = 0
+        for (let row = sourceParsed.startRow; row <= sourceParsed.endRow; row++) {
+          const key = cellContentOf(sourceParsed.sheet.getCell(`${numberToColumn(sourceKeyCol)}${row}`)).trim().toLowerCase()
+          if (!key) continue
+          let bestScore = 0
+          let bestValue = ''
+          for (const target of targetRows) {
+            const score = similarity(key, target.key)
+            if (score > bestScore) {
+              bestScore = score
+              bestValue = target.value
+            }
+          }
+          if (bestScore >= threshold) {
+            matched++
+            sourceParsed.sheet.getCell(`${numberToColumn(outputCol)}${row}`).value = bestValue
+            if (scoreCol !== null) sourceParsed.sheet.getCell(`${numberToColumn(scoreCol)}${row}`).value = Math.round(bestScore * 100) / 100
+          }
+        }
+        warnings.push({ op: index, message: `fuzzyMatch matched ${matched}/${sourceParsed.endRow - sourceParsed.startRow + 1} source row(s) at threshold ${threshold}` })
         break
       }
       case 'addSheet': {

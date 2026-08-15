@@ -420,5 +420,38 @@ export const excelOperationSchema = {
             startRow: num('First data row (1-based).', true),
             endRow: num('Last data row (default: last used row).'),
         }),
+        opSchema('highlightRows', {
+            sheet: text('Sheet name.', true),
+            range: rangeSchema,
+            criteria: {
+                type: 'array',
+                required: true,
+                items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        column: text('Column letter to test, e.g. "A".', true),
+                        operator: { type: 'string', enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains'], required: true, description: 'Comparison operator.' },
+                        value: { oneOf: [{ type: 'string' }, { type: 'number' }], required: true, description: 'Comparison value.' },
+                    },
+                },
+                description: 'Rows matching ALL criteria are highlighted.',
+            },
+            style: {
+                type: 'object',
+                additionalProperties: true,
+                description: 'Optional highlight style (default yellow fill).',
+            },
+        }),
+        opSchema('fuzzyMatch', {
+            source: rangeSchema,
+            sourceKey: text('Source key column letter, e.g. "A".', true),
+            target: rangeSchema,
+            targetKey: text('Target key column letter.', true),
+            valueColumn: text('Target column whose value is copied back on a match.', true),
+            outputColumn: text('Source column letter where the matched value is written.', true),
+            threshold: num('Minimum similarity in [0,1] to accept a match (default 0.6).'),
+            scoreColumn: text('Optional source column letter for the match score.'),
+        }),
     ],
 };

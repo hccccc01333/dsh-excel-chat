@@ -961,3 +961,72 @@ test('splitColumn splits text into new columns and shifts existing columns right
   assert.equal(cells['Sheet1!B9'], '02')
   assert.equal(cells['Sheet1!C2'], '10')
 })
+
+test('highlightRows fills whole rows that match all criteria', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '产品'
+    sheet.getCell('B1').value = '金额'
+    sheet.getCell('A2').value = '苹果'
+    sheet.getCell('B2').value = 10
+    sheet.getCell('A3').value = '香蕉'
+    sheet.getCell('B3').value = 20
+    sheet.getCell('A4').value = '苹果'
+    sheet.getCell('B4').value = 30
+  })
+  const outPath = join(join(path, '..'), 'highlight.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'highlightRows',
+    sheet: 'Sheet1',
+    range: 'Sheet1!A1:B4',
+    criteria: [{ column: 'A', operator: 'eq', value: '苹果' }],
+    style: { fill: 'FF00FF' },
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(await readFile(outPath))
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('A2').fill.fgColor?.argb?.toUpperCase().endsWith('FF00FF'), true)
+  assert.equal(sheet.getCell('B4').fill.fgColor?.argb?.toUpperCase().endsWith('FF00FF'), true)
+  assert.notEqual(sheet.getCell('A3').fill?.type, 'pattern')
+})
+
+test('fuzzyMatch matches source keys to target keys by similarity and writes values back', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const source = workbook.addWorksheet('订单')
+    source.getCell('A1').value = '名称'
+    source.getCell('B1').value = '数量'
+    source.getCell('A2').value = '苹果'
+    source.getCell('B2').value = 10
+    source.getCell('A3').value = '苹 果'
+    source.getCell('B3').value = 5
+    source.getCell('A4').value = '香蕉'
+    source.getCell('B4').value = 8
+    source.getCell('A5').value = '橙子'
+    source.getCell('B5').value = 3
+    const target = workbook.addWorksheet('价目表')
+    target.getCell('A1').value = '名称'
+    target.getCell('B1').value = '编码'
+    target.getCell('A2').value = '苹果'
+    target.getCell('B2').value = 'P01'
+    target.getCell('A3').value = '香蕉'
+    target.getCell('B3').value = 'P02'
+    target.getCell('A4').value = '梨'
+    target.getCell('B4').value = 'P03'
+  })
+  const cells = await readAfter(path, [{
+    op: 'fuzzyMatch',
+    source: '订单!A2:B5',
+    sourceKey: 'A',
+    target: '价目表!A2:B4',
+    targetKey: 'A',
+    valueColumn: 'B',
+    outputColumn: 'C',
+    threshold: 0.6,
+    scoreColumn: 'D',
+  }])
+  assert.equal(cells['订单!C2'], 'P01')
+  assert.equal(cells['订单!C3'], 'P01')
+  assert.equal(cells['订单!C4'], 'P02')
+  assert.equal(cells['订单!C5'], undefined)
+  assert.ok(Number(cells['订单!D2']) >= 0.9)
+})
