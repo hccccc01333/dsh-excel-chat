@@ -121,7 +121,7 @@ dsh web --profile demo                             # 打开对话界面
 - `src/benchmark.ts` — Pass@1 benchmark：确定性修复 → LLM 修复，与 oracle 对比判分。
 - `src/benchmark-cases.ts` — 11 个 benchmark 任务：范围端点、绝对引用、空行、
   跨表、多表、聚合结构、hardcode 等场景。
-- `src/file-benchmark.ts` + `src/corpus/` — ExcelBench lite：38 个文件级真实
+- `src/file-benchmark.ts` + `src/corpus/` — ExcelBench lite：100 个文件级真实
   职场任务（编辑/分析/公式/工作流），运行与指标见 [docs/benchmark.md](docs/benchmark.md)。
 - `src/index.ts` — dsh plugin entry exposing eight tools（validate / compile / repair / diff / operate / chart structure / chart export / chart visual）。
 - `bundle/` — 可发布 dsh bundle：manifest + cordis.patch.yml + 编译产物。

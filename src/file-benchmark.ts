@@ -101,7 +101,7 @@ export async function runFileBenchmarkTask(
     const normalized = normalizeCellId(check.id)
     const actual = cells[normalized] ?? cells[findKey(cells, normalized) ?? '']
     if (check.expect !== undefined) {
-      const exists = actual !== undefined
+      const exists = actual !== undefined && actual !== ''
       if (check.expect === null ? !exists : actual === check.expect) checksPassed += 1
       continue
     }

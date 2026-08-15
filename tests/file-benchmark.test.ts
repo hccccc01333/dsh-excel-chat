@@ -6,7 +6,7 @@ import { corpusTasks } from '../src/corpus/index.ts'
 test('corpus ids are unique', () => {
   const ids = corpusTasks.map((task) => task.id)
   assert.equal(new Set(ids).size, ids.length)
-  assert.equal(corpusTasks.length, 38)
+  assert.equal(corpusTasks.length, 100)
 })
 
 test('every canonical plan passes its checks with clean workbook integrity', async () => {

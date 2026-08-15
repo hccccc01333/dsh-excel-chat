@@ -3,7 +3,7 @@
 ## v0.34.0 — 2026-08-15（本地版本，未发布）
 
 - 按评审 P0 转向 evaluation-driven：新增文件级真实任务语料 ExcelBench lite
-  （38 个职场场景：编辑 18 / 分析 10 / 公式 6 / 工作流 4）+ `runFileBenchmark`
+  （100 个职场场景：编辑 35 / 分析 25 / 公式 22 / 工作流 18）+ `runFileBenchmark`
   运行器（任务成功率 / 平均准确率 / 完整性率 / 修复数），
   `tests/invoke-file-benchmark.ts` 可打印报告。
 - 语料暴露并修复 3 个真 bug：
