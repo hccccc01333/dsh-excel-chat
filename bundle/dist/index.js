@@ -1,5 +1,6 @@
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { readFile } from 'node:fs/promises';
+import { runAgentTask } from './agent.js';
 import { createLlmRepairAdvisor } from './advisor.js';
 import { autofixWorkbookFile } from './autofix.js';
 import { validateCharts } from './chart-validator.js';
@@ -9,6 +10,7 @@ import { compileFormula } from './compiler.js';
 import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.js';
 import { buildWorkbookInsight } from './insight.js';
 import { explainFormula, readCellContent } from './explain.js';
+import { createLlmPlanner } from './llm-planner.js';
 import { formulaIrSchema } from './ir-schema.js';
 import { llmTextFromContext } from './llm.js';
 import { excelOperationSchema } from './operation-schema.js';
@@ -652,7 +654,7 @@ export function apply(ctx) {
     }));
     ctx.tools.register(defineTool({
         name: 'excel_task',
-        description: 'Execute a multi-step Excel workflow in one call with per-step verification: each step applies an excel_operate-style operations array; after every step the formulas are validated and deterministic repairs are applied automatically, then the next step runs on the verified result. Use for complex tasks like "clean the file, fill missing values, then build a regional summary". Returns per-step warnings and repair counts plus the final output path.',
+        description: 'Execute an Excel workflow in one call. Two modes: (1) steps mode - provide an ordered array of excel_operate-style step operations; after every step the formulas are validated and deterministic repairs are applied, then the next step runs on the verified result. (2) goal mode - provide a natural-language goal and the configured LLM plans the steps, executes them with verification, an LLM verifier checks the goal, and it replans up to maxRounds times until achieved. Use goal mode for vague requests like "make this a monthly report" and steps mode for concrete pipelines like "clean, fill missing, then summarize by region".',
         parameters: {
             path: {
                 type: 'string',
@@ -678,6 +680,22 @@ export function apply(ctx) {
                 },
                 description: 'Ordered steps; each runs on the previous verified result.',
             },
+            goal: {
+                type: 'string',
+                description: 'Natural-language goal (goal mode). Exactly one of steps or goal must be provided.',
+            },
+            maxRounds: {
+                type: 'number',
+                description: 'Maximum plan-execute-verify-replan rounds in goal mode (default 2).',
+            },
+            provider: {
+                type: 'string',
+                description: 'LLM provider route for goal mode (default "deepseek").',
+            },
+            model: {
+                type: 'string',
+                description: 'LLM model id for goal mode. Required when goal is provided.',
+            },
             outPath: {
                 type: 'string',
                 description: 'Output .xlsx path (default: <path>.task.xlsx).',
@@ -688,7 +706,25 @@ export function apply(ctx) {
             render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
         },
         async execute(args) {
-            return await runExcelTask(args.path, args.steps, typeof args.outPath === 'string' && args.outPath ? args.outPath : undefined);
+            const hasSteps = Array.isArray(args.steps);
+            const hasGoal = typeof args.goal === 'string' && args.goal.length > 0;
+            if (hasSteps === hasGoal) {
+                throw new Error('exactly one of steps or goal must be provided');
+            }
+            const outPath = typeof args.outPath === 'string' && args.outPath ? args.outPath : undefined;
+            if (hasSteps) {
+                return await runExcelTask(args.path, args.steps, outPath);
+            }
+            if (!args.model) {
+                throw new Error('model is required when goal is provided');
+            }
+            const planner = createLlmPlanner(llmTextFromContext(ctx, args.provider ?? 'deepseek', args.model));
+            return await runAgentTask(args.path, {
+                goal: args.goal,
+                planner,
+                maxRounds: typeof args.maxRounds === 'number' && args.maxRounds > 0 ? args.maxRounds : 2,
+                outPath,
+            });
         },
     }));
     ctx.tools.register(defineTool({

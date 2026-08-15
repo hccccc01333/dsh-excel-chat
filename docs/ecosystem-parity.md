@@ -7,7 +7,7 @@ DeepSeek Harness 的一个插件里。下表记录每个生态仓库的“核心
 | 生态仓库 | 核心功能效果 | 我们的整合状态 | 缺口 / 下一批 |
 |---|---|---|---|
 | ChatExcel | 对话改表：写值、公式、筛选、排序、汇总、透视，多轮会话 | `excel_operate` 30+ 操作 + 对话即工具调用，已覆盖；入口由 `excel_menu` 兜底 | 多轮会话间的上下文记忆与自检引导（可增强 advisor 提示） |
-| ExcelGenius2 | 多智能体任务分解 + 反思；一键上传→摘要+异常检测 | `excel_autofix` 反思闭环、`excel_insight` 摘要+异常、`excel_task` 多步编排（逐步校验+自动修复）已有；`report` / `preset` 模板已有 | — |
+| ExcelGenius2 | 多智能体任务分解 + 反思；一键上传→摘要+异常检测 | `excel_autofix` 反思闭环、`excel_insight` 摘要+异常、`excel_task` steps 编排 + goal 模式（LLM 规划→执行→验证→重规划）已有；`report` / `preset` 模板已有 | — |
 | SheetMind | 数据清洗、公式、图表、透视、报表、模糊匹配 + 自愈 | 清洗操作（含 `normalizeText` 全角/半角）、`fuzzyMatch`、公式修复、图表、透视已有 | 数字格式统一 |
 | Excel-Agent | 多模态表格理解 + 自然语言公式生成 + 整行条件高亮 | `excel_profile` / `excel_insight` / `highlightRows` / `excel_compile_formula` 已有 | 截图/图片理解（接入 VLM），公式自然语言解释 |
 | sv-excel-agent | Agent 文件操作 + 图表导出 | 已有（`excel_export_charts` 等，Windows + Excel） | — |
