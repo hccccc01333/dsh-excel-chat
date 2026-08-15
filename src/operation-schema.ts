@@ -416,6 +416,7 @@ export const excelOperationSchema = {
       range: rangeSchema,
       case: { type: 'string', enum: ['upper', 'lower', 'proper'], required: true, description: 'Case conversion: upper / lower / proper (capitalize each word).' },
     }),
+    opSchema('normalizeText', { range: rangeSchema }),
     opSchema('splitColumn', {
       sheet: text('Sheet name.', true),
       column: text('Source column letter, e.g. "A".', true),

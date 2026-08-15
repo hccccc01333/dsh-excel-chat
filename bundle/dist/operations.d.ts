@@ -289,6 +289,9 @@ export type ExcelOperation = {
     range: string;
     case: 'upper' | 'lower' | 'proper';
 } | {
+    op: 'normalizeText';
+    range: string;
+} | {
     op: 'splitColumn';
     sheet: string;
     column: string;

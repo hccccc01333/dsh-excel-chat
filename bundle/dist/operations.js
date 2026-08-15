@@ -183,6 +183,24 @@ function deleteColumnsFromSheet(workbook, sheetName, column, count, warnings, op
 function properCase(text) {
     return text.toLowerCase().replace(/(^|\s)(\S)/g, (_match, sep, char) => `${sep}${char.toUpperCase()}`);
 }
+/** Fullwidth ASCII/space/punctuation to halfwidth, then trim and collapse spaces. */
+function normalizeTextValue(text) {
+    let out = '';
+    for (const char of text) {
+        const code = char.charCodeAt(0);
+        if (code >= 0xff01 && code <= 0xff5e)
+            out += String.fromCharCode(code - 0xfee0);
+        else if (char === '\u3000')
+            out += ' ';
+        else if (char === '\u2018' || char === '\u2019')
+            out += "'";
+        else if (char === '\u201c' || char === '\u201d')
+            out += '"';
+        else
+            out += char;
+    }
+    return out.trim().replace(/\s+/g, ' ');
+}
 /**
  * Normalized similarity in [0, 1] for fuzzy matching: exact match is 1,
  * otherwise 1 minus the Levenshtein distance ratio over the longer string.
@@ -401,6 +419,24 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                     }
                 }
                 warnings.push({ op: index, message: `changeCase converted ${changed} cell(s) to ${operation.case}` });
+                break;
+            }
+            case 'normalizeText': {
+                const parsed = parseRange(workbook, operation.range);
+                let normalized = 0;
+                for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+                    for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+                        const cell = parsed.sheet.getCell(`${numberToColumn(col)}${row}`);
+                        if (cell.formula || typeof cell.value !== 'string')
+                            continue;
+                        const next = normalizeTextValue(cell.value);
+                        if (next !== cell.value) {
+                            cell.value = next;
+                            normalized++;
+                        }
+                    }
+                }
+                warnings.push({ op: index, message: `normalizeText normalized ${normalized} cell(s)` });
                 break;
             }
             case 'splitColumn': {

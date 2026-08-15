@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.33.0 — 2026-08-15
+
+- 复刻 ExcelGenius2 / SheetCopilot 的多步任务编排：新增 `excel_task`，
+  一次调用执行一串 `excel_operate` 步骤，每步结束自动体检公式、确定性
+  修复后进入下一步，输出最终文件。
+- 复刻 cellm / xeli 的公式解释：新增 `excel_explain_formula`，把函数、
+  引用区域、跨表引用、运算翻译成人话。
+- 复刻 SheetMind 的文本标准化：`excel_operate` 新增 `normalizeText`
+  （全角→半角、去重空格）。
+- 测试规模 165 → 171。
+
 ## v0.32.0 — 2026-08-15
 
 - 复刻 Excel-Agent 的整行条件高亮：`excel_operate` 新增 `highlightRows`

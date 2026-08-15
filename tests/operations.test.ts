@@ -945,6 +945,19 @@ test('trimText and changeCase normalize text cells', async () => {
   assert.equal(proper['Sheet1!A5'], 'Orange Juice')
 })
 
+test('normalizeText converts fullwidth characters and collapses whitespace', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'ＡＢＣ　１２３'
+    sheet.getCell('A2').value = '  a   b  '
+    sheet.getCell('A3').value = '正常文本'
+  })
+  const cells = await readAfter(path, [{ op: 'normalizeText', range: 'Sheet1!A1:A3' }])
+  assert.equal(cells['Sheet1!A1'], 'ABC 123')
+  assert.equal(cells['Sheet1!A2'], 'a b')
+  assert.equal(cells['Sheet1!A3'], '正常文本')
+})
+
 test('splitColumn splits text into new columns and shifts existing columns right', async () => {
   const path = await makeWorkbook(cleaningFixture())
   const cells = await readAfter(path, [{

@@ -15,6 +15,7 @@ import { readChartInfos } from './charts.ts'
 import { compileFormula } from './compiler.ts'
 import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.ts'
 import { buildWorkbookInsight } from './insight.ts'
+import { explainFormula, readCellContent } from './explain.ts'
 import { formulaIrSchema } from './ir-schema.ts'
 import type { ColumnTable } from './ir.ts'
 import { llmTextFromContext } from './llm.ts'
@@ -25,6 +26,7 @@ import { createPivotTable, type PivotValueSpec } from './pivot.ts'
 import { profileWorkbook } from './profile.ts'
 import { repairWorkbookFile } from './repair.ts'
 import { readWorkbookDetail } from './read.ts'
+import { runExcelTask } from './task.ts'
 import { detectTableFromCells } from './tables.ts'
 import { validate } from './validator.ts'
 import { visionTextFromContext } from './vision.ts'
@@ -159,7 +161,7 @@ export function apply(ctx: Context) {
   }))
   ctx.tools.register(defineTool({
     name: 'excel_operate',
-    description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill, fillSeries, insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel), copyRange (move:true moves), sortRange, report (one-shot report template: sort + subtotals + dynamic SUMIFS summary + filter + header style + freeze + number format), preset (role templates: ops 运营 = report + data bars; product 产品 = report + color scale; data 数分 = report + color scale + filtered copy), subtotal (group summaries), aggregateReport (dynamic pivot-style summary with live SUMIFS formulas), filterToRange (advanced filter), style, dataValidation, conditionalFormatting, autoFilter, addTable, importCsv / exportCsv (RFC 4180 with formula-injection guard), setColumnWidth / setRowHeight / freezePanes, findReplace, protectSheet / unprotectSheet, mailMerge (expand {Placeholder} templates per data row), addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor, clear, merge / unmerge, dedupeRows (remove duplicate rows by key columns, keep first/last), fillMissing (fill blanks with a value / forward from above / from the left), removeEmptyRows / removeEmptyColumns, trimText (strip whitespace), changeCase (upper / lower / proper), splitColumn (text to columns by delimiter), highlightRows (highlight whole rows matching criteria, e.g. find and highlight a customer), fuzzyMatch (two-table fuzzy match by similarity and write the matched value back, e.g. reconcile names). The operations array is a strict union on "op": choose the matching object shape. Example: {"operations":[{"op":"set","cells":{"Sheet1!A1":"100"}},{"op":"style","range":"Sheet1!A1:C1","style":{"bold":true}}]}. Writes <path>.edited.xlsx (or outPath) and returns the post-operation validation result.',
+    description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill, fillSeries, insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel), copyRange (move:true moves), sortRange, report (one-shot report template: sort + subtotals + dynamic SUMIFS summary + filter + header style + freeze + number format), preset (role templates: ops 运营 = report + data bars; product 产品 = report + color scale; data 数分 = report + color scale + filtered copy), subtotal (group summaries), aggregateReport (dynamic pivot-style summary with live SUMIFS formulas), filterToRange (advanced filter), style, dataValidation, conditionalFormatting, autoFilter, addTable, importCsv / exportCsv (RFC 4180 with formula-injection guard), setColumnWidth / setRowHeight / freezePanes, findReplace, protectSheet / unprotectSheet, mailMerge (expand {Placeholder} templates per data row), addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor, clear, merge / unmerge, dedupeRows (remove duplicate rows by key columns, keep first/last), fillMissing (fill blanks with a value / forward from above / from the left), removeEmptyRows / removeEmptyColumns, trimText (strip whitespace), changeCase (upper / lower / proper), normalizeText (fullwidth-to-halfwidth + whitespace cleanup), splitColumn (text to columns by delimiter), highlightRows (highlight whole rows matching criteria, e.g. find and highlight a customer), fuzzyMatch (two-table fuzzy match by similarity and write the matched value back, e.g. reconcile names). The operations array is a strict union on "op": choose the matching object shape. Example: {"operations":[{"op":"set","cells":{"Sheet1!A1":"100"}},{"op":"style","range":"Sheet1!A1:C1","style":{"bold":true}}]}. Writes <path>.edited.xlsx (or outPath) and returns the post-operation validation result.',
     parameters: {
       path: {
         type: 'string',
@@ -679,6 +681,85 @@ export function apply(ctx: Context) {
         exec.signal,
       )
       return await autofixWorkbookFile(args.path as string, { advisor, outPath: outputPath }) as unknown as JsonRecord
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_task',
+    description: 'Execute a multi-step Excel workflow in one call with per-step verification: each step applies an excel_operate-style operations array; after every step the formulas are validated and deterministic repairs are applied automatically, then the next step runs on the verified result. Use for complex tasks like "clean the file, fill missing values, then build a regional summary". Returns per-step warnings and repair counts plus the final output path.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      steps: {
+        type: 'array',
+        required: true,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            name: { type: 'string', description: 'Step label, e.g. "clean".' },
+            operations: {
+              type: 'array',
+              required: true,
+              items: { type: 'object', additionalProperties: true },
+              description: 'excel_operate-style operations for this step (see excel_operate).',
+            },
+            verify: { type: 'boolean', description: 'Validate and auto-repair formulas after this step (default true).' },
+          },
+        },
+        description: 'Ordered steps; each runs on the previous verified result.',
+      },
+      outPath: {
+        type: 'string',
+        description: 'Output .xlsx path (default: <path>.task.xlsx).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      return await runExcelTask(
+        args.path as string,
+        args.steps as Parameters<typeof runExcelTask>[1],
+        typeof args.outPath === 'string' && args.outPath ? args.outPath : undefined,
+      ) as unknown as JsonRecord
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_explain_formula',
+    description: 'Explain an Excel formula in plain language: parsed functions (SUMIFS / VLOOKUP / IF / date / text / statistics), referenced ranges, cross-sheet references, and arithmetic/comparison. Pass the formula directly, or a path + cell to read it from a workbook. Use when the user asks "这个公式是什么意思".',
+    parameters: {
+      formula: {
+        type: 'string',
+        description: 'Formula text, e.g. "=VLOOKUP(A2,Sheet2!$A$1:$B$100,2,FALSE)". Exactly one of formula or path+cell must be provided.',
+      },
+      path: {
+        type: 'string',
+        description: 'Absolute path to an .xlsx file (with cell).',
+      },
+      cell: {
+        type: 'string',
+        description: 'Cell id to read, e.g. "Sheet1!D4" (with path).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      const hasFormula = typeof args.formula === 'string' && args.formula.length > 0
+      const hasCell = typeof args.path === 'string' && typeof args.cell === 'string'
+      if (hasFormula === hasCell) {
+        throw new Error('exactly one of formula or path+cell must be provided')
+      }
+      const formula = hasFormula ? args.formula as string : await readCellContent(args.path as string, args.cell as string)
+      if (!formula.trim().startsWith('=')) {
+        throw new Error(`cell is not a formula: ${args.cell}`)
+      }
+      return explainFormula(formula) as unknown as JsonRecord
     },
   }))
   ctx.tools.register(defineTool({
