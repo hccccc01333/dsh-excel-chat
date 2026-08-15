@@ -63,6 +63,43 @@ export interface FileBenchmarkReport {
   tasks: FileTaskResult[]
 }
 
+export interface CheckResult {
+  passed: number
+  total: number
+}
+
+/** Evaluate a task's checks against an output workbook (shared by offline and LLM runners). */
+export async function evaluateTaskChecks(task: FileBenchmarkTask, outputPath: string): Promise<CheckResult> {
+  const cells = await readWorkbookCells(await readFile(outputPath))
+  const styleChecks = task.checks.filter((check) => check.fill !== undefined || check.bold !== undefined || check.numberFormat !== undefined || check.wrapText !== undefined || check.hAlign !== undefined)
+  const styleCells = styleChecks.length > 0 ? await loadStyleCells(outputPath) : null
+  let checksPassed = 0
+  for (const check of task.checks) {
+    const normalized = normalizeCellId(check.id)
+    const actual = cells[normalized] ?? cells[findKey(cells, normalized) ?? '']
+    if (check.expect !== undefined) {
+      const exists = actual !== undefined && actual !== ''
+      if (check.expect === null ? !exists : actual === check.expect) checksPassed += 1
+      continue
+    }
+    if (check.startsWith !== undefined) {
+      if (typeof actual === 'string' && actual.startsWith(check.startsWith)) checksPassed += 1
+      continue
+    }
+    const cell = styleCells?.get(normalized)
+    if (!cell) continue
+    if (check.fill !== undefined) {
+      const argb = cell.fill?.type === 'pattern' ? (cell.fill.fgColor as { argb?: string } | undefined)?.argb?.toUpperCase() : undefined
+      if (argb?.endsWith(check.fill.toUpperCase())) checksPassed += 1
+    }
+    if (check.bold !== undefined && (cell.font?.bold ?? false) === check.bold) checksPassed += 1
+    if (check.numberFormat !== undefined && cell.numFmt === check.numberFormat) checksPassed += 1
+    if (check.wrapText !== undefined && (cell.alignment?.wrapText ?? false) === check.wrapText) checksPassed += 1
+    if (check.hAlign !== undefined && cell.alignment?.horizontal === check.hAlign) checksPassed += 1
+  }
+  return { passed: checksPassed, total: task.checks.length }
+}
+
 /**
  * Offline, file-based benchmark (ExcelBench lite): each realistic task builds
  * an input workbook, executes the canonical operation plan, then asserts
@@ -93,35 +130,8 @@ export async function runFileBenchmarkTask(
     }
   }
 
-  const styleChecks = task.checks.filter((check) => check.fill !== undefined || check.bold !== undefined || check.numberFormat !== undefined || check.wrapText !== undefined || check.hAlign !== undefined)
   const checksPath = task.evaluateAfterAutofix ? workingPath : outputPath
-  const styleCells = styleChecks.length > 0 ? await loadStyleCells(checksPath) : null
-  let checksPassed = 0
-  for (const check of task.checks) {
-    const normalized = normalizeCellId(check.id)
-    const actual = cells[normalized] ?? cells[findKey(cells, normalized) ?? '']
-    if (check.expect !== undefined) {
-      const exists = actual !== undefined && actual !== ''
-      if (check.expect === null ? !exists : actual === check.expect) checksPassed += 1
-      continue
-    }
-    if (check.startsWith !== undefined) {
-      if (typeof actual === 'string' && actual.startsWith(check.startsWith)) checksPassed += 1
-      continue
-    }
-    const cell = styleCells?.get(normalized)
-    if (!cell) continue
-    if (check.fill !== undefined) {
-      const argb = cell.fill?.type === 'pattern' ? (cell.fill.fgColor as { argb?: string } | undefined)?.argb?.toUpperCase() : undefined
-      if (argb?.endsWith(check.fill.toUpperCase())) checksPassed += 1
-    }
-    if (check.bold !== undefined && (cell.font?.bold ?? false) === check.bold) checksPassed += 1
-    if (check.numberFormat !== undefined && cell.numFmt === check.numberFormat) checksPassed += 1
-    if (check.wrapText !== undefined && (cell.alignment?.wrapText ?? false) === check.wrapText) checksPassed += 1
-    if (check.hAlign !== undefined && cell.alignment?.horizontal === check.hAlign) checksPassed += 1
-  }
-
-  const checksTotal = task.checks.length
+  const { passed: checksPassed, total: checksTotal } = await evaluateTaskChecks(task, checksPath)
   return {
     id: task.id,
     category: task.category,

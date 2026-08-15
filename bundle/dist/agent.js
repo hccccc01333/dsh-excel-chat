@@ -1,9 +1,9 @@
-import { copyFile, mkdtemp } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { profileWorkbook } from './profile.js';
 import { runExcelTask } from './task.js';
-import { validateWorkbookFile } from './workbook.js';
+import { readWorkbookCells, validateWorkbookFile } from './workbook.js';
 /**
  * Goal-driven agent loop (Plan -> Act -> Observe -> Verify -> Replan):
  * the planner proposes operation steps for the goal, `runExcelTask` executes
@@ -29,6 +29,7 @@ export async function runAgentTask(path, options) {
             goal: options.goal,
             path: currentPath,
             round,
+            sheetNames: beforeProfile.sheets.map((sheet) => sheet.sheet),
             profileSummary: summarizeProfile(beforeProfile),
             validationSummary: `${beforeValidation.anomalies.length} 个公式异常`,
             previousPlan,
@@ -42,6 +43,7 @@ export async function runAgentTask(path, options) {
         const result = await runExcelTask(currentPath, plan, roundOut);
         const afterProfile = await profileWorkbook(result.outputPath);
         const afterValidation = await validateWorkbookFile(result.outputPath);
+        const cellSnapshot = await cellSnapshotOf(result.outputPath);
         const verdict = await options.planner.verify({
             ...planContext,
             path: result.outputPath,
@@ -49,6 +51,7 @@ export async function runAgentTask(path, options) {
             validationSummary: `${afterValidation.anomalies.length} 个公式异常`,
             executedPlan: plan,
             executedResult: result,
+            cellSnapshot,
         });
         rounds.push({ round, plan, result, verdict });
         currentPath = result.outputPath;
@@ -70,4 +73,11 @@ function summarizeProfile(profile) {
         const headers = sheet.columns.filter((column) => column.header).map((column) => column.header).slice(0, 8).join(' / ');
         return `${sheet.sheet}：${sheet.dataRows} 行 × ${sheet.columnCount} 列${headers ? `，表头 ${headers}` : ''}`;
     }).join('；');
+}
+async function cellSnapshotOf(path, limit = 80) {
+    const cells = await readWorkbookCells(await readFile(path));
+    return Object.entries(cells)
+        .slice(0, limit)
+        .map(([id, content]) => `${id}=${content.slice(0, 60)}`)
+        .join('\n');
 }

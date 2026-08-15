@@ -26,7 +26,7 @@ export async function runExcelTask(path, steps, outPath) {
             if (validation.anomalies.length > 0) {
                 const fix = await autofixWorkbookFile(stepOut);
                 result.validation = { before: validation.anomalies.length, after: fix.after.total, fixed: fix.repairs.length };
-                current = fix.repairedPath;
+                current = fix.repairs.length > 0 ? fix.repairedPath : stepOut;
             }
             else {
                 result.validation = { before: 0, after: 0, fixed: 0 };

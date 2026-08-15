@@ -1,10 +1,10 @@
-import { copyFile, mkdtemp } from 'node:fs/promises'
+import { copyFile, mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ExcelOperation } from './operations.ts'
 import { profileWorkbook, type WorkbookProfile } from './profile.ts'
 import { runExcelTask, type TaskResult } from './task.ts'
-import { validateWorkbookFile } from './workbook.ts'
+import { readWorkbookCells, validateWorkbookFile } from './workbook.ts'
 
 export interface PlanStep {
   name?: string
@@ -15,6 +15,7 @@ export interface AgentPlanContext {
   goal: string
   path: string
   round: number
+  sheetNames: string[]
   profileSummary: string
   validationSummary: string
   previousPlan?: PlanStep[]
@@ -26,6 +27,8 @@ export interface AgentVerifierContext extends AgentPlanContext {
   /** Plan that was just executed; its output is at `path`. */
   executedPlan: PlanStep[]
   executedResult: TaskResult
+  /** Compact post-execution cell snapshot for evidence-based verification. */
+  cellSnapshot: string
 }
 
 export interface AgentPlanner {
@@ -75,6 +78,7 @@ export async function runAgentTask(
       goal: options.goal,
       path: currentPath,
       round,
+      sheetNames: beforeProfile.sheets.map((sheet) => sheet.sheet),
       profileSummary: summarizeProfile(beforeProfile),
       validationSummary: `${beforeValidation.anomalies.length} 个公式异常`,
       previousPlan,
@@ -87,6 +91,7 @@ export async function runAgentTask(
     const result = await runExcelTask(currentPath, plan, roundOut)
     const afterProfile = await profileWorkbook(result.outputPath)
     const afterValidation = await validateWorkbookFile(result.outputPath)
+    const cellSnapshot = await cellSnapshotOf(result.outputPath)
     const verdict = await options.planner.verify({
       ...planContext,
       path: result.outputPath,
@@ -94,6 +99,7 @@ export async function runAgentTask(
       validationSummary: `${afterValidation.anomalies.length} 个公式异常`,
       executedPlan: plan,
       executedResult: result,
+      cellSnapshot,
     })
     rounds.push({ round, plan, result, verdict })
     currentPath = result.outputPath
@@ -117,4 +123,12 @@ function summarizeProfile(profile: WorkbookProfile): string {
     const headers = sheet.columns.filter((column) => column.header).map((column) => column.header).slice(0, 8).join(' / ')
     return `${sheet.sheet}：${sheet.dataRows} 行 × ${sheet.columnCount} 列${headers ? `，表头 ${headers}` : ''}`
   }).join('；')
+}
+
+async function cellSnapshotOf(path: string, limit = 80): Promise<string> {
+  const cells = await readWorkbookCells(await readFile(path))
+  return Object.entries(cells)
+    .slice(0, limit)
+    .map(([id, content]) => `${id}=${content.slice(0, 60)}`)
+    .join('\n')
 }

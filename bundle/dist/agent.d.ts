@@ -8,6 +8,7 @@ export interface AgentPlanContext {
     goal: string;
     path: string;
     round: number;
+    sheetNames: string[];
     profileSummary: string;
     validationSummary: string;
     previousPlan?: PlanStep[];
@@ -18,6 +19,8 @@ export interface AgentVerifierContext extends AgentPlanContext {
     /** Plan that was just executed; its output is at `path`. */
     executedPlan: PlanStep[];
     executedResult: TaskResult;
+    /** Compact post-execution cell snapshot for evidence-based verification. */
+    cellSnapshot: string;
 }
 export interface AgentPlanner {
     plan(context: AgentPlanContext): Promise<PlanStep[]>;

@@ -1,5 +1,6 @@
 import type { LlmText } from './advisor.ts'
 import type { AgentPlanContext, AgentPlanner, AgentVerifierContext, PlanStep } from './agent.ts'
+import type { ExcelOperation } from './operations.ts'
 
 const OPERATION_CATALOG = [
   'set（写值/公式）', 'fill', 'fillSeries', 'insertRows/deleteRows/insertColumns/deleteColumns',
@@ -10,6 +11,23 @@ const OPERATION_CATALOG = [
   'preset（岗位模板）', 'filterToRange', 'findReplace', 'mailMerge', 'addSheet/renameSheet/deleteSheet/duplicateSheet',
   'merge/unmerge', 'freezePanes',
 ].join('、')
+
+const PARAM_REFERENCE = [
+  'set: {"op":"set","cells":{"订单!A1":"值"}}',
+  'fillMissing: {"op":"fillMissing","range":"订单!A2:B4","mode":"value|forward|left","value":0}',
+  'dedupeRows: {"op":"dedupeRows","sheet":"订单","columns":["A"],"keep":"first|last"}',
+  'style: {"op":"style","range":"订单!A1:B1","style":{"bold":true,"fill":"FFFF00","numberFormat":"#,##0.00"}}',
+  'sortRange: {"op":"sortRange","range":"订单!A1:B4","keys":[{"column":"B","direction":"asc|desc"}],"headerRows":1}',
+  'filterToRange: {"op":"filterToRange","source":"订单!A1:C4","criteria":[{"column":"A","operator":"eq","value":"华东"}],"target":"华东!A1"}',
+  'aggregateReport: {"op":"aggregateReport","source":"订单!A1:C4","groupColumn":"A","metrics":[{"column":"C","function":"sum"}],"outputSheet":"汇总"}',
+  'report: {"op":"report","source":"订单!A1:B4","groupColumn":"A","metrics":[{"column":"B","function":"sum"}],"outputSheet":"经营报表"}',
+  'subtotal: {"op":"subtotal","sheet":"订单","range":"订单!A1:B4","groupColumn":"A","summaryColumns":[{"column":"B","function":"sum"}]}',
+  'trimText/changeCase/normalizeText: {"op":"trimText","range":"订单!A2:A4"}',
+  'splitColumn: {"op":"splitColumn","sheet":"订单","column":"A","delimiter":"-","startRow":2,"endRow":4}',
+  'copyRange: {"op":"copyRange","source":"订单!A2:B3","target":"订单!D2"}',
+  'merge: {"op":"merge","range":"订单!A1:B1"}',
+  'highlightRows: {"op":"highlightRows","sheet":"订单","range":"订单!A1:B4","criteria":[{"column":"A","operator":"eq","value":"苹果"}]}',
+].join('\n')
 
 function stripFence(text: string): string {
   const match = /```(?:json)?\s*([\s\S]*?)```/.exec(text)
@@ -29,6 +47,7 @@ export function createLlmPlanner(llm: LlmText): AgentPlanner {
         `用户目标：${context.goal}`,
         `当前文件：${context.path}`,
         `第 ${context.round} 轮。`,
+        `工作表：${context.sheetNames.join('、')}`,
         `文件概览：${context.profileSummary}`,
         `公式校验：${context.validationSummary}`,
         ...(context.previousPlan
@@ -40,15 +59,22 @@ export function createLlmPlanner(llm: LlmText): AgentPlanner {
             ]
           : []),
         `可用操作：${OPERATION_CATALOG}`,
+        `常用操作参数速查：\n${PARAM_REFERENCE}`,
         '返回 ONLY JSON，格式：{"steps":[{"name":"步骤名","operations":[{"op":"操作名",...参数}]}]}。',
         'operations 里的每个对象是 excel_operate 的一个操作，参数按该操作的字段写。',
+        '重要：所有 range/source/target/单元格引用必须带工作表前缀（如 "订单!A2:B4"）；需要 sheet 字段的操作必须写 sheet。',
+        '必填字段提醒：set 的 cells 是对象；sortRange/filterToRange/aggregateReport/report/preset/subtotal 必须带 keys/metrics/summaryColumns/criteria 数组；fill/fillSeries/copyRange 必须给 source/start/target；renameSheet 用 oldName/newName；addSheet/deleteSheet/duplicateSheet 用 name（duplicateSheet 另给 newName）。',
       ].join('\n')
       const text = await llm(prompt)
       const parsed = JSON.parse(stripFence(text)) as { steps?: PlanStep[] }
       if (!Array.isArray(parsed.steps) || parsed.steps.length === 0) {
         throw new Error('planner reply must contain a non-empty steps array')
       }
-      return parsed.steps
+      const firstSheet = context.sheetNames[0] ?? 'Sheet1'
+      return parsed.steps.map((step) => ({
+        name: step.name,
+        operations: step.operations.map((operation) => normalizeOperation(operation, firstSheet)),
+      }))
     },
     async verify(context: AgentVerifierContext): Promise<{ achieved: boolean; reason: string }> {
       const prompt = [
@@ -58,12 +84,61 @@ export function createLlmPlanner(llm: LlmText): AgentPlanner {
         `公式校验：${context.validationSummary}`,
         `本轮计划：${JSON.stringify(context.executedPlan)}`,
         `执行结果摘要：${JSON.stringify(context.executedResult)}`,
+        `执行后的单元格快照（前若干非空单元格）：\n${context.cellSnapshot}`,
         '返回 ONLY JSON，格式：{"achieved":true或false,"reason":"简短结论（中文）"}。',
-        '只有目标明确达成时才返回 achieved:true；公式异常未清零、关键结果缺失或明显不对时返回 false。',
+        '必须以单元格快照中的具体证据为准：目标要求的值/公式/样式/结构能在快照中看到才算达成；',
+        '公式异常未清零、关键结果缺失、或快照中没有对应证据时一律返回 achieved:false 并说明缺什么。',
+        '如果本轮计划执行后文件几乎没变（快照与目标明显不符），必须返回 false。',
       ].join('\n')
       const text = await llm(prompt)
       const parsed = JSON.parse(stripFence(text)) as { achieved?: unknown; reason?: unknown }
       return { achieved: Boolean(parsed.achieved), reason: String(parsed.reason ?? '') }
     },
   }
+}
+
+/** Tolerate planner sloppiness: prefix sheet names onto bare cells/ranges. */
+function normalizeOperation(operation: ExcelOperation, firstSheet: string): ExcelOperation {
+  const prefix = (value: unknown): unknown => {
+    if (typeof value !== 'string' || value.includes('!')) return value
+    if (
+      /^[A-Za-z]{1,3}\d+$/.test(value) ||
+      /^[A-Za-z]{1,3}\d+:[A-Za-z]{1,3}\d+$/.test(value) ||
+      /^[A-Za-z]{1,3}:\d+$/.test(value)
+    ) {
+      return `${firstSheet}!${value}`
+    }
+    return value
+  }
+  const raw = operation as unknown as Record<string, unknown>
+  if (operation.op === 'fillMissing') {
+    if (raw.mode === undefined) raw.mode = 'value'
+    if (raw.value === undefined && raw.fillValue !== undefined) raw.value = raw.fillValue
+  }
+  if (operation.op === 'renameSheet') {
+    if (raw.oldName === undefined && raw.sheet !== undefined) raw.oldName = raw.sheet
+    if (raw.newName === undefined && raw.target !== undefined) raw.newName = raw.target
+  }
+  if (['addSheet', 'deleteSheet', 'hideSheet', 'setTabColor', 'protectSheet', 'unprotectSheet', 'duplicateSheet'].includes(operation.op)) {
+    if (raw.name === undefined && raw.sheet !== undefined) raw.name = raw.sheet
+    if (operation.op === 'duplicateSheet' && raw.newName === undefined && raw.target !== undefined) raw.newName = raw.target
+  }
+  if (operation.op === 'filterToRange' && typeof raw.target === 'string' && !raw.target.includes('!') && !/^[A-Za-z]{1,3}\d+$/.test(raw.target)) {
+    raw.target = `${raw.target}!A1`
+  }
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (key === 'cells' && value && typeof value === 'object') {
+      out[key] = Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([id, content]) => [prefix(id) as string, String(content)]),
+      )
+    } else if (key === 'sheet') {
+      out[key] = value ?? firstSheet
+    } else if (['range', 'source', 'target', 'start'].includes(key)) {
+      out[key] = prefix(Array.isArray(value) ? value[0] : value)
+    } else {
+      out[key] = value
+    }
+  }
+  return out as unknown as ExcelOperation
 }
