@@ -74,6 +74,14 @@ web 布局插件（`dsh-client-ui-layout`）声明了**右侧详情列 slot `det
   `dsh-excel-chat`（模块已注册并 materialize，无 page error）；
 - 对话中 `excel_preview` 成功渲染 Markdown 表格（agent 回复内嵌）。
 
+## 已知问题（M4）
+
+注册 `tool.call.toolview` 后，工具行正文由我们渲染（表格 + 编辑提示已实测
+出现在对话中），但**行外框（ToolRow chrome）似乎被整体替换**，自动化点击
+无法触发“选中调用 → 打开右侧 details 列”。修复方向：让组件自带可点击的
+行外框（图标 + 工具名 + 点击选中语义），或在 ToolRow 内只注册正文部分。
+修完后补右侧详情列的实机截图。
+
 ## MVP 里程碑
 
 1. 只读预览：右侧面板显示当前工作簿的表格（工具调用后自动出现）
