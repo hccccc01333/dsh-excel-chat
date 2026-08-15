@@ -11,6 +11,9 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./client": {
+      "default": "./dist-client/client.js"
+    },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -24,6 +27,7 @@
   "homepage": "https://github.com/hccccc01333/dsh-excel-chat",
   "files": [
     "dist",
+    "dist-client",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
@@ -31,6 +35,13 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-tool"
+      ],
+      "platform": "web"
     }
   },
   "scripts": {

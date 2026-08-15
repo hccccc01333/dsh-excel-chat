@@ -30,6 +30,11 @@
   汇总重建”，挂到 README 顶部。
 - 表格展示：新增 `excel_preview`，把指定表/区域渲染为 Markdown 表格（对话内
   直接可见）+ HTML 预览文件；跨平台、无新依赖。
+- 右侧 Web 面板（M1）：插件自带 client 模块（`dsh.client` +
+  `exports["./client"]` → `/plugins/dsh-excel-chat/client.js`），注册
+  `tool.call.toolview` 渲染器，点开 excel_* 工具行在右侧 details 列显示表格；
+  已在 harness web 实测：boot 图加载、模块注册并 materialize。方案与验证
+  见 [docs/web-panel.md](docs/web-panel.md)。
 
 ## v0.33.0 — 2026-08-15
 

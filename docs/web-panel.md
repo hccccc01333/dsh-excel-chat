@@ -42,12 +42,37 @@ web 布局插件（`dsh-client-ui-layout`）声明了**右侧详情列 slot `det
 - 事件源：订阅会话的工具调用事件，或由工具输出携带结构化表数据（新增
   `excel_read` 的可选 `render` 负载）。
 
-## 待确认的 API（实现前）
+## 两个 API 已钉死（2026-08-15）
 
-- `details` 列内层 seat 的准确名称与注册方式（additive 而非替换整列）；
-- host 侧工具执行的 RPC channel/endpoint（`dsh-client-connection` 的
-  `call(channel, endpoint, payload)` 契约）；
-- 客户端构建工具链（tsdown client 配置、React 依赖如何随 npm 包分发）。
+1. **挂载点**：`tool.call.toolview`（keyed slot，scope: session）——按工具名
+   （如 `excel_read`）注册渲染器；用户在对话里点开 excel_* 工具行时，右侧
+   details 列就渲染我们提供的表格。注册方式：
+   `ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({ name: 'tool.call.toolview', key: 'excel_read' }, Component))`。
+   这是 addititive 的（只接管我们自己的工具名，不替换整列）。
+2. **数据通路**：只读展示**不需要 RPC**——面板直接读会话快照里已结算的工具
+   结果（`ToolCallViewProps.block`）。编辑（M2）走 composer 提交自然语言指令，
+   交给 agent 回路执行，无需客户端直连工具。
+
+## 客户端构建与分发（已落地）
+
+- `src/client/index.tsx`：client 插件，为 `excel_read/excel_preview`
+  （表格）与 `excel_insight/excel_operate/excel_autofix/excel_task/excel_menu`
+  （摘要）注册 toolview。
+- `tsdown.client.config.ts`：tsdown 浏览器构建，产物
+  `bundle/dist-client/client.js`（`__ModuleLoader__.load` 包裹，externals 走
+  平台模块表；构建命令：`tsdown -c tsdown.client.config.ts`，用 harness
+  工作区已装的 tsdown 运行）。
+- `bundle/package.json`：`exports["./client"]` + `dsh.client`（inject
+  runtime/ui-tool，platform web）+ `files` 含 `dist-client`。
+
+## 实机验证（harness web + 真实模型）
+
+- 启动 `pnpm dsh --profile web --port 5173`（profile 挂本地 bundle）后，
+  boot 图包含 `dsh-excel-chat` client 入口；
+- 浏览器实际拉取 `/plugins/dsh-excel-chat/client.js?rev=…`；
+- `window.__DSH_MODULES__` 的 `factories` 与 `loadCache` 均含
+  `dsh-excel-chat`（模块已注册并 materialize，无 page error）；
+- 对话中 `excel_preview` 成功渲染 Markdown 表格（agent 回复内嵌）。
 
 ## MVP 里程碑
 
@@ -56,7 +81,9 @@ web 布局插件（`dsh-client-ui-layout`）声明了**右侧详情列 slot `det
 3. 与 goal/task/autofix 结果联动（修复差异视图）
 4. 随 npm 包分发 + harness web 集成测试（复用 .demo-recorder 回放）
 
-## 边界
+## 边界与下一步
 
 - 面板属 harness Web 前端能力；插件负责提供 client 模块与数据契约。
 - 服务端工具与验证逻辑不变（excel_operate / validate / autofix 已在插件内）。
+- M1（只读展示）已就绪；M2（单元格编辑 → excel_operate.set → 刷新 + 体检）
+  走 composer 提交；M3 与 task/autofix 修复差异联动。
