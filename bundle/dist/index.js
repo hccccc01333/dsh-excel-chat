@@ -17,6 +17,7 @@ import { excelOperationSchema } from './operation-schema.js';
 import { operateWorkbookFile } from './operations.js';
 import { buildWorkbookMenu } from './menu.js';
 import { createPivotTable } from './pivot.js';
+import { buildWorkbookPreview } from './preview.js';
 import { profileWorkbook } from './profile.js';
 import { repairWorkbookFile } from './repair.js';
 import { readWorkbookDetail } from './read.js';
@@ -252,6 +253,40 @@ export function apply(ctx) {
         },
         async execute(args) {
             return await profileWorkbook(args.path, typeof args.sheet === 'string' ? args.sheet : undefined);
+        },
+    }));
+    ctx.tools.register(defineTool({
+        name: 'excel_preview',
+        description: 'Human-facing table preview: render the requested sheet/range as a Markdown table (embed it in your reply so the user sees the data inline) and write an HTML preview file next to the workbook. Call when the user asks to 看看/展示/预览 the table or wants to see what a sheet looks like before deciding next steps.',
+        parameters: {
+            path: {
+                type: 'string',
+                required: true,
+                description: 'Absolute path to an .xlsx file.',
+            },
+            sheet: {
+                type: 'string',
+                description: 'Sheet name (default first sheet).',
+            },
+            range: {
+                type: 'string',
+                description: 'A1 range to preview, e.g. "A1:F20".',
+            },
+            maxRows: {
+                type: 'number',
+                description: 'Cap preview rows (default 20).',
+            },
+        },
+        output: {
+            schema: { type: 'object', additionalProperties: true },
+            render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+        },
+        async execute(args) {
+            return await buildWorkbookPreview(args.path, {
+                sheet: typeof args.sheet === 'string' ? args.sheet : undefined,
+                range: typeof args.range === 'string' ? args.range : undefined,
+                maxRows: typeof args.maxRows === 'number' && args.maxRows > 0 ? args.maxRows : undefined,
+            });
         },
     }));
     ctx.tools.register(defineTool({

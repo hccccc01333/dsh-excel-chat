@@ -39,6 +39,7 @@ agent 会自动调用工具完成，并把结果文件路径告诉你。
 | `excel_profile` | 大表速览：表头、每列类型/缺失/唯一值/数值区间/高频值/样例 + 建议读取范围；配合 `maxRows` 分页读大表 |
 | `excel_menu` | 不会描述也没关系：给文件就出菜单——一句话摘要 + 清洗/报表/透视/图表/体检/通知/岗位模板等可选方案，每个带示例话术，直接选 |
 | `excel_insight` | 数据洞察：一句话摘要 + 缺失/重复/异常值/负值/空格等体检 + 下一步建议 |
+| `excel_preview` | 表格预览：Markdown 表格（对话内展示）+ HTML 预览文件 |
 | `excel_task` | 多步编排（steps 模式，逐步体检/修复）+ Agent 闭环（goal 模式：LLM 规划→执行→验证→重规划） |
 | `excel_explain_formula` | 公式白话解释：函数、引用区域、跨表引用、运算 |
 | `excel_validate_formulas` | 静默公式错误检测：列 pattern、结构不匹配、硬编码、空行、循环引用、`#REF!` 等错误值 |
@@ -129,6 +130,14 @@ agent 会自动调用 `excel_menu`，先给你一句话说清这张表里有什�
 `excel_task` 把多个 `excel_operate` 步骤串成一次调用，每步结束自动体检公式、
 坏了自动修复，再进入下一步（复杂任务一次完成）；`excel_explain_formula`
 把公式翻译成人话：用了哪些函数、引用哪些区域、是否跨表。
+
+### 表格预览
+
+> 看看 D:\demo-sales.xlsx 这张表长什么样。
+
+`excel_preview` 把表渲染成 Markdown 表格直接显示在对话里，同时在工作簿旁生成
+`<文件名>.preview.html`，用浏览器打开就能看到完整的表格视图（公式、样式按
+单元格内容展示）。
 
 ### Goal 模式（Agent 闭环）
 

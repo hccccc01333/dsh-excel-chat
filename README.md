@@ -81,6 +81,7 @@ dsh web --profile demo                             # 打开对话界面
 | `excel_profile` | 大表速览：识别表头、每列类型/缺失/唯一值/数值区间/高频值/样例，给出建议读取范围；配合 `excel_read` 的 `maxRows` 分页，避免整表灌入对话爆 token |
 | `excel_menu` | 不会描述也没关系：给文件就能拿到菜单——一句话总结表里有什么，再列出清洗/补空值/报表/透视/图表/体检/通知/岗位模板等可选方案，每个带示例话术，直接选就行 |
 | `excel_insight` | 数据洞察：一句话摘要 + 缺失/重复/异常值/负值/空格/公式等启发式体检 + 下一步建议，回答“这表有什么问题”“帮我总结一下” |
+| `excel_preview` | 表格预览：把指定表/区域渲染成 Markdown 表格（对话内直接看到）+ HTML 预览文件，回答“看看这个表长什么样” |
 | `excel_task` | 两种模式：`steps` 多步编排（每步自动体检公式、坏了自动修）；`goal` Agent 闭环（LLM 规划步骤 → 执行 → 验证 → 未达成自动重规划，最多 maxRounds 轮） |
 | `excel_explain_formula` | 公式白话解释：解析函数（SUMIFS/VLOOKUP/IF/日期/文本/统计）、引用区域、跨表引用，回答“这个公式是什么意思” |
 | `excel_undo` | 按 `excel_operate` 自动生成的 `.patch.json` 审计日志回滚编辑 |

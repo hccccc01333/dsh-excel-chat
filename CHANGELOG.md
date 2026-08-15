@@ -28,6 +28,8 @@
 - 包装：用真实 DeepSeek Harness Web + 真实模型（DeepSeek-V4-Flash）录制功能
   演示 GIF（`assets/demo.gif`）：一次对话完成“经营报表 + 公式体检修复 +
   汇总重建”，挂到 README 顶部。
+- 表格展示：新增 `excel_preview`，把指定表/区域渲染为 Markdown 表格（对话内
+  直接可见）+ HTML 预览文件；跨平台、无新依赖。
 
 ## v0.33.0 — 2026-08-15
 

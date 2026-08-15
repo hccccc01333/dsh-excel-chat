@@ -25,6 +25,7 @@ import { excelOperationSchema } from './operation-schema.ts'
 import { operateWorkbookFile, type ExcelOperation } from './operations.ts'
 import { buildWorkbookMenu } from './menu.ts'
 import { createPivotTable, type PivotValueSpec } from './pivot.ts'
+import { buildWorkbookPreview } from './preview.ts'
 import { profileWorkbook } from './profile.ts'
 import { repairWorkbookFile } from './repair.ts'
 import { readWorkbookDetail } from './read.ts'
@@ -271,6 +272,40 @@ export function apply(ctx: Context) {
         args.path as string,
         typeof args.sheet === 'string' ? args.sheet : undefined,
       ) as unknown as JsonRecord
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_preview',
+    description: 'Human-facing table preview: render the requested sheet/range as a Markdown table (embed it in your reply so the user sees the data inline) and write an HTML preview file next to the workbook. Call when the user asks to 看看/展示/预览 the table or wants to see what a sheet looks like before deciding next steps.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      sheet: {
+        type: 'string',
+        description: 'Sheet name (default first sheet).',
+      },
+      range: {
+        type: 'string',
+        description: 'A1 range to preview, e.g. "A1:F20".',
+      },
+      maxRows: {
+        type: 'number',
+        description: 'Cap preview rows (default 20).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      return await buildWorkbookPreview(args.path as string, {
+        sheet: typeof args.sheet === 'string' ? args.sheet : undefined,
+        range: typeof args.range === 'string' ? args.range : undefined,
+        maxRows: typeof args.maxRows === 'number' && args.maxRows > 0 ? args.maxRows : undefined,
+      }) as unknown as JsonRecord
     },
   }))
   ctx.tools.register(defineTool({
