@@ -85,5 +85,8 @@ web 布局插件（`dsh-client-ui-layout`）声明了**右侧详情列 slot `det
 
 - 面板属 harness Web 前端能力；插件负责提供 client 模块与数据契约。
 - 服务端工具与验证逻辑不变（excel_operate / validate / autofix 已在插件内）。
-- M1（只读展示）已就绪；M2（单元格编辑 → excel_operate.set → 刷新 + 体检）
-  走 composer 提交；M3 与 task/autofix 修复差异联动。
+- M1（只读展示）已就绪；M2（单元格编辑）已就绪：双击单元格 → 修改 →
+  回车 → `inputActions.setDraft` + `submit` 把指令交给 agent 执行
+  `excel_operate.set` 并重新预览；M3（修复差异视图）已就绪：
+  `excel_autofix` / `excel_task` 的结果渲染为“单元格 / 修复前 / 修复后”
+  表格与逐步验证摘要。

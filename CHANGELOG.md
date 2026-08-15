@@ -35,6 +35,9 @@
   `tool.call.toolview` 渲染器，点开 excel_* 工具行在右侧 details 列显示表格；
   已在 harness web 实测：boot 图加载、模块注册并 materialize。方案与验证
   见 [docs/web-panel.md](docs/web-panel.md)。
+- 右侧 Web 面板 M2/M3：表格单元格双击编辑 → `inputActions.setDraft` +
+  `submit` 提交给 agent 执行 `excel_operate.set` 并重新预览；
+  `excel_autofix`/`excel_task` 结果渲染为修复前→修复后差异表。
 
 ## v0.33.0 — 2026-08-15
 
