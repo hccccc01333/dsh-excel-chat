@@ -6,7 +6,7 @@ DeepSeek Harness 的一个插件里。下表记录每个生态仓库的“核心
 
 | 生态仓库 | 核心功能效果 | 我们的整合状态 | 缺口 / 下一批 |
 |---|---|---|---|
-| ChatExcel | 对话改表：写值、公式、筛选、排序、汇总、透视，多轮会话 | `excel_operate` 30+ 操作 + 对话即工具调用，已覆盖 | 多轮会话间的上下文记忆与自检引导（可增强 advisor 提示） |
+| ChatExcel | 对话改表：写值、公式、筛选、排序、汇总、透视，多轮会话 | `excel_operate` 30+ 操作 + 对话即工具调用，已覆盖；入口由 `excel_menu` 兜底 | 多轮会话间的上下文记忆与自检引导（可增强 advisor 提示） |
 | ExcelGenius2 | 多智能体任务分解 + 反思，复杂表格任务一次完成 | `excel_autofix` 反思闭环已有；`report` / `preset` 一键多步模板已有 | 任务级编排：`excel_task` 把“目标+步骤”串成一次执行并逐步校验 |
 | SheetMind | 数据清洗、公式、图表、透视、报表 + 自愈（self-healing） | 清洗操作本轮补齐：去重 / 填缺失 / 删空行空列 / 去空格 / 大小写 / 分列；公式修复、图表、透视已有 | 更多清洗规则：异常值检测、数字格式统一、文本标准化（全角/半角） |
 | Excel-Agent | 多模态表格理解 + 自然语言公式生成 | `excel_profile` 结构化速览 + `excel_compile_formula` IR 编译已有 | 大表语义摘要（按列意图描述），截图/图片理解（接入 VLM） |
@@ -25,3 +25,6 @@ DeepSeek Harness 的一个插件里。下表记录每个生态仓库的“核心
 - v0.30.0 — SheetMind / Excel-Agent 式数据清洗：`dedupeRows`、`fillMissing`、
   `removeEmptyRows`、`removeEmptyColumns`、`trimText`、`changeCase`、
   `splitColumn`。
+- v0.31.0 — 交互入口：`excel_menu` 文件感知能力菜单（给文件就出可选方案 +
+  示例话术），系统提示注册“业务目标优先、模糊就给选项、先做后改可回滚”
+  的交互策略，解决用户不会描述的问题。

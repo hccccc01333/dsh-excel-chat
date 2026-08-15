@@ -1,5 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import type {} from '@deepseek-ai/dsh-system-prompt'
 import { readFile } from 'node:fs/promises'
 import { createLlmRepairAdvisor } from './advisor.ts'
 import { autofixWorkbookFile } from './autofix.ts'
@@ -18,6 +19,7 @@ import type { ColumnTable } from './ir.ts'
 import { llmTextFromContext } from './llm.ts'
 import { excelOperationSchema } from './operation-schema.ts'
 import { operateWorkbookFile, type ExcelOperation } from './operations.ts'
+import { buildWorkbookMenu } from './menu.ts'
 import { createPivotTable, type PivotValueSpec } from './pivot.ts'
 import { profileWorkbook } from './profile.ts'
 import { repairWorkbookFile } from './repair.ts'
@@ -31,10 +33,21 @@ import { createVisionCritic } from './chart-visual.ts'
 type JsonRecord = Record<string, any>
 
 export const name = 'vera-formula-validator'
-export const inject = ['tools']
+export const inject = ['tools', 'systemPrompt']
 
 export function apply(ctx: Context) {
   console.log('[vera-formula-validator] plugin loaded')
+  ctx.systemPrompt.section({
+    name: 'dsh-excel-chat:interaction',
+    order: 150,
+    text: [
+      'Excel 对话交互原则：',
+      '- 用户说业务目标而不是操作时（例如“做周报”“帮我整理一下”），不要追问技术细节：调用 excel_menu 给出 2-3 个可选方案让用户挑。',
+      '- 用户给出文件但没说要做什么时，先调用 excel_profile 或 excel_menu，主动介绍文件里有什么、列出能做的事，让用户选择。',
+      '- 能合理猜出意图时，直接做最可能的版本并展示结果，说明不满意可以用 excel_undo 回滚；删除行列、覆盖数据、删除/保护工作表等破坏性操作必须先确认。',
+      '- 运营 / 产品 / 数分岗位用户可以直接套 preset 岗位模板。',
+    ].join('\n'),
+  })
   ctx.tools.register(defineTool({
     name: 'excel_create_pivot',
     description: 'Create a native Excel pivot table (pivotCache + pivotTable) from a source range: choose one or more row fields, optional column fields and report filters, plus value fields (sum/count/average/max/min). The pivot renders in Excel and can be refreshed when source data changes.',
@@ -250,6 +263,31 @@ export function apply(ctx: Context) {
     },
     async execute(args) {
       return await profileWorkbook(
+        args.path as string,
+        typeof args.sheet === 'string' ? args.sheet : undefined,
+      ) as unknown as JsonRecord
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_menu',
+    description: 'Turn an .xlsx file into a ready-made menu: profile it, summarize in plain language what the file contains, and list concrete next steps (clean / fill missing / health-check / report / pivot / chart / mail merge / role preset), each with an example prompt the user can just confirm. Call this when the user gives a file but has not said what to do, or when their request is a business goal ("make me a weekly report") instead of a concrete operation. Present the menu and let the user pick a number or send the example; do not ask open technical questions.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      sheet: {
+        type: 'string',
+        description: 'Restrict to one sheet (default all sheets).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      return await buildWorkbookMenu(
         args.path as string,
         typeof args.sheet === 'string' ? args.sheet : undefined,
       ) as unknown as JsonRecord

@@ -58,6 +58,7 @@ dsh web --profile demo                             # 打开对话界面
 | `excel_compile_formula` | Formula IR（binary / ratio / aggregate / function：VLOOKUP、IF、XLOOKUP、统计、日期等）→ 确定性 Excel 公式 |
 | `excel_read` | 精确读取：值/公式/类型/数字格式/字体/填充/对齐/合并/数据有效性，编辑前看清单元格状态 |
 | `excel_profile` | 大表速览：识别表头、每列类型/缺失/唯一值/数值区间/高频值/样例，给出建议读取范围；配合 `excel_read` 的 `maxRows` 分页，避免整表灌入对话爆 token |
+| `excel_menu` | 不会描述也没关系：给文件就能拿到菜单——一句话总结表里有什么，再列出清洗/补空值/报表/透视/图表/体检/通知/岗位模板等可选方案，每个带示例话术，直接选就行 |
 | `excel_undo` | 按 `excel_operate` 自动生成的 `.patch.json` 审计日志回滚编辑 |
 | `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复（`useLlm` / `autoTable` / `oraclePath` / `outPath`），输出修复副本并复验 |
 | `excel_autofix` | 一键自愈闭环：体检 → 确定性修复（可选 LLM）→ 复检 → 人话汇报，输出修复副本 |
