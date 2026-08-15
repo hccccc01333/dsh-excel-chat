@@ -29,6 +29,8 @@ test('buildWorkbookPreview returns a markdown table and writes an HTML preview',
   assert.ok(result.markdown.includes('产品'))
   assert.ok(result.markdown.includes('=B2*10'))
   assert.ok(result.summary.includes('订单'))
+  assert.equal(result.sheets.length, 1)
+  assert.ok(result.sheets[0]!.cells.length > 0)
   assert.match(result.previewPath, /\.preview\.html$/)
   await access(result.previewPath)
   const html = await readFile(result.previewPath, 'utf8')

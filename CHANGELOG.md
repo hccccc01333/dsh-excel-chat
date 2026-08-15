@@ -38,6 +38,9 @@
 - 右侧 Web 面板 M2/M3：表格单元格双击编辑 → `inputActions.setDraft` +
   `submit` 提交给 agent 执行 `excel_operate.set` 并重新预览；
   `excel_autofix`/`excel_task` 结果渲染为修复前→修复后差异表。
+- 右侧 Web 面板升级为真 Excel 网格：客户端模块内嵌 `x-data-spreadsheet`
+  （MIT，列标/行号/公式栏风格），`excel_preview` 返回结构化 `sheets` 供
+  网格渲染；实机验证网格渲染成功（截图 assets/panel-preview.png）。
 
 ## v0.33.0 — 2026-08-15
 

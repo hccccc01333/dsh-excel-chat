@@ -7,6 +7,16 @@ export interface PreviewResult {
     markdown: string;
     previewPath: string;
     summary: string;
+    /** Structured sheet cells so the web panel can render a real spreadsheet grid. */
+    sheets: Array<{
+        sheet: string;
+        cells: Array<{
+            id: string;
+            value: unknown;
+            formula?: string;
+            type?: string;
+        }>;
+    }>;
 }
 /**
  * Human-facing table preview: render the requested range as a Markdown table

@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import ExcelJS from 'exceljs'
 import { columnToNumber, numberToColumn } from './formula.ts'
 import { profileWorkbook } from './profile.ts'
+import { readWorkbookDetail } from './read.ts'
 import { stripPivotTableParts } from './workbook.ts'
 
 export interface PreviewOptions {
@@ -14,6 +15,8 @@ export interface PreviewResult {
   markdown: string
   previewPath: string
   summary: string
+  /** Structured sheet cells so the web panel can render a real spreadsheet grid. */
+  sheets: Array<{ sheet: string; cells: Array<{ id: string; value: unknown; formula?: string; type?: string }> }>
 }
 
 /**
@@ -59,7 +62,21 @@ export async function buildWorkbookPreview(path: string, options: PreviewOptions
   const previewPath = path.replace(/\.xlsx$/i, '.preview.html')
   await writeFile(previewPath, renderHtml(sheet.name, header, rows), 'utf8')
   const summary = `表 ${sheet.name}：展示 ${rows.length} 行 × ${header.length} 列${options.range ? `（范围 ${options.range}）` : ''}，HTML 预览：${previewPath}`
-  return { markdown, previewPath, summary }
+  const details = await readWorkbookDetail(path, {
+    sheet: sheet.name,
+    range: options.range,
+    maxRows: maxRows,
+  })
+  const sheets = details.map((entry) => ({
+    sheet: entry.sheet,
+    cells: entry.cells.map((cell) => ({
+      id: cell.id,
+      value: cell.value,
+      formula: cell.formula,
+      type: cell.type,
+    })),
+  }))
+  return { markdown, previewPath, summary, sheets }
 }
 
 function parseRange(range: string): { startCol: number; startRow: number; endCol: number; endRow: number } {

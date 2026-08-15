@@ -93,8 +93,14 @@ web 布局插件（`dsh-client-ui-layout`）声明了**右侧详情列 slot `det
 
 - 面板属 harness Web 前端能力；插件负责提供 client 模块与数据契约。
 - 服务端工具与验证逻辑不变（excel_operate / validate / autofix 已在插件内）。
-- M1（只读展示）已就绪；M2（单元格编辑）已就绪：双击单元格 → 修改 →
-  回车 → `inputActions.setDraft` + `submit` 把指令交给 agent 执行
-  `excel_operate.set` 并重新预览；M3（修复差异视图）已就绪：
-  `excel_autofix` / `excel_task` 的结果渲染为“单元格 / 修复前 / 修复后”
-  表格与逐步验证摘要。
+- M1（只读展示）已就绪，且是**真正的电子表格网格**：客户端模块内嵌
+  `x-data-spreadsheet`（MIT），显示列标/行号/格子/公式，样式随 bundle 注入；
+  `excel_preview` 额外返回结构化 `sheets` 供网格渲染。
+- M2（单元格编辑）已就绪：网格直接编辑 → `inputActions.setDraft` + `submit`
+  把指令交给 agent 执行 `excel_operate.set` 并重新预览。
+- M3（修复差异视图）已就绪：`excel_autofix` / `excel_task` 渲染为
+  “单元格 / 修复前 / 修复后”表格与逐步验证摘要。
+
+实机验证（2026-08-16）：对话中 `excel_read` / `excel_preview` 的工具行渲染出
+`.x-spreadsheet` 网格（`hasXspreadsheet` / 列头均存在，无运行时错误），截图
+`assets/panel-preview.png`。

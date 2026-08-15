@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import ExcelJS from 'exceljs';
 import { columnToNumber, numberToColumn } from './formula.js';
 import { profileWorkbook } from './profile.js';
+import { readWorkbookDetail } from './read.js';
 import { stripPivotTableParts } from './workbook.js';
 /**
  * Human-facing table preview: render the requested range as a Markdown table
@@ -46,7 +47,21 @@ export async function buildWorkbookPreview(path, options = {}) {
     const previewPath = path.replace(/\.xlsx$/i, '.preview.html');
     await writeFile(previewPath, renderHtml(sheet.name, header, rows), 'utf8');
     const summary = `表 ${sheet.name}：展示 ${rows.length} 行 × ${header.length} 列${options.range ? `（范围 ${options.range}）` : ''}，HTML 预览：${previewPath}`;
-    return { markdown, previewPath, summary };
+    const details = await readWorkbookDetail(path, {
+        sheet: sheet.name,
+        range: options.range,
+        maxRows: maxRows,
+    });
+    const sheets = details.map((entry) => ({
+        sheet: entry.sheet,
+        cells: entry.cells.map((cell) => ({
+            id: cell.id,
+            value: cell.value,
+            formula: cell.formula,
+            type: cell.type,
+        })),
+    }));
+    return { markdown, previewPath, summary, sheets };
 }
 function parseRange(range) {
     const body = range.includes('!') ? range.slice(range.lastIndexOf('!') + 1) : range;

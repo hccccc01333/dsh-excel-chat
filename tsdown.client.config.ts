@@ -1,3 +1,7 @@
+import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
+import { dirname, resolve as resolvePath } from 'node:path'
+
 /** Module-table specifiers the web shell shares (platform seed + runtime store exemption). */
 const EXTERNALS = [
   'react',
@@ -40,4 +44,36 @@ export default {
     footer: 'return module.exports; } });',
     intro: 'var module = { exports: {} }; var exports = module.exports;',
   },
+  plugins: [{
+    name: 'css-text-inline',
+    resolveId(source: string, importer: string | undefined) {
+      if (!/\.css$/.test(source) || importer === undefined) return null
+      const absolute = resolveBare(source, importer)
+      return absolute === null ? null : `\0css:${absolute}.mjs`
+    },
+    async load(id: string) {
+      if (!id.startsWith('\0css:')) return null
+      const file = id.slice(5).replace(/\.mjs$/, '')
+      const text = await readFile(file, 'utf8')
+      return `export default ${JSON.stringify(text)}`
+    },
+  }],
+}
+
+function resolveBare(source: string, importer: string): string | null {
+  const start = source.startsWith('.') || source.startsWith('/')
+    ? resolvePath(dirname(importer), source)
+    : null
+  if (start !== null && existsSync(start)) return start
+  if (!source.startsWith('.')) {
+    let dir = dirname(importer)
+    for (;;) {
+      const candidate = resolvePath(dir, 'node_modules', source)
+      if (existsSync(candidate)) return candidate
+      const parent = dirname(dir)
+      if (parent === dir) break
+      dir = parent
+    }
+  }
+  return null
 }
