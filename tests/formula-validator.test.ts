@@ -7,6 +7,7 @@ import {
   parseFormula,
   shiftFormulaRow,
 } from '../src/formula.ts'
+import { buildDependencyGraph } from '../src/graph.ts'
 import { validate } from '../src/validator.ts'
 
 test('parses relative A1 references', () => {
@@ -46,6 +47,26 @@ test('parses cross-sheet references and whole columns', () => {
   assert.equal(parsed.references[0]!.end?.column, 'H')
   assert.equal(parsed.references[1]!.start.sheet, 'SALES')
   assert.equal(parsed.references[2]!.start.column, 'A')
+})
+
+test('parses unquoted Chinese sheet references and builds correct cross-sheet edges', () => {
+  const parsed = parseFormula('=SUMIFS(订单!$B$2:$B$7,订单!$A$2:$A$7,A2)')
+  const cross = parsed.references.filter((ref) => ref.start.sheet !== null)
+  assert.equal(cross.length, 2)
+  assert.equal(cross[0]!.start.sheet, '订单')
+  assert.equal(cross[0]!.start.column, 'B')
+  assert.equal(cross[0]!.end!.row, 7)
+  assert.equal(cross[1]!.start.sheet, '订单')
+
+  const graph = buildDependencyGraph([
+    { id: '经营报表!B2', formula: '=SUMIFS(订单!$B$2:$B$7,订单!$A$2:$A$7,A2)' },
+    { id: '经营报表!B3', formula: '=SUMIFS(订单!$B$2:$B$7,订单!$A$2:$A$7,A3)' },
+    { id: '经营报表!B7', formula: '=SUM(B2:B6)' },
+  ])
+  assert.equal(graph.cycles.length, 0)
+  const b2Edges = graph.edges.filter((edge) => edge.from === '经营报表!B2').map((edge) => edge.to)
+  assert.ok(b2Edges.includes('订单!B7'))
+  assert.ok(!b2Edges.includes('经营报表!B7'))
 })
 
 test('parses range endpoints', () => {

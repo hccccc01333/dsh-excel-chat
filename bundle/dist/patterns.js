@@ -34,6 +34,22 @@ function formatOffset(offset) {
     return offset > 0 ? `+${offset}` : `${offset}`;
 }
 export function detectPatternAnomalies(cells) {
+    // Summary rows (subtotal/grand-total labels) legitimately deviate from the
+    // column pattern (e.g. a 总计 row sums the summary rows above it). Skip any
+    // formula on a row whose label column contains a summary marker.
+    const summaryRows = new Set();
+    for (const [id, content] of Object.entries(cells)) {
+        const trimmed = content.trim();
+        if (!/^(总计|小计)$/.test(trimmed) && !trimmed.endsWith('汇总'))
+            continue;
+        try {
+            const cell = parseCellId(id);
+            summaryRows.add(`${cell.sheet}:${cell.row}`);
+        }
+        catch {
+            // malformed ids are skipped below
+        }
+    }
     const groups = new Map();
     for (const [id, content] of Object.entries(cells)) {
         const trimmed = content.trim();
@@ -47,6 +63,8 @@ export function detectPatternAnomalies(cells) {
         let parsed;
         try {
             cell = parseCellId(id);
+            if (summaryRows.has(`${cell.sheet}:${cell.row}`))
+                continue;
             parsed = parseFormula(trimmed);
         }
         catch {
@@ -159,6 +177,10 @@ export function detectHardcodeBreaks(cells) {
         const formulas = entries.filter((entry) => entry.isFormula);
         const values = entries.filter((entry) => !entry.isFormula);
         if (formulas.length < 2 || values.length === 0)
+            continue;
+        // Subtotal-structured columns interleave summary rows with data rows;
+        // numeric cells between SUBTOTAL rows are data, not hardcoded breaks.
+        if (formulas.some((entry) => /SUBTOTAL\(/i.test(entry.content)))
             continue;
         const minRow = Math.min(...formulas.map((entry) => entry.row));
         const maxRow = Math.max(...formulas.map((entry) => entry.row));

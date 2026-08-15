@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.34.0 — 2026-08-15（本地版本，未发布）
+
+- 按评审 P0 转向 evaluation-driven：新增文件级真实任务语料 ExcelBench lite
+  （38 个职场场景：编辑 18 / 分析 10 / 公式 6 / 工作流 4）+ `runFileBenchmark`
+  运行器（任务成功率 / 平均准确率 / 完整性率 / 修复数），
+  `tests/invoke-file-benchmark.ts` 可打印报告。
+- 语料暴露并修复 3 个真 bug：
+  - `parseFormula` 不识别中文表名跨表引用，依赖图把 `订单!B2:B7` 当同表
+    引用导致误报循环引用——扩大未加引号表名匹配；
+  - 汇总/总计行被列 pattern 误报为结构异常——新增汇总行守卫；
+  - subtotal 汇总列中的数据行被误报 hardcode——含 SUBTOTAL 的列跳过
+    硬编码判定。
+- 新增中文跨表引用回归测试；测试规模 171 → 174。
+
 ## v0.33.0 — 2026-08-15
 
 - 复刻 ExcelGenius2 / SheetCopilot 的多步任务编排：新增 `excel_task`，
