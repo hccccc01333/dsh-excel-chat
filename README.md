@@ -11,6 +11,25 @@
 调用 `excel_operate` 完成；每次编辑后自动体检公式有没有被弄坏，也可以让它
 “检查这个表哪里算错了”并自动修复。所有工作都在对话里完成，不需要记 Excel 操作。
 
+## 架构
+
+```mermaid
+flowchart LR
+  U[用户自然语言] --> H[DeepSeek Harness]
+  H --> P["excel_profile / excel_read · 结构速览 / 分页读取"]
+  P --> M["excel_menu / excel_insight · 能力菜单 / 数据洞察"]
+  M --> O["excel_operate / excel_task · 操作 DSL / 多步编排 / Goal 闭环"]
+  O --> V["excel_validate_formulas · 公式体检"]
+  V -->|异常| R["excel_autofix / excel_repair_formulas · 确定性修复 + LLM 修复"]
+  V -->|干净| OUT[输出 workbook]
+  R --> V2[复验]
+  V2 --> OUT
+  OUT --> X["excel_explain_formula / excel_diff_workbook / excel_undo · 解释 / 对比 / 可回滚"]
+```
+
+核心闭环：**理解 → 操作 → 验证 → 修复 → 复验 → 输出**；`excel_task` 的 goal 模式
+把这条闭环升级为 **Plan → Act → Observe → Verify → Replan** 的 Agent 循环。
+
 ## 安装
 
 ```sh

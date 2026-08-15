@@ -91,3 +91,21 @@ test('agent loop stops at maxRounds when the goal is never achieved', async () =
   assert.equal(result.rounds.length, 2)
   assert.equal(result.achieved, false)
 })
+
+test('agent loop feeds an invalid plan back to the planner for a corrected round', async () => {
+  const path = await makeWorkbook()
+  const planner = fakePlanner(
+    [
+      [{ name: 'bad', operations: [{ op: 'aggregateReport', source: '订单!A1:B4', groupColumn: 'A' }] }],
+      [{ name: 'fill', operations: [{ op: 'fillMissing', range: '订单!A2:B4', mode: 'value', value: 0 }] }],
+    ],
+    [
+      { achieved: true, reason: 'ok' },
+      { achieved: true, reason: '完成' },
+    ],
+  )
+  const result = await runAgentTask(path, { goal: '补空值', planner, maxRounds: 2 })
+  assert.equal(result.rounds.length, 1)
+  assert.equal(result.achieved, true)
+  assert.ok(planner.seen[1]!.verifierNote?.includes('计划无效'))
+})

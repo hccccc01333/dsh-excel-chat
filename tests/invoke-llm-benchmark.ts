@@ -13,7 +13,7 @@ const model = process.env.DEEPSEEK_MODEL ?? 'deepseek-chat'
 const sample = process.env.LLM_BENCH_SAMPLE ? Number(process.env.LLM_BENCH_SAMPLE) : corpusTasks.length
 const tasks = corpusTasks.slice(0, sample)
 const planner = createLlmPlanner(deepseekLlmTextFromEnv(model))
-const report = await runLlmBenchmark(tasks, { planner, maxRounds: 2 })
+const report = await runLlmBenchmark(tasks, { planner, maxRounds: 3 })
 console.log(JSON.stringify({
   model,
   total: report.total,

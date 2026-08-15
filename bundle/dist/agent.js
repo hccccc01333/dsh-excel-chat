@@ -1,9 +1,11 @@
 import { copyFile, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import ExcelJS from 'exceljs';
+import { sanitizePlan } from './plan-schema.js';
 import { profileWorkbook } from './profile.js';
 import { runExcelTask } from './task.js';
-import { readWorkbookCells, validateWorkbookFile } from './workbook.js';
+import { readWorkbookCells, stripPivotTableParts, validateWorkbookFile } from './workbook.js';
 /**
  * Goal-driven agent loop (Plan -> Act -> Observe -> Verify -> Replan):
  * the planner proposes operation steps for the goal, `runExcelTask` executes
@@ -25,6 +27,7 @@ export async function runAgentTask(path, options) {
     for (let round = 1; round <= maxRounds; round++) {
         const beforeProfile = await profileWorkbook(currentPath);
         const beforeValidation = await validateWorkbookFile(currentPath);
+        const beforeFingerprint = await workbookFingerprint(currentPath);
         const planContext = {
             goal: options.goal,
             path: currentPath,
@@ -36,15 +39,43 @@ export async function runAgentTask(path, options) {
             previousResult,
             verifierNote,
         };
-        const plan = await options.planner.plan(planContext);
-        if (!plan || plan.length === 0)
-            throw new Error('planner returned an empty plan');
+        let plan;
+        try {
+            plan = await options.planner.plan(planContext);
+            if (!plan || plan.length === 0)
+                throw new Error('planner returned an empty plan');
+            plan = sanitizePlan(plan, planContext.sheetNames).steps;
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (round < maxRounds) {
+                verifierNote = `计划无效：${message}。请修正后重新规划。`;
+                previousPlan = undefined;
+                previousResult = undefined;
+                continue;
+            }
+            throw error;
+        }
         const roundOut = join(dir, `round-${round}.xlsx`);
-        const result = await runExcelTask(currentPath, plan, roundOut);
+        let result;
+        try {
+            result = await runExcelTask(currentPath, plan, roundOut);
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (round < maxRounds) {
+                verifierNote = `执行出错：${message}。请修正计划后重新规划。`;
+                previousPlan = plan;
+                previousResult = undefined;
+                continue;
+            }
+            throw error;
+        }
         const afterProfile = await profileWorkbook(result.outputPath);
         const afterValidation = await validateWorkbookFile(result.outputPath);
         const cellSnapshot = await cellSnapshotOf(result.outputPath);
-        const verdict = await options.planner.verify({
+        const changed = (await workbookFingerprint(result.outputPath)) !== beforeFingerprint;
+        let verdict = await options.planner.verify({
             ...planContext,
             path: result.outputPath,
             profileSummary: summarizeProfile(afterProfile),
@@ -53,6 +84,10 @@ export async function runAgentTask(path, options) {
             executedResult: result,
             cellSnapshot,
         });
+        const deterministicNote = `${afterValidation.anomalies.length === 0 ? '公式无异常' : `仍有 ${afterValidation.anomalies.length} 个公式异常`}；文件${changed ? '有' : '没有'}实质变化`;
+        if (!changed || afterValidation.anomalies.length > 0) {
+            verdict = { achieved: false, reason: `${verdict.reason}（确定性校验：${deterministicNote}）` };
+        }
         rounds.push({ round, plan, result, verdict });
         currentPath = result.outputPath;
         previousPlan = plan;
@@ -80,4 +115,21 @@ async function cellSnapshotOf(path, limit = 80) {
         .slice(0, limit)
         .map(([id, content]) => `${id}=${content.slice(0, 60)}`)
         .join('\n');
+}
+async function workbookFingerprint(path) {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(stripPivotTableParts(await readFile(path)));
+    const parts = [];
+    workbook.eachSheet((sheet) => {
+        sheet.eachRow({ includeEmpty: false }, (row) => {
+            row.eachCell({ includeEmpty: false }, (cell) => {
+                const fill = cell.fill?.type === 'pattern' ? `|fill=${String(cell.fill.fgColor?.argb ?? '')}` : '';
+                const bold = cell.font?.bold ? '|bold' : '';
+                const numFmt = cell.numFmt && cell.numFmt !== 'General' ? `|fmt=${cell.numFmt}` : '';
+                const value = cell.formula ? `=${cell.formula}` : cell.value instanceof Date ? cell.value.toISOString() : String(cell.value ?? '');
+                parts.push(`${sheet.name}!${cell.address}=${value}${bold}${numFmt}${fill}`);
+            });
+        });
+    });
+    return parts.sort().join('|');
 }

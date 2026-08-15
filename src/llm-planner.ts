@@ -64,6 +64,7 @@ export function createLlmPlanner(llm: LlmText): AgentPlanner {
         'operations 里的每个对象是 excel_operate 的一个操作，参数按该操作的字段写。',
         '重要：所有 range/source/target/单元格引用必须带工作表前缀（如 "订单!A2:B4"）；需要 sheet 字段的操作必须写 sheet。',
         '必填字段提醒：set 的 cells 是对象；sortRange/filterToRange/aggregateReport/report/preset/subtotal 必须带 keys/metrics/summaryColumns/criteria 数组；fill/fillSeries/copyRange 必须给 source/start/target；renameSheet 用 oldName/newName；addSheet/deleteSheet/duplicateSheet 用 name（duplicateSheet 另给 newName）。',
+        '分析类操作：aggregateReport/report/preset 的 metrics 是 [{"column":"C","function":"sum|average|count|counta|max|min"}]，groupColumn 是列字母（如 "A"），outputSheet 给一个表名；subtotal 的 summaryColumns 同理。',
       ].join('\n')
       const text = await llm(prompt)
       const parsed = JSON.parse(stripFence(text)) as { steps?: PlanStep[] }
@@ -129,9 +130,11 @@ function normalizeOperation(operation: ExcelOperation, firstSheet: string): Exce
   const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(raw)) {
     if (key === 'cells' && value && typeof value === 'object') {
-      out[key] = Object.fromEntries(
-        Object.entries(value as Record<string, unknown>).map(([id, content]) => [prefix(id) as string, String(content)]),
-      )
+      out[key] = Array.isArray(value)
+        ? value.map((id) => prefix(id))
+        : Object.fromEntries(
+            Object.entries(value as Record<string, unknown>).map(([id, content]) => [prefix(id) as string, String(content)]),
+          )
     } else if (key === 'sheet') {
       out[key] = value ?? firstSheet
     } else if (['range', 'source', 'target', 'start'].includes(key)) {
