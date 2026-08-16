@@ -45,6 +45,12 @@
   `remote.commands` 直调——改单元格回车即**就地写本地文件**（自动备份
   `.bak` + patch 审计 + 公式体检），面板提供“撤销本次修改”按钮按审计回滚；
   `live-edit.test.ts` 覆盖磁盘级写回与恢复。
+- 修复 #1：DSH 宿主包（`dsh-tools` / `dsh-llm` / `dsh-system-prompt` /
+  `dsh-attachment`）从 `dependencies` 移至 `peerDependencies`
+  （`^0.1.0-rc.6`，与宿主版本对齐），根包改为 devDependencies——避免装进
+  profile 后遮蔽宿主 rc.6 造成 Symbol 身份冲突（工具调用失败 / 极简模式
+  挂载失败）；新增打包回归测试：bundle 的 dependencies 不得含任何
+  `@deepseek-ai/dsh-*` 宿主包。
 
 ## v0.33.0 — 2026-08-15
 
