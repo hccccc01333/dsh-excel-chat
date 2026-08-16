@@ -54,24 +54,21 @@
 
 ## v0.33.0 — 2026-08-15
 
-- 复刻 ExcelGenius2 / SheetCopilot 的多步任务编排：新增 `excel_task`，
-  一次调用执行一串 `excel_operate` 步骤，每步结束自动体检公式、确定性
-  修复后进入下一步，输出最终文件。
-- 复刻 cellm / xeli 的公式解释：新增 `excel_explain_formula`，把函数、
-  引用区域、跨表引用、运算翻译成人话。
-- 复刻 SheetMind 的文本标准化：`excel_operate` 新增 `normalizeText`
-  （全角→半角、去重空格）。
+- 新增 `excel_task` 多步任务编排：一次调用执行一串 `excel_operate` 步骤，
+  每步结束自动体检公式、确定性修复后进入下一步，输出最终文件。
+- 新增 `excel_explain_formula` 公式解释：把函数、引用区域、跨表引用、
+  运算翻译成人话。
+- `excel_operate` 新增 `normalizeText` 文本标准化（全角→半角、去重空格）。
 - 测试规模 165 → 171。
 
 ## v0.32.0 — 2026-08-15
 
-- 复刻 Excel-Agent 的整行条件高亮：`excel_operate` 新增 `highlightRows`
-  （按多条件匹配整行并填充样式，默认黄色）。
-- 复刻 ExcelGenius2 的“一键上传 → 摘要 + 异常”：新增 `excel_insight`
-  工具，纯启发式数据洞察（缺失/重复/异常值/负值/空格/公式），不依赖
-  LLM，并给出下一步建议。
-- 复刻 SheetMind 的模糊匹配：`excel_operate` 新增 `fuzzyMatch`（两表按键
-  相似度匹配并回填目标值，可输出匹配分数）。
+- `excel_operate` 新增 `highlightRows` 整行条件高亮（按多条件匹配整行并
+  填充样式，默认黄色）。
+- 新增 `excel_insight` 数据洞察工具：纯启发式数据体检（缺失/重复/异常值/
+  负值/空格/公式），不依赖 LLM，并给出下一步建议。
+- `excel_operate` 新增 `fuzzyMatch` 两表模糊匹配（按键相似度匹配并回填
+  目标值，可输出匹配分数）。
 - 测试规模 161 → 165。
 
 ## v0.31.0 — 2026-08-14
@@ -86,8 +83,7 @@
 
 ## v0.30.0 — 2026-08-14
 
-- 复刻 SheetMind / Excel-Agent 的数据清洗效果，`excel_operate` 新增 7 个清洗
-  操作：`dedupeRows`（按列去重、保留首/末行）、`fillMissing`（固定值/向上/
+- `excel_operate` 新增 7 个数据清洗操作：`dedupeRows`（按列去重、保留首/末行）、`fillMissing`（固定值/向上/
   向左填充）、`removeEmptyRows` / `removeEmptyColumns`、`trimText`、
   `changeCase`（upper/lower/proper）、`splitColumn`（按分隔符分列，自动插入
   右侧新列并联动公式引用）。
@@ -97,18 +93,17 @@
 
 ## v0.29.0 — 2026-08-14
 
-- 借鉴 SpreadsheetLLM 的结构化表格编码思路，新增 `excel_profile`：大表速览
-  （表头识别、每列类型/缺失/唯一值/数值区间/日期范围/高频值/样例 + 建议读取
-  范围）；`excel_read` 新增 `maxRows` 分页读取，避免整表灌入对话爆 token。
-- 借鉴 SheetMind 的反思自愈闭环思路，新增 `excel_autofix`：体检 → 确定性修复
-  （可选 LLM）→ 复检 → 人话汇报，一条命令完成“检查并修复”。
+- 新增 `excel_profile` 大表速览：结构化表格编码（表头识别、每列类型/缺失/
+  唯一值/数值区间/日期范围/高频值/样例 + 建议读取范围）；`excel_read` 新增
+  `maxRows` 分页读取，避免整表灌入对话爆 token。
+- 新增 `excel_autofix` 一键自愈闭环：体检 → 确定性修复（可选 LLM）→ 复检 →
+  人话汇报，一条命令完成“检查并修复”。
 - 测试规模 147 → 152。
 
 ## v0.28.0 — 2026-08-14
 
-- 整合生态能力：新增 `importCsv` / `exportCsv`（RFC 4180，支持分隔符与引号转义），
-  借鉴 dsh-tool-csv 的 CSV 能力；导出默认开启公式注入防护（值以 `= + - @` 开头
-  时加 `'` 前缀，借鉴 noatmark 的思路）。
+- 新增 `importCsv` / `exportCsv`（RFC 4180，支持分隔符与引号转义）；导出
+  默认开启公式注入防护（值以 `= + - @` 开头时加 `'` 前缀）。
 - 修复：异步操作（importCsv/exportCsv）此前未被 await，工作簿先写盘导致竞态；
   改为顺序等待。
 - 测试规模 146 → 147。
