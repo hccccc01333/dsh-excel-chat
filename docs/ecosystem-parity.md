@@ -4,19 +4,26 @@ dsh-excel-chat 的定位：把主流 AI + Excel 方案的用户可见功能效�
 DeepSeek Harness 的一个插件里。下表记录每个生态仓库的“核心效果”、我们
 复刻到哪一步、以及缺口。
 
+## 借鉴与版权说明
+
+本插件复刻的是上游项目的**用户可见功能效果**（例如“对话改表”“公式自愈”
+“表格速览”），实现代码均为独立编写，不复制上游源码。上游项目的版权归其
+原作者/团队所有，链接见下表；若后续直接移植或复用上游代码，将按其开源
+许可证（MIT / Apache-2.0 / CC-BY-SA 等）保留对应版权声明。
+
 | 生态仓库 | 核心功能效果 | 我们的整合状态 | 缺口 / 下一批 |
 |---|---|---|---|
-| ChatExcel | 对话改表：写值、公式、筛选、排序、汇总、透视，多轮会话 | `excel_operate` 30+ 操作 + 对话即工具调用，已覆盖；入口由 `excel_menu` 兜底 | 多轮会话间的上下文记忆与自检引导（可增强 advisor 提示） |
-| ExcelGenius2 | 多智能体任务分解 + 反思；一键上传→摘要+异常检测 | `excel_autofix` 反思闭环、`excel_insight` 摘要+异常、`excel_task` steps 编排 + goal 模式（LLM 规划→执行→验证→重规划）已有；`report` / `preset` 模板已有 | — |
-| SheetMind | 数据清洗、公式、图表、透视、报表、模糊匹配 + 自愈 | 清洗操作（含 `normalizeText` 全角/半角）、`fuzzyMatch`、公式修复、图表、透视已有 | 数字格式统一 |
-| Excel-Agent | 多模态表格理解 + 自然语言公式生成 + 整行条件高亮 | `excel_profile` / `excel_insight` / `highlightRows` / `excel_compile_formula` 已有 | 截图/图片理解（接入 VLM），公式自然语言解释 |
-| sv-excel-agent | Agent 文件操作 + 图表导出 | 已有（`excel_export_charts` 等，Windows + Excel） | — |
-| excel-mcp-server / local-workbook-mcp | 通过 MCP 把 Excel 操作暴露给任意 LLM 客户端 | 未做 | MCP 适配层（若 DeepSeek Harness 支持 MCP 工具，再接入） |
-| SpreadsheetBench / Spreadsheet-RL | 真实数据集评测 + RL 训练（outcome reward） | oracle 判分 + 11 个合成 benchmark 已有 | 把公开真实数据集转成 BenchmarkTask，作为 RL reward |
-| SheetCopilot | 多步任务规划（从指令到完整操作序列） | `preset`（运营/产品/数分模板）+ `report` 已有 | 更多岗位模板 + 指令级规划缓存 |
-| SpreadsheetLLM | 表格结构化编码，省 token | `excel_profile` + `excel_read` `maxRows` 分页已有 | 列级语义标注、按意图只读相关行列 |
-| cellm / agent-xlsx / xeli | 单元格内 AI 生成/修复公式 | `excel_compile_formula` + `excel_repair_formulas` + `excel_explain_formula` 已有 | — |
-| office-ai-agent | Office 文档联动（Excel/Word/PPT） | `mailMerge`（Excel→Word 式模板）已有 | Word/PPT 生成（超出当前范围，暂缓） |
+| [ChatExcel](https://chatexcel.com/) | 对话改表：写值、公式、筛选、排序、汇总、透视，多轮会话 | `excel_operate` 30+ 操作 + 对话即工具调用，已覆盖；入口由 `excel_menu` 兜底 | 多轮会话间的上下文记忆与自检引导（可增强 advisor 提示） |
+| [ExcelGenius2](https://github.com/canyouio/ExcelGenius2) | 多智能体任务分解 + 反思；一键上传→摘要+异常检测 | `excel_autofix` 反思闭环、`excel_insight` 摘要+异常、`excel_task` steps 编排 + goal 模式（LLM 规划→执行→验证→重规划）已有；`report` / `preset` 模板已有 | — |
+| [SheetMind](https://arxiv.org/abs/2506.12339) | 数据清洗、公式、图表、透视、报表、模糊匹配 + 自愈 | 清洗操作（含 `normalizeText` 全角/半角）、`fuzzyMatch`、公式修复、图表、透视已有 | 数字格式统一 |
+| [Excel-Agent](https://github.com/colonel-aureliano/Excel-Agent) | 多模态表格理解 + 自然语言公式生成 + 整行条件高亮 | `excel_profile` / `excel_insight` / `highlightRows` / `excel_compile_formula` 已有 | 截图/图片理解（接入 VLM），公式自然语言解释 |
+| [sv-excel-agent](https://github.com/SylvianAI/sv-excel-agent) | Agent 文件操作 + 图表导出 | 已有（`excel_export_charts` 等，Windows + Excel） | — |
+| [excel-mcp-server](https://github.com/haris-musa/excel-mcp-server) / [local-workbook-mcp](https://github.com/McFuzzySquirrel/local-workbook-mcp) | 通过 MCP 把 Excel 操作暴露给任意 LLM 客户端 | 未做 | MCP 适配层（若 DeepSeek Harness 支持 MCP 工具，再接入） |
+| [SpreadsheetBench](https://github.com/RUCKBReasoning/SpreadsheetBench) / [Spreadsheet-RL](https://github.com/Spreadsheet-RL/Spreadsheet-RL) | 真实数据集评测 + RL 训练（outcome reward） | oracle 判分 + 11 个合成 benchmark 已有 | 把公开真实数据集转成 BenchmarkTask，作为 RL reward |
+| [SheetCopilot](https://github.com/BraveGroup/SheetCopilot) | 多步任务规划（从指令到完整操作序列） | `preset`（运营/产品/数分模板）+ `report` 已有 | 更多岗位模板 + 指令级规划缓存 |
+| [SpreadsheetLLM](https://arxiv.org/abs/2407.09025) | 表格结构化编码，省 token | `excel_profile` + `excel_read` `maxRows` 分页已有 | 列级语义标注、按意图只读相关行列 |
+| [cellm](https://github.com/getcellm/cellm) / [agent-xlsx](https://github.com/carderne/agent-xlsx) / [xeli](https://www.npmjs.com/package/@josharsh/xeli) | 单元格内 AI 生成/修复公式 | `excel_compile_formula` + `excel_repair_formulas` + `excel_explain_formula` 已有 | — |
+| [office-ai-agent](https://github.com/it235/office-ai-agent) | Office 文档联动（Excel/Word/PPT） | `mailMerge`（Excel→Word 式模板）已有 | Word/PPT 生成（超出当前范围，暂缓） |
 
 ## 已复刻效果清单（按版本）
 
