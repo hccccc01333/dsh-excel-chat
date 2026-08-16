@@ -47,6 +47,22 @@ test('autofixWorkbookFile repairs a silent reference-pattern error and re-valida
   assert.ok(outcome.message.includes('D4'))
   assert.match(outcome.repairedPath, /\.repaired\.xlsx$/)
   await access(outcome.repairedPath)
+  const repaired = new ExcelJS.Workbook()
+  await repaired.xlsx.readFile(outcome.repairedPath)
+  const report = repaired.getWorksheet('_dsh_体检报告')
+  assert.ok(report)
+  assert.equal(report.state, 'hidden')
+  assert.equal(typeof outcome.healthScore, 'number')
+  assert.equal(outcome.reportSheet, '_dsh_体检报告')
+})
+
+test('autofixWorkbookFile can skip the embedded health report', async () => {
+  const path = await makeBrokenWorkbook()
+  const outcome = await autofixWorkbookFile(path, { healthReport: false })
+  const repaired = new ExcelJS.Workbook()
+  await repaired.xlsx.readFile(outcome.repairedPath)
+  assert.equal(repaired.getWorksheet('_dsh_体检报告'), undefined)
+  assert.equal(outcome.healthScore, undefined)
 })
 
 test('autofixWorkbookFile writes to outPath and reports a clean workbook message', async () => {

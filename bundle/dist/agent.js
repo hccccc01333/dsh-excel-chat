@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 import { sanitizePlan } from './plan-schema.js';
 import { profileWorkbook } from './profile.js';
+import { buildWorkbookSemanticProfile } from './semantic.js';
 import { runExcelTask } from './task.js';
 import { readWorkbookCells, stripPivotTableParts, validateWorkbookFile } from './workbook.js';
 /**
@@ -26,6 +27,7 @@ export async function runAgentTask(path, options) {
     let verifierNote;
     for (let round = 1; round <= maxRounds; round++) {
         const beforeProfile = await profileWorkbook(currentPath);
+        const semanticProfile = await buildWorkbookSemanticProfile(currentPath);
         const beforeValidation = await validateWorkbookFile(currentPath);
         const beforeFingerprint = await workbookFingerprint(currentPath);
         const planContext = {
@@ -34,6 +36,7 @@ export async function runAgentTask(path, options) {
             round,
             sheetNames: beforeProfile.sheets.map((sheet) => sheet.sheet),
             profileSummary: summarizeProfile(beforeProfile),
+            semanticSummary: semanticProfile.summary,
             validationSummary: `${beforeValidation.anomalies.length} 个公式异常`,
             previousPlan,
             previousResult,

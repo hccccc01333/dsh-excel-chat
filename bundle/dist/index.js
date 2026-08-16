@@ -24,6 +24,7 @@ import { buildWorkbookPreview } from './preview.js';
 import { profileWorkbook } from './profile.js';
 import { repairWorkbookFile } from './repair.js';
 import { readWorkbookDetail } from './read.js';
+import { buildWorkbookSemanticProfile } from './semantic.js';
 import { runExcelTask } from './task.js';
 import { detectTableFromCells } from './tables.js';
 import { validate } from './validator.js';
@@ -314,6 +315,28 @@ export function apply(ctx) {
         },
         async execute(args) {
             return await profileWorkbook(args.path, typeof args.sheet === 'string' ? args.sheet : undefined);
+        },
+    }));
+    ctx.tools.register(defineTool({
+        name: 'excel_semantic_profile',
+        description: 'Workbook semantic layer: classify every column as time / measure / dimension / id, derive each sheet grain and formula-based metrics, and find cross-sheet join keys. Use before analysis tasks ("按区域汇总金额", "哪个地区利润下降最严重") so the agent knows which columns are dimensions/measures instead of guessing.',
+        parameters: {
+            path: {
+                type: 'string',
+                required: true,
+                description: 'Absolute path to an .xlsx file.',
+            },
+            sheet: {
+                type: 'string',
+                description: 'Restrict to one sheet (default all sheets).',
+            },
+        },
+        output: {
+            schema: { type: 'object', additionalProperties: true },
+            render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+        },
+        async execute(args) {
+            return await buildWorkbookSemanticProfile(args.path, typeof args.sheet === 'string' ? args.sheet : undefined);
         },
     }));
     ctx.tools.register(defineTool({
@@ -740,6 +763,10 @@ export function apply(ctx) {
                 type: 'string',
                 description: 'Output .xlsx path (default: <path>.repaired.xlsx).',
             },
+            healthReport: {
+                type: 'boolean',
+                description: 'Embed a hidden `_dsh_体检报告` sheet into the repaired file (default true).',
+            },
         },
         output: {
             schema: { type: 'object', additionalProperties: true },
@@ -748,7 +775,10 @@ export function apply(ctx) {
         async execute(args, exec) {
             const outputPath = typeof args.outPath === 'string' && args.outPath ? args.outPath : undefined;
             if (!args.useLlm) {
-                return await autofixWorkbookFile(args.path, { outPath: outputPath });
+                return await autofixWorkbookFile(args.path, {
+                    outPath: outputPath,
+                    healthReport: args.healthReport !== false,
+                });
             }
             if (!args.model) {
                 throw new Error('model is required when useLlm is true');
@@ -767,7 +797,11 @@ export function apply(ctx) {
                 table = detected;
             }
             const advisor = createLlmRepairAdvisor(llmTextFromContext(ctx, args.provider ?? 'deepseek', args.model), table, exec.signal);
-            return await autofixWorkbookFile(args.path, { advisor, outPath: outputPath });
+            return await autofixWorkbookFile(args.path, {
+                advisor,
+                outPath: outputPath,
+                healthReport: args.healthReport !== false,
+            });
         },
     }));
     ctx.tools.register(defineTool({

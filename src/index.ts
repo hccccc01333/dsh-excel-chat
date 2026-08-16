@@ -32,6 +32,7 @@ import { buildWorkbookPreview } from './preview.ts'
 import { profileWorkbook } from './profile.ts'
 import { repairWorkbookFile } from './repair.ts'
 import { readWorkbookDetail } from './read.ts'
+import { buildWorkbookSemanticProfile } from './semantic.ts'
 import { runExcelTask } from './task.ts'
 import { detectTableFromCells } from './tables.ts'
 import { validate } from './validator.ts'
@@ -333,6 +334,31 @@ export function apply(ctx: Context) {
     },
     async execute(args) {
       return await profileWorkbook(
+        args.path as string,
+        typeof args.sheet === 'string' ? args.sheet : undefined,
+      ) as unknown as JsonRecord
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_semantic_profile',
+    description: 'Workbook semantic layer: classify every column as time / measure / dimension / id, derive each sheet grain and formula-based metrics, and find cross-sheet join keys. Use before analysis tasks ("按区域汇总金额", "哪个地区利润下降最严重") so the agent knows which columns are dimensions/measures instead of guessing.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      sheet: {
+        type: 'string',
+        description: 'Restrict to one sheet (default all sheets).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      return await buildWorkbookSemanticProfile(
         args.path as string,
         typeof args.sheet === 'string' ? args.sheet : undefined,
       ) as unknown as JsonRecord
@@ -775,6 +801,10 @@ export function apply(ctx: Context) {
         type: 'string',
         description: 'Output .xlsx path (default: <path>.repaired.xlsx).',
       },
+      healthReport: {
+        type: 'boolean',
+        description: 'Embed a hidden `_dsh_体检报告` sheet into the repaired file (default true).',
+      },
     },
     output: {
       schema: { type: 'object', additionalProperties: true },
@@ -783,7 +813,10 @@ export function apply(ctx: Context) {
     async execute(args, exec) {
       const outputPath = typeof args.outPath === 'string' && args.outPath ? args.outPath : undefined
       if (!args.useLlm) {
-        return await autofixWorkbookFile(args.path as string, { outPath: outputPath }) as unknown as JsonRecord
+        return await autofixWorkbookFile(args.path as string, {
+          outPath: outputPath,
+          healthReport: args.healthReport !== false,
+        }) as unknown as JsonRecord
       }
       if (!args.model) {
         throw new Error('model is required when useLlm is true')
@@ -806,7 +839,11 @@ export function apply(ctx: Context) {
         table,
         exec.signal,
       )
-      return await autofixWorkbookFile(args.path as string, { advisor, outPath: outputPath }) as unknown as JsonRecord
+      return await autofixWorkbookFile(args.path as string, {
+        advisor,
+        outPath: outputPath,
+        healthReport: args.healthReport !== false,
+      }) as unknown as JsonRecord
     },
   }))
   ctx.tools.register(defineTool({

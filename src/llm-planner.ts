@@ -49,6 +49,7 @@ export function createLlmPlanner(llm: LlmText): AgentPlanner {
         `第 ${context.round} 轮。`,
         `工作表：${context.sheetNames.join('、')}`,
         `文件概览：${context.profileSummary}`,
+        `语义画像：${context.semanticSummary ?? '（无）'}`,
         `公式校验：${context.validationSummary}`,
         ...(context.previousPlan
           ? [
@@ -65,6 +66,7 @@ export function createLlmPlanner(llm: LlmText): AgentPlanner {
         '重要：所有 range/source/target/单元格引用必须带工作表前缀（如 "订单!A2:B4"）；需要 sheet 字段的操作必须写 sheet。',
         '必填字段提醒：set 的 cells 是对象；sortRange/filterToRange/aggregateReport/report/preset/subtotal 必须带 keys/metrics/summaryColumns/criteria 数组；fill/fillSeries/copyRange 必须给 source/start/target；renameSheet 用 oldName/newName；addSheet/deleteSheet/duplicateSheet 用 name（duplicateSheet 另给 newName）。',
         '分析类操作：aggregateReport/report/preset 的 metrics 是 [{"column":"C","function":"sum|average|count|counta|max|min"}]，groupColumn 是列字母（如 "A"），outputSheet 给一个表名；subtotal 的 summaryColumns 同理。',
+        '用语义画像定位列：目标里的指标/维度必须先对应到画像中的“指标/维度/时间”列，再决定列字母；画像没提到的列不要猜。',
       ].join('\n')
       const text = await llm(prompt)
       const parsed = JSON.parse(stripFence(text)) as { steps?: PlanStep[] }
@@ -82,6 +84,7 @@ export function createLlmPlanner(llm: LlmText): AgentPlanner {
         '你是 Excel 任务验证器。判断用户目标是否已经被执行结果达成。',
         `用户目标：${context.goal}`,
         `执行后的文件概览：${context.profileSummary}`,
+        `语义画像：${context.semanticSummary ?? '（无）'}`,
         `公式校验：${context.validationSummary}`,
         `本轮计划：${JSON.stringify(context.executedPlan)}`,
         `执行结果摘要：${JSON.stringify(context.executedResult)}`,
@@ -93,6 +96,7 @@ export function createLlmPlanner(llm: LlmText): AgentPlanner {
         '验证步骤：先把用户目标拆成可检查点（每条要求一条），再逐条对照快照找证据；',
         '每一条都要有明确证据才可返回 achieved:true，任何一条缺证据就返回 false 并指出缺哪条。',
         '例如目标“按区域汇总金额”→ 证据应是区域字段、金额字段、SUMIFS/汇总公式和汇总表都在快照中可见。',
+        '用语义画像核对：目标里的指标/维度必须在画像的指标/维度列中有对应，找不到对应说明任务没做对，返回 false。',
       ].join('\n')
       const text = await llm(prompt)
       const parsed = JSON.parse(stripFence(text)) as { achieved?: unknown; reason?: unknown }

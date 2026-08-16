@@ -1,4 +1,6 @@
+import { access, copyFile } from 'node:fs/promises';
 import { repairWorkbookFile } from './repair.js';
+import { writeWorkbookHealthReport } from './health-report.js';
 /** Collapse a validation result into counts the model can reason about. */
 export function summarizeValidation(result) {
     const byKind = {};
@@ -19,6 +21,7 @@ export function summarizeValidation(result) {
  */
 export async function autofixWorkbookFile(path, options = {}) {
     const result = await repairWorkbookFile(path, options.advisor, undefined, undefined, options.outPath);
+    const includeHealthReport = options.healthReport ?? true;
     const before = summarizeValidation(result.before);
     const after = summarizeValidation(result.after);
     const repairedPath = result.repairedPath;
@@ -37,5 +40,19 @@ export async function autofixWorkbookFile(path, options = {}) {
         lines.push('未发现公式异常，无需修复。');
     }
     lines.push(`输出文件：${repairedPath}`);
-    return { repairedPath, repairs: result.repairs, before, after, message: lines.join('\n') };
+    const outcome = { repairedPath, repairs: result.repairs, before, after, message: lines.join('\n') };
+    if (includeHealthReport) {
+        try {
+            await access(repairedPath);
+        }
+        catch {
+            // repairWorkbookFile only writes the copy when repairs exist; keep the
+            // "output copy" contract for clean workbooks too.
+            await copyFile(path, repairedPath);
+        }
+        const report = await writeWorkbookHealthReport(repairedPath);
+        outcome.healthScore = report.healthScore;
+        outcome.reportSheet = report.reportSheet;
+    }
+    return outcome;
 }

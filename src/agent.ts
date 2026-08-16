@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs'
 import type { ExcelOperation } from './operations.ts'
 import { sanitizePlan } from './plan-schema.ts'
 import { profileWorkbook, type WorkbookProfile } from './profile.ts'
+import { buildWorkbookSemanticProfile } from './semantic.ts'
 import { runExcelTask, type TaskResult } from './task.ts'
 import { readWorkbookCells, stripPivotTableParts, validateWorkbookFile } from './workbook.ts'
 
@@ -19,6 +20,7 @@ export interface AgentPlanContext {
   round: number
   sheetNames: string[]
   profileSummary: string
+  semanticSummary?: string
   validationSummary: string
   previousPlan?: PlanStep[]
   previousResult?: TaskResult
@@ -75,6 +77,7 @@ export async function runAgentTask(
 
   for (let round = 1; round <= maxRounds; round++) {
     const beforeProfile = await profileWorkbook(currentPath)
+    const semanticProfile = await buildWorkbookSemanticProfile(currentPath)
     const beforeValidation = await validateWorkbookFile(currentPath)
     const beforeFingerprint = await workbookFingerprint(currentPath)
     const planContext: AgentPlanContext = {
@@ -83,6 +86,7 @@ export async function runAgentTask(
       round,
       sheetNames: beforeProfile.sheets.map((sheet) => sheet.sheet),
       profileSummary: summarizeProfile(beforeProfile),
+      semanticSummary: semanticProfile.summary,
       validationSummary: `${beforeValidation.anomalies.length} 个公式异常`,
       previousPlan,
       previousResult,

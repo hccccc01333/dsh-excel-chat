@@ -10,6 +10,7 @@ export interface AgentPlanContext {
     round: number;
     sheetNames: string[];
     profileSummary: string;
+    semanticSummary?: string;
     validationSummary: string;
     previousPlan?: PlanStep[];
     previousResult?: TaskResult;

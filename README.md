@@ -100,6 +100,7 @@ dsh web --profile demo                             # 打开对话界面
 | `excel_compile_formula` | Formula IR（binary / ratio / aggregate / function：VLOOKUP、IF、XLOOKUP、统计、日期等）→ 确定性 Excel 公式 |
 | `excel_read` | 精确读取：值/公式/类型/数字格式/字体/填充/对齐/合并/数据有效性，编辑前看清单元格状态 |
 | `excel_profile` | 大表速览：识别表头、每列类型/缺失/唯一值/数值区间/高频值/样例，给出建议读取范围；配合 `excel_read` 的 `maxRows` 分页，避免整表灌入对话爆 token |
+| `excel_semantic_profile` | 语义画像：把每列分类为 时间/维度/指标/标识，识别数据粒度、派生指标（公式）和跨表关联键；分析类任务先跑它，agent 不再猜“地区是不是 B 列” |
 | `excel_menu` | 不会描述也没关系：给文件就能拿到菜单——一句话总结表里有什么，再列出清洗/补空值/报表/透视/图表/体检/通知/岗位模板等可选方案，每个带示例话术，直接选就行 |
 | `excel_insight` | 数据洞察：一句话摘要 + 缺失/重复/异常值/负值/空格/公式等启发式体检 + 下一步建议，回答“这表有什么问题”“帮我总结一下” |
 | `excel_preview` | 表格预览：把指定表/区域渲染成 Markdown 表格（对话内直接看到）+ HTML 预览文件，回答“看看这个表长什么样” |
@@ -107,7 +108,7 @@ dsh web --profile demo                             # 打开对话界面
 | `excel_explain_formula` | 公式白话解释：解析函数（SUMIFS/VLOOKUP/IF/日期/文本/统计）、引用区域、跨表引用，回答“这个公式是什么意思” |
 | `excel_undo` | 按 `excel_operate` 自动生成的 `.patch.json` 审计日志回滚编辑 |
 | `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复（`useLlm` / `autoTable` / `oraclePath` / `outPath`），输出修复副本并复验 |
-| `excel_autofix` | 一键自愈闭环：体检 → 确定性修复（可选 LLM）→ 复检 → 人话汇报，输出修复副本 |
+| `excel_autofix` | 一键自愈闭环：体检 → 确定性修复（可选 LLM）→ 复检 → 人话汇报，输出修复副本（自动附带隐藏健康报告表，可 `healthReport:false` 关闭） |
 | `excel_health_report` | 把公式体检报告写进工作簿本身：隐藏「_dsh_体检报告」表，含健康分、异常清单、生成时间，报告跟着文件走 |
 | `excel_diff_workbook` | 两个 workbook 的单元格级 diff |
 | `excel_operate` | 精细化 Excel 操作：写值、填充/序列、行列增删、复制/移动、排序、`report` 一键报表模板（排序+汇总+动态透视+筛选+样式+冻结+格式）、分类汇总、动态透视报表、高级筛选、样式（字号/字体/边框）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、命名区域、冻结窗格、查找替换、工作表保护（细化权限）、邮件合并、工作表管理、合并、数据清洗（去重/填充缺失/删空行空列/去空格/大小写转换/全角半角标准化/分列）、整行条件高亮（highlightRows）、两表模糊匹配（fuzzyMatch）；操作后自动复验公式并写审计日志 |

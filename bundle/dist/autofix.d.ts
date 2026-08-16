@@ -13,6 +13,8 @@ export interface AutofixOutcome {
     before: AnomalySummary;
     after: AnomalySummary;
     message: string;
+    healthScore?: number;
+    reportSheet?: string;
 }
 /** Collapse a validation result into counts the model can reason about. */
 export declare function summarizeValidation(result: ValidationResult): AnomalySummary;
@@ -24,5 +26,6 @@ export declare function summarizeValidation(result: ValidationResult): AnomalySu
 export declare function autofixWorkbookFile(path: string, options?: {
     outPath?: string;
     advisor?: RepairAdvisor;
+    healthReport?: boolean;
 }): Promise<AutofixOutcome>;
 //# sourceMappingURL=autofix.d.ts.map
