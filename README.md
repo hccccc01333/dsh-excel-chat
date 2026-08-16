@@ -109,8 +109,9 @@ dsh web --profile demo                             # 打开对话界面
 | `excel_modify_chart` | 修改图表参数：类型、标题、图例、坐标轴（Windows） |
 | `excel_create_pivot` | 原生数据透视表（pivotCache + pivotTable）：多行字段、列字段、报表筛选器 + 值字段（求和/计数/平均/最大/最小），Excel 生成、可刷新（Windows） |
 
-生态功能整合对照（复刻了哪些主流 AI + Excel 方案的效果）见
-[docs/ecosystem-parity.md](docs/ecosystem-parity.md)。
+能力深度与可靠性进展：100 个职场任务的自建评测语料（ExcelBench lite）与
+真实 LLM 基线见 [docs/benchmark.md](docs/benchmark.md)；右侧可编辑 Excel
+面板的设计与实测见 [docs/web-panel.md](docs/web-panel.md)。
 
 ## Modules
 
@@ -138,10 +139,10 @@ dsh web --profile demo                             # 打开对话界面
   大小写/空白与数字格式差异，输出准确率与 mismatch 明细。
 - `src/read.ts` — `readWorkbookDetail`：精确读取单元格（值/公式/类型/格式/合并/
   数据有效性），供 `excel_read` 工具使用。
-- `src/profile.ts` — `profileWorkbook`：结构化表格编码（借鉴 SpreadsheetLLM
-  思路），输出每表/每列的紧凑画像与建议读取范围，供 `excel_profile` 工具使用。
+- `src/profile.ts` — `profileWorkbook`：结构化表格编码，输出每表/每列的
+  紧凑画像与建议读取范围，供 `excel_profile` 工具使用。
 - `src/autofix.ts` — `autofixWorkbookFile`：体检 → 修复 → 复检 → 人话总结的
-  一键自愈闭环（借鉴 SheetMind 反思思路），供 `excel_autofix` 工具使用。
+  一键自愈闭环，供 `excel_autofix` 工具使用。
 - `src/pivot.ts` — `createPivotTable`：驱动 Excel COM 生成原生数据透视表
   （pivotCache + pivotTable），保证文件始终合法可打开。
 - `src/operation-schema.ts` — `excel_operate` 的 27 操作严格判别联合 schema，
