@@ -91,8 +91,8 @@
   向左填充）、`removeEmptyRows` / `removeEmptyColumns`、`trimText`、
   `changeCase`（upper/lower/proper）、`splitColumn`（按分隔符分列，自动插入
   右侧新列并联动公式引用）。
-- 新增 [docs/ecosystem-parity.md](docs/ecosystem-parity.md) 生态功能复刻
-  对照表：逐仓库记录核心效果、整合状态与缺口，作为后续迭代路线图。
+- 新增生态能力对照文档：逐仓库记录核心效果、整合状态与缺口，作为后续
+  迭代路线图（文档已在 v0.34.1 后移除，定位转向原创能力与评测驱动）。
 - 测试规模 152 → 159。
 
 ## v0.29.0 — 2026-08-14
