@@ -279,6 +279,24 @@ test('fillSeries fills numeric and date sequences', async () => {
   assert.equal(third.getDate(), 3)
 })
 
+test('fillSeries copies a formula start cell with shifted references', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '数量'
+    sheet.getCell('A2').value = { formula: 'B2*2' }
+    sheet.getCell('B2').value = 3
+  })
+  const outPath = join(join(path, '..'), 'series-formula.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'fillSeries', start: 'Sheet1!A2', target: 'Sheet1!A2:A3' },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('A2').formula, 'B2*2')
+  assert.equal(sheet.getCell('A3').formula, 'B3*2')
+})
+
 test('style applies font, fill, number format, and alignment to a range', async () => {
   const path = await makeWorkbook(formulaFixture())
   const outPath = join(join(path, '..'), 'styled.xlsx')

@@ -39,3 +39,34 @@ test('sanitizePlan throws when a required array field is missing', () => {
     operations: [{ op: 'aggregateReport', source: '订单!A1:B4', groupColumn: 'A' }],
   }], ['订单']), /缺少必填数组 metrics/)
 })
+
+test('sanitizePlan requires freezePanes row and column', () => {
+  assert.throws(
+    () => sanitizePlan([{ operations: [{ op: 'freezePanes', sheet: '订单', range: '订单!A1:B2' }] }], ['订单']),
+    /freezePanes 缺少必填数字 row/,
+  )
+  assert.throws(
+    () => sanitizePlan([{ operations: [{ op: 'freezePanes', sheet: '订单', row: 2 }] }], ['订单']),
+    /freezePanes 缺少必填字段 column/,
+  )
+  const fixed = sanitizePlan([{ operations: [{ op: 'freezePanes', sheet: '订单', column: 'A', row: '2' }] }], ['订单'])
+  assert.equal((fixed.steps[0]!.operations[0] as Record<string, unknown>).row, 2)
+})
+
+test('sanitizePlan expands a single-cell fillSeries target to a range', () => {
+  const fixed = sanitizePlan(
+    [{ operations: [{ op: 'fillSeries', start: '订单!A2', target: '订单!A3' }] }],
+    ['订单'],
+  )
+  assert.equal((fixed.steps[0]!.operations[0] as Record<string, unknown>).target, '订单!A2:A3')
+})
+
+test('sanitizePlan derives freezePanes row and column from a single-cell range', () => {
+  const fixed = sanitizePlan(
+    [{ operations: [{ op: 'freezePanes', sheet: '订单', range: '订单!A2' }] }],
+    ['订单'],
+  )
+  const operation = fixed.steps[0]!.operations[0] as Record<string, unknown>
+  assert.equal(operation.column, 'A')
+  assert.equal(operation.row, 2)
+})
