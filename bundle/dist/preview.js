@@ -61,7 +61,7 @@ export async function buildWorkbookPreview(path, options = {}) {
             type: cell.type,
         })),
     }));
-    return { markdown, previewPath, summary, sheets };
+    return { path, markdown, previewPath, summary, sheets };
 }
 function parseRange(range) {
     const body = range.includes('!') ? range.slice(range.lastIndexOf('!') + 1) : range;

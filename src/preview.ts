@@ -12,6 +12,7 @@ export interface PreviewOptions {
 }
 
 export interface PreviewResult {
+  path: string
   markdown: string
   previewPath: string
   summary: string
@@ -76,7 +77,7 @@ export async function buildWorkbookPreview(path: string, options: PreviewOptions
       type: cell.type,
     })),
   }))
-  return { markdown, previewPath, summary, sheets }
+  return { path, markdown, previewPath, summary, sheets }
 }
 
 function parseRange(range: string): { startCol: number; startRow: number; endCol: number; endRow: number } {

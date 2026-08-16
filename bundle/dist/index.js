@@ -10,6 +10,7 @@ import { compileFormula } from './compiler.js';
 import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.js';
 import { buildWorkbookInsight } from './insight.js';
 import { explainFormula, readCellContent } from './explain.js';
+import { applyInPlaceEdit, revertInPlaceEdit } from './live-edit.js';
 import { createLlmPlanner } from './llm-planner.js';
 import { formulaIrSchema } from './ir-schema.js';
 import { llmTextFromContext } from './llm.js';
@@ -31,6 +32,47 @@ export const name = 'vera-formula-validator';
 export const inject = ['tools', 'systemPrompt'];
 export function apply(ctx) {
     console.log('[vera-formula-validator] plugin loaded');
+    const commands = ctx.get('commands');
+    if (commands) {
+        commands.register({
+            name: 'excel-set',
+            description: '就地修改本地 Excel 文件的一个单元格（自动备份 .bak + 审计日志 + 公式体检）',
+            input: { hint: '{"path":"D:\\\\x.xlsx","cell":"Sheet1!A1","value":"..."}' },
+            handler: async (invocation) => {
+                try {
+                    const payload = JSON.parse(invocation.rawInput.trim());
+                    if (!payload.path || !payload.cell || payload.value === undefined) {
+                        return { kind: 'error', text: '需要 {"path","cell","value"}' };
+                    }
+                    const result = await applyInPlaceEdit(payload.path, payload.cell, payload.value);
+                    return {
+                        kind: 'success',
+                        text: `已就地保存 ${result.cell} = ${result.value}（备份 ${result.backupPath}，公式异常 ${result.anomalies}）`,
+                    };
+                }
+                catch (error) {
+                    return { kind: 'error', text: error instanceof Error ? error.message : String(error) };
+                }
+            },
+        });
+        commands.register({
+            name: 'excel-undo',
+            description: '回滚本地 Excel 文件最近一次就地修改',
+            input: { hint: '{"path":"D:\\\\x.xlsx"}' },
+            handler: async (invocation) => {
+                try {
+                    const payload = JSON.parse(invocation.rawInput.trim());
+                    if (!payload.path)
+                        return { kind: 'error', text: '需要 {"path"}' };
+                    const outcome = await revertInPlaceEdit(payload.path);
+                    return { kind: outcome.restored ? 'success' : 'error', text: outcome.message };
+                }
+                catch (error) {
+                    return { kind: 'error', text: error instanceof Error ? error.message : String(error) };
+                }
+            },
+        });
+    }
     ctx.systemPrompt.section({
         name: 'dsh-excel-chat:interaction',
         order: 150,
@@ -230,7 +272,7 @@ export function apply(ctx) {
                 maxRows: typeof args.maxRows === 'number' && args.maxRows > 0 ? args.maxRows : undefined,
             });
             // dsh requires lossless JSON: strip optional undefined fields explicitly.
-            return JSON.parse(JSON.stringify({ sheets }));
+            return JSON.parse(JSON.stringify({ path: args.path, sheets }));
         },
     }));
     ctx.tools.register(defineTool({

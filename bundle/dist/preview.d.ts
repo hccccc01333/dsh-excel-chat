@@ -4,6 +4,7 @@ export interface PreviewOptions {
     maxRows?: number;
 }
 export interface PreviewResult {
+    path: string;
     markdown: string;
     previewPath: string;
     summary: string;

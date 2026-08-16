@@ -41,6 +41,10 @@
 - 右侧 Web 面板升级为真 Excel 网格：客户端模块内嵌 `x-data-spreadsheet`
   （MIT，列标/行号/公式栏风格），`excel_preview` 返回结构化 `sheets` 供
   网格渲染；实机验证网格渲染成功（截图 assets/panel-preview.png）。
+- 就地实时编辑（M5）：插件注册 `/excel-set`、`/excel-undo` 命令，客户端经
+  `remote.commands` 直调——改单元格回车即**就地写本地文件**（自动备份
+  `.bak` + patch 审计 + 公式体检），面板提供“撤销本次修改”按钮按审计回滚；
+  `live-edit.test.ts` 覆盖磁盘级写回与恢复。
 
 ## v0.33.0 — 2026-08-15
 

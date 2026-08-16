@@ -24,7 +24,7 @@ const SUMMARY_TOOLS = new Set(['excel_insight', 'excel_operate', 'excel_autofix'
 /** Tools whose result carries repair diffs (old → new). */
 const DIFF_TOOLS = new Set(['excel_autofix', 'excel_task'])
 
-export const inject = ['slots']
+export const inject = ['slots', 'remote.commands']
 
 interface SpreadsheetInstance {
   loadData(data: unknown): void
@@ -40,6 +40,13 @@ const Spreadsheet = (
   ?? (XSpreadsheetModule as { default?: unknown }).default
   ?? XSpreadsheetModule
 ) as (el: HTMLElement, options: Record<string, unknown>) => SpreadsheetInstance
+
+interface CommandsRemote {
+  execute(sessionId: string, line: string): Promise<{ result: { kind: string; text?: string } }>
+}
+
+/** Set once by the client plugin body; used by the toolview for in-place edits. */
+let commandsRemote: CommandsRemote | null = null
 
 if (typeof document !== 'undefined' && document.querySelector('style[data-plugin="dsh-excel-chat"]') === null) {
   const style = document.createElement('style')
@@ -129,10 +136,12 @@ function SpreadsheetView({
       })
       ss.loadData(data)
       if (editable) {
-        ss.on('cell-edited', (_cell, rowIndex: number, colIndex: number) => {
+        ss.on('cell-edited', (editedCell, rowIndex: number, colIndex: number) => {
           const sheetName = sheets[0]?.sheet ?? 'Sheet1'
           const column = String.fromCharCode(65 + colIndex)
-          const text = ss.getCellText(rowIndex, colIndex)
+          const text = editedCell && typeof editedCell === 'object'
+            ? String((editedCell as { text?: unknown }).text ?? '')
+            : ''
           onCellEdited(`${sheetName}!${column}${rowIndex + 1}`, text)
         })
       }
@@ -222,6 +231,8 @@ function DiffFromResult(result: unknown): ReactNode {
 /** Toolview for one excel_* tool: spreadsheet grid, repair diff, or summary. */
 export function ExcelToolView(props: ToolCallViewProps): ReactNode {
   const { toolName, block, inputActions } = props
+  const [savedNote, setSavedNote] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
+  const [dataVersion, setDataVersion] = useState(0)
   const text = settledText(block)
   if (text === null) return null
   let parsed: unknown = null
@@ -234,21 +245,74 @@ export function ExcelToolView(props: ToolCallViewProps): ReactNode {
   if (TABLE_TOOLS.has(toolName) && parsed !== null) {
     const value = parsed as TableShape
     if (Array.isArray(value.sheets) && value.sheets.length > 0) {
+      const record = parsed as { path?: string; previewPath?: string }
+      const filePath = record.path ?? (typeof record.previewPath === 'string' ? record.previewPath.replace(/\.preview\.html$/i, '.xlsx') : undefined)
+      const inPlace = Boolean(filePath && commandsRemote)
+      const commitEdit = async (cellId: string, newValue: string) => {
+        if (!inPlace || !filePath) {
+          if (!newValue) return
+          const instruction = `请把 ${cellId} 的值改成 ${newValue}，用 excel_operate 的 set 执行，完成后用 excel_read 重新预览并回复“完成”。`
+          inputActions.setDraft(instruction)
+          inputActions.submit()
+          return
+        }
+        try {
+          const outcome = await commandsRemote!.execute(
+            String(props.sessionId),
+            `/excel-set ${JSON.stringify({ path: filePath, cell: cellId, value: newValue })}`,
+          )
+          const result = outcome.result
+          if (result.kind === 'success') {
+            setSavedNote({ kind: 'success', text: `已就地保存：${result.text ?? `${cellId} = ${newValue}`}` })
+          } else {
+            setSavedNote({ kind: 'error', text: `保存失败：${result.text ?? '未知错误'}` })
+          }
+        } catch (error) {
+          setSavedNote({ kind: 'error', text: `保存失败：${error instanceof Error ? error.message : String(error)}` })
+        }
+      }
+      const rollback = async () => {
+        if (!filePath || !commandsRemote) return
+        try {
+          const outcome = await commandsRemote!.execute(String(props.sessionId), `/excel-undo ${JSON.stringify({ path: filePath })}`)
+          const result = outcome.result
+          if (result.kind === 'success') {
+            setDataVersion((version) => version + 1)
+            setSavedNote({ kind: 'success', text: `已回滚：${result.text ?? ''}` })
+          } else {
+            setSavedNote({ kind: 'error', text: `回滚失败：${result.text ?? '未知错误'}` })
+          }
+        } catch (error) {
+          setSavedNote({ kind: 'error', text: `回滚失败：${error instanceof Error ? error.message : String(error)}` })
+        }
+      }
       return (
         <div>
           <SpreadsheetView
+            key={dataVersion}
             sheets={value.sheets}
-            editable={canEdit}
-            onCellEdited={(cellId, newValue) => {
-              if (!newValue) return
-              const instruction = `请把 ${cellId} 的值改成 ${newValue}，用 excel_operate 的 set 执行，完成后用 excel_read 重新预览并回复“完成”。`
-              inputActions.setDraft(instruction)
-              inputActions.submit()
-            }}
+            editable={canEdit || inPlace}
+            onCellEdited={commitEdit}
           />
-          {canEdit && (
+          {savedNote !== null && (
+            <div style={{ fontSize: 11, color: savedNote.kind === 'success' ? '#15803d' : '#b91c1c', marginTop: 6 }}>
+              {savedNote.text}
+            </div>
+          )}
+          {(canEdit || inPlace) && (
             <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>
-              改完直接回车：变更会通过对话让 agent 执行 set 并重新预览
+              {inPlace
+                ? '改完回车 = 就地保存本地文件（自动备份 .bak，可撤销）'
+                : '改完回车：变更会通过对话让 agent 执行 set 并重新预览'}
+              {inPlace && (
+                <button
+                  type="button"
+                  onClick={() => { void rollback() }}
+                  style={{ marginLeft: 10, fontSize: 11, cursor: 'pointer' }}
+                >
+                  撤销本次修改
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -279,6 +343,7 @@ export function ExcelToolView(props: ToolCallViewProps): ReactNode {
 
 /** Client plugin body: register the excel_* toolviews into the details column. */
 export function apply(ctx: ClientContext): void {
+  commandsRemote = (ctx.get('remote.commands') as CommandsRemote | undefined) ?? null
   for (const tool of [...TABLE_TOOLS, ...SUMMARY_TOOLS]) {
     ctx.effect(
       () => ctx.slots.inject('tool.call.toolview', () => ctx.slots.register(

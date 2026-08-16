@@ -104,3 +104,20 @@ web 布局插件（`dsh-client-ui-layout`）声明了**右侧详情列 slot `det
 实机验证（2026-08-16）：对话中 `excel_read` / `excel_preview` 的工具行渲染出
 `.x-spreadsheet` 网格（`hasXspreadsheet` / 列头均存在，无运行时错误），截图
 `assets/panel-preview.png`。
+
+## 就地实时编辑 + 回滚（M5，2026-08-16）
+
+面板编辑不再依赖 agent 回路：客户端经 `remote.commands` 直调插件注册的
+**slash 命令**，就地修改本地文件：
+
+- `/excel-set {"path","cell","value"}`：先备份 `<path>.bak`，就地写入原文件，
+  写 patch 审计日志（`<path>.patch.json`），返回公式体检异常数；
+- `/excel-undo {"path"}`：按审计日志回滚最近一次就地修改。
+
+面板：编辑回车 = 就地保存（提示“已就地保存…备份…”），并显示
+**“撤销本次修改”**按钮；回滚后网格用原始数据重新渲染。
+
+实机验证：网格 + “就地保存本地文件”提示 + 撤销按钮均渲染；就地读写/回滚由
+`tests/live-edit.test.ts` 单元测试覆盖（文件在磁盘上真实变化并恢复）。
+自动化点击 canvas 编辑器在无头环境下不稳定（x-data-spreadsheet 的画布交互），
+真人点按即可完成一次编辑。
