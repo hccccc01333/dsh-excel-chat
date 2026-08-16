@@ -54,7 +54,7 @@ export async function runAgentTask(path, options) {
                 previousResult = undefined;
                 continue;
             }
-            throw error;
+            throw new Error(`${message}（第 ${round} 轮计划：${summarizePlanOps(plan ?? [])}）`);
         }
         const roundOut = join(dir, `round-${round}.xlsx`);
         let result;
@@ -69,7 +69,7 @@ export async function runAgentTask(path, options) {
                 previousResult = undefined;
                 continue;
             }
-            throw error;
+            throw new Error(`${message}（第 ${round} 轮计划：${summarizePlanOps(plan)}）`);
         }
         const afterProfile = await profileWorkbook(result.outputPath);
         const afterValidation = await validateWorkbookFile(result.outputPath);
@@ -108,6 +108,20 @@ function summarizeProfile(profile) {
         const headers = sheet.columns.filter((column) => column.header).map((column) => column.header).slice(0, 8).join(' / ');
         return `${sheet.sheet}：${sheet.dataRows} 行 × ${sheet.columnCount} 列${headers ? `，表头 ${headers}` : ''}`;
     }).join('；');
+}
+function summarizePlanOps(steps) {
+    const parts = [];
+    for (const step of steps) {
+        for (const operation of step.operations) {
+            const record = operation;
+            const keys = ['range', 'source', 'target', 'start', 'sheet', 'column', 'groupColumn', 'metrics', 'summaryColumns', 'keys', 'criteria', 'filter', 'cells'];
+            const args = keys
+                .filter((key) => record[key] !== undefined)
+                .map((key) => `${key}=${JSON.stringify(record[key])}`);
+            parts.push(`${operation.op}${args.length > 0 ? `(${args.join(',')})` : ''}`);
+        }
+    }
+    return parts.join(' -> ');
 }
 async function cellSnapshotOf(path, limit = 80) {
     const cells = await readWorkbookCells(await readFile(path));

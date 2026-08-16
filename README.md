@@ -52,6 +52,14 @@ dsh plugin --profile demo add dsh-excel-chat          # 从 npm 安装
 dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
 ```
 
+装完先自检一次，确认宿主包隔离和引擎都正常：
+
+```sh
+dsh-excel-chat-doctor                                  # npm 全局/npx 可用时
+# 或 profile 内直接跑：
+# ~/.dsh/profiles/demo/node_modules/.bin/dsh-excel-chat-doctor
+```
+
 装完直接聊，例如：
 
 > 帮我把 report.xlsx 做成报表：D 列是毛利（收入减成本），E 列加合计，
@@ -100,6 +108,7 @@ dsh web --profile demo                             # 打开对话界面
 | `excel_undo` | 按 `excel_operate` 自动生成的 `.patch.json` 审计日志回滚编辑 |
 | `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复（`useLlm` / `autoTable` / `oraclePath` / `outPath`），输出修复副本并复验 |
 | `excel_autofix` | 一键自愈闭环：体检 → 确定性修复（可选 LLM）→ 复检 → 人话汇报，输出修复副本 |
+| `excel_health_report` | 把公式体检报告写进工作簿本身：隐藏「_dsh_体检报告」表，含健康分、异常清单、生成时间，报告跟着文件走 |
 | `excel_diff_workbook` | 两个 workbook 的单元格级 diff |
 | `excel_operate` | 精细化 Excel 操作：写值、填充/序列、行列增删、复制/移动、排序、`report` 一键报表模板（排序+汇总+动态透视+筛选+样式+冻结+格式）、分类汇总、动态透视报表、高级筛选、样式（字号/字体/边框）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、命名区域、冻结窗格、查找替换、工作表保护（细化权限）、邮件合并、工作表管理、合并、数据清洗（去重/填充缺失/删空行空列/去空格/大小写转换/全角半角标准化/分列）、整行条件高亮（highlightRows）、两表模糊匹配（fuzzyMatch）；操作后自动复验公式并写审计日志 |
 | `excel_validate_charts` | 图表结构校验：类型、系列、缺失单元格、二维范围、日期排序 |

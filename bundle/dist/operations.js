@@ -1550,6 +1550,22 @@ function fillSeries(workbook, startId, targetRange, step) {
     if (startParsed.row !== range.startRow || startCol !== range.startCol) {
         throw new Error('fillSeries start cell must be the top-left cell of the target range');
     }
+    const startContent = cellContentOf(startCell);
+    if (startContent.startsWith('=')) {
+        for (let row = range.startRow; row <= range.endRow; row++) {
+            for (let col = range.startCol; col <= range.endCol; col++) {
+                if (row === startParsed.row && col === startCol)
+                    continue;
+                const cell = range.sheet.getCell(`${numberToColumn(col)}${row}`);
+                const shifted = shiftFormulaReferences(startContent, startParsed.sheet, null, {
+                    rowDelta: row - startParsed.row,
+                    colDelta: col - startCol,
+                });
+                writeContent(cell, shifted);
+            }
+        }
+        return;
+    }
     const base = typeof startCell.value === 'number'
         ? startCell.value
         : startCell.value instanceof Date

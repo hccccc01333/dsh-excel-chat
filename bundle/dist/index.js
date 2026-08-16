@@ -8,7 +8,9 @@ import { createChartWithExcel, exportChartsWithExcel, modifyChartWithExcel, } fr
 import { readChartInfos } from './charts.js';
 import { compileFormula } from './compiler.js';
 import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.js';
+import { runDoctorChecks } from './doctor.js';
 import { buildWorkbookInsight } from './insight.js';
+import { writeWorkbookHealthReport } from './health-report.js';
 import { explainFormula, readCellContent } from './explain.js';
 import { applyInPlaceEdit, revertInPlaceEdit } from './live-edit.js';
 import { createLlmPlanner } from './llm-planner.js';
@@ -66,6 +68,23 @@ export function apply(ctx) {
                         return { kind: 'error', text: '需要 {"path"}' };
                     const outcome = await revertInPlaceEdit(payload.path);
                     return { kind: outcome.restored ? 'success' : 'error', text: outcome.message };
+                }
+                catch (error) {
+                    return { kind: 'error', text: error instanceof Error ? error.message : String(error) };
+                }
+            },
+        });
+        commands.register({
+            name: 'excel-doctor',
+            description: '安装自检：检查宿主包隔离、Node 版本与 Excel 引擎冒烟',
+            input: { hint: '可选：{"profile":"D:\\\\profile目录"}' },
+            handler: async (invocation) => {
+                try {
+                    const payload = JSON.parse(invocation.rawInput.trim() || '{}');
+                    const checks = await runDoctorChecks({ profileDirs: payload.profile ? [payload.profile] : [] });
+                    const lines = checks.map((check) => `${check.ok ? '✅' : '❌'} ${check.name}: ${check.detail}`);
+                    const failed = checks.filter((check) => !check.ok).length;
+                    return { kind: failed === 0 ? 'success' : 'error', text: lines.join('\n') };
                 }
                 catch (error) {
                     return { kind: 'error', text: error instanceof Error ? error.message : String(error) };
@@ -663,6 +682,28 @@ export function apply(ctx) {
                 return await repairWorkbookFile(args.path, advisor, cells, oracleCells, outputPath);
             }
             return await repairWorkbookFile(args.path, undefined, undefined, oracleCells, outputPath);
+        },
+    }));
+    ctx.tools.register(defineTool({
+        name: 'excel_health_report',
+        description: 'Write a formula health report INTO the workbook itself: a hidden `_dsh_体检报告` sheet with a health score (100 minus 10 per anomaly), formula/anomaly counts, and one row per anomaly (cell/kind/reason). The file carries its own audit trail. Call after excel_autofix / excel_task or when the user wants the report to travel with the file.',
+        parameters: {
+            path: {
+                type: 'string',
+                required: true,
+                description: 'Absolute path to an .xlsx file.',
+            },
+            outPath: {
+                type: 'string',
+                description: 'Output .xlsx path (default: write in place).',
+            },
+        },
+        output: {
+            schema: { type: 'object', additionalProperties: true },
+            render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+        },
+        async execute(args) {
+            return await writeWorkbookHealthReport(args.path, typeof args.outPath === 'string' && args.outPath ? args.outPath : undefined);
         },
     }));
     ctx.tools.register(defineTool({

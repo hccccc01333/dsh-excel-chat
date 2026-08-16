@@ -20,6 +20,14 @@ dsh web --profile demo
 
 锁定版本：`dsh plugin --profile demo add dsh-excel-chat@0.23.1`（不写版本默认 latest）。
 
+装完先自检一次（检查宿主包隔离 + 引擎冒烟，装坏了一跑就知道）：
+
+```sh
+dsh-excel-chat-doctor
+# 或：~/.dsh/profiles/demo/node_modules/.bin/dsh-excel-chat-doctor
+# 对话里也可以直接发 /excel-doctor
+```
+
 ## 2. 一分钟开始
 
 打开对话后，直接说：
@@ -46,6 +54,7 @@ agent 会自动调用工具完成，并把结果文件路径告诉你。
 | `excel_compile_formula` | 语义 Formula IR（binary/ratio/aggregate/function）→ 确定性公式 |
 | `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复，输出修复副本并复验 |
 | `excel_autofix` | 一键自愈：体检 → 确定性修复（可选 LLM）→ 复检 → 人话汇报 |
+| `excel_health_report` | 把公式体检报告写进工作簿本身（隐藏「_dsh_体检报告」表：健康分 + 异常清单），报告跟着文件走 |
 | `excel_operate` | 30+ 种精细化操作：写值、填充/序列、行列增删、复制/移动、排序、分类汇总、动态透视报表、高级筛选、样式（字号/边框）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、命名区域、冻结窗格、查找替换、工作表保护、邮件合并、工作表管理、合并、数据清洗（去重/填缺失/删空行空列/去空格/大小写/全角半角/分列）、整行条件高亮、两表模糊匹配；自动写审计日志 |
 | `excel_undo` | 按审计日志回滚一次 `excel_operate` 编辑 |
 | `excel_diff_workbook` | 两个 workbook 的单元格级差异 |

@@ -15,7 +15,9 @@ import {
 import { readChartInfos } from './charts.ts'
 import { compileFormula } from './compiler.ts'
 import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.ts'
+import { runDoctorChecks } from './doctor.ts'
 import { buildWorkbookInsight } from './insight.ts'
+import { writeWorkbookHealthReport } from './health-report.ts'
 import { explainFormula, readCellContent } from './explain.ts'
 import { applyInPlaceEdit, revertInPlaceEdit } from './live-edit.ts'
 import { createLlmPlanner } from './llm-planner.ts'
@@ -83,6 +85,22 @@ export function apply(ctx: Context) {
           if (!payload.path) return { kind: 'error', text: '需要 {"path"}' }
           const outcome = await revertInPlaceEdit(payload.path)
           return { kind: outcome.restored ? 'success' : 'error', text: outcome.message }
+        } catch (error) {
+          return { kind: 'error', text: error instanceof Error ? error.message : String(error) }
+        }
+      },
+    })
+    commands.register({
+      name: 'excel-doctor',
+      description: '安装自检：检查宿主包隔离、Node 版本与 Excel 引擎冒烟',
+      input: { hint: '可选：{"profile":"D:\\\\profile目录"}' },
+      handler: async (invocation) => {
+        try {
+          const payload = JSON.parse(invocation.rawInput.trim() || '{}') as { profile?: string }
+          const checks = await runDoctorChecks({ profileDirs: payload.profile ? [payload.profile] : [] })
+          const lines = checks.map((check) => `${check.ok ? '✅' : '❌'} ${check.name}: ${check.detail}`)
+          const failed = checks.filter((check) => !check.ok).length
+          return { kind: failed === 0 ? 'success' : 'error', text: lines.join('\n') }
         } catch (error) {
           return { kind: 'error', text: error instanceof Error ? error.message : String(error) }
         }
@@ -696,6 +714,31 @@ export function apply(ctx: Context) {
         return await repairWorkbookFile(args.path as string, advisor, cells, oracleCells, outputPath) as unknown as JsonRecord
       }
       return await repairWorkbookFile(args.path as string, undefined, undefined, oracleCells, outputPath) as unknown as JsonRecord
+    },
+  }))
+  ctx.tools.register(defineTool({
+    name: 'excel_health_report',
+    description: 'Write a formula health report INTO the workbook itself: a hidden `_dsh_体检报告` sheet with a health score (100 minus 10 per anomaly), formula/anomaly counts, and one row per anomaly (cell/kind/reason). The file carries its own audit trail. Call after excel_autofix / excel_task or when the user wants the report to travel with the file.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      outPath: {
+        type: 'string',
+        description: 'Output .xlsx path (default: write in place).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      return await writeWorkbookHealthReport(
+        args.path as string,
+        typeof args.outPath === 'string' && args.outPath ? args.outPath : undefined,
+      ) as unknown as JsonRecord
     },
   }))
   ctx.tools.register(defineTool({

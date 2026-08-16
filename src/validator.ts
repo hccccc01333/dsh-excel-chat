@@ -17,10 +17,21 @@ export interface ValidationResult {
   errors: Array<{ id: string; message: string }>
 }
 
+/** Skip plugin-owned internal sheets (e.g. `_dsh_体检报告`) so a health
+ * report never flags itself or pollutes user-facing validation. */
+function isInternalSheetCell(id: string): boolean {
+  const bang = id.lastIndexOf('!')
+  if (bang < 0) return false
+  return id.slice(0, bang).replace(/^'|'$/g, '').toUpperCase().startsWith('_DSH_')
+}
+
 export function validate(cells: Record<string, string>): ValidationResult {
+  const owned = Object.fromEntries(
+    Object.entries(cells).filter(([id]) => !isInternalSheetCell(id)),
+  )
   const formulaEntries: Array<{ id: string; formula: string }> = []
   const errors: Array<{ id: string; message: string }> = []
-  for (const [id, content] of Object.entries(cells)) {
+  for (const [id, content] of Object.entries(owned)) {
     const trimmed = content.trim()
     if (!trimmed.startsWith('=')) continue
     formulaEntries.push({ id, formula: trimmed })
@@ -34,12 +45,12 @@ export function validate(cells: Record<string, string>): ValidationResult {
     dependencyGraph = { edges: [], successors: {}, predecessors: {}, cycles: [] }
   }
 
-  const columns = detectPatternAnomalies(cells)
+  const columns = detectPatternAnomalies(owned)
   const anomalies: PatternAnomaly[] = [
     ...columns.flatMap((column) => column.anomalies),
-    ...detectHardcodeBreaks(cells),
-    ...detectEmptyGaps(cells),
-    ...detectErrorValues(cells),
+    ...detectHardcodeBreaks(owned),
+    ...detectEmptyGaps(owned),
+    ...detectErrorValues(owned),
   ]
   for (const cycle of dependencyGraph.cycles) {
     anomalies.push({
@@ -53,7 +64,7 @@ export function validate(cells: Record<string, string>): ValidationResult {
   }
 
   return {
-    cellCount: Object.keys(cells).length,
+    cellCount: Object.keys(owned).length,
     formulaCount: formulaEntries.length,
     dependencyGraph,
     columns,

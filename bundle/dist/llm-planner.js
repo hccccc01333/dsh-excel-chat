@@ -83,6 +83,9 @@ export function createLlmPlanner(llm) {
                 '必须以单元格快照中的具体证据为准：目标要求的值/公式/样式/结构能在快照中看到才算达成；',
                 '公式异常未清零、关键结果缺失、或快照中没有对应证据时一律返回 achieved:false 并说明缺什么。',
                 '如果本轮计划执行后文件几乎没变（快照与目标明显不符），必须返回 false。',
+                '验证步骤：先把用户目标拆成可检查点（每条要求一条），再逐条对照快照找证据；',
+                '每一条都要有明确证据才可返回 achieved:true，任何一条缺证据就返回 false 并指出缺哪条。',
+                '例如目标“按区域汇总金额”→ 证据应是区域字段、金额字段、SUMIFS/汇总公式和汇总表都在快照中可见。',
             ].join('\n');
             const text = await llm(prompt);
             const parsed = JSON.parse(stripFence(text));

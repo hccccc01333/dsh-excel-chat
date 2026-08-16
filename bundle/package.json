@@ -6,6 +6,9 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "dsh-excel-chat-doctor": "./bin/doctor.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -28,6 +31,7 @@
   "files": [
     "dist",
     "dist-client",
+    "bin",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
