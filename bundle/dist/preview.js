@@ -57,8 +57,8 @@ export async function buildWorkbookPreview(path, options = {}) {
         cells: entry.cells.map((cell) => ({
             id: cell.id,
             value: cell.value,
-            formula: cell.formula,
-            type: cell.type,
+            ...(cell.formula === undefined ? {} : { formula: cell.formula }),
+            ...(cell.type === undefined ? {} : { type: cell.type }),
         })),
     }));
     return { path, markdown, previewPath, summary, sheets };

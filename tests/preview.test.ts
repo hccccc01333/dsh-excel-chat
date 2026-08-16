@@ -53,3 +53,25 @@ test('buildWorkbookPreview honors maxRows and escapes pipes', async () => {
   const escaped = await buildWorkbookPreview(pipePath)
   assert.ok(escaped.markdown.includes('a\\|b'))
 })
+
+test('buildWorkbookPreview result is lossless JSON for the dsh harness', async () => {
+  const path = await makeWorkbook(3)
+  const result = await buildWorkbookPreview(path, { sheet: '订单' })
+  const seen = new Set<object>()
+  const walk = (value: unknown): void => {
+    if (value === null || typeof value !== 'object') return
+    assert.ok(!seen.has(value), 'circular reference')
+    seen.add(value)
+    for (const [key, child] of Object.entries(value)) {
+      assert.notEqual(child, undefined, `field ${key} must not be undefined`)
+      walk(child)
+    }
+  }
+  walk(result)
+  for (const sheet of result.sheets) {
+    for (const cell of sheet.cells) {
+      if (cell.formula === undefined) continue
+      assert.match(cell.formula, /^=/, `formula ${cell.formula} must start with =`)
+    }
+  }
+})

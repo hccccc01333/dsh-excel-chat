@@ -67,6 +67,13 @@ interface RepairLike {
   newValue?: unknown
 }
 
+interface MenuSuggestionLike {
+  id?: unknown
+  title?: unknown
+  description?: unknown
+  example?: unknown
+}
+
 function settledText(block: ToolCallViewProps['block']): string | null {
   if (!('kind' in block)) return null
   const parts = block.content.map((item) => (item.type === 'text' ? item.text : JSON.stringify(item)))
@@ -228,6 +235,64 @@ function DiffFromResult(result: unknown): ReactNode {
   return nodes.length > 0 ? <div>{nodes}</div> : null
 }
 
+/** Rendered capability menu for excel_menu results. */
+function MenuFromResult(result: unknown): ReactNode {
+  const record = result as Record<string, unknown>
+  const suggestions = Array.isArray(record.suggestions) ? (record.suggestions as MenuSuggestionLike[]) : []
+  const items = suggestions
+    .map((suggestion, index) => ({
+      id: String(suggestion.id ?? index + 1),
+      title: String(suggestion.title ?? ''),
+      description: String(suggestion.description ?? ''),
+      example: String(suggestion.example ?? ''),
+    }))
+    .filter((item) => item.title !== '')
+  const summary = typeof record.summary === 'string' ? record.summary : ''
+  const nodes: ReactNode[] = []
+  if (summary) nodes.push(<pre key="summary" style={{ fontSize: 12, whiteSpace: 'pre-wrap', margin: '0 0 8px' }}>{summary}</pre>)
+  nodes.push(
+    <ol key="menu" style={{ margin: 0, paddingLeft: 18, fontSize: 12 }}>
+      {items.map((item) => (
+        <li key={item.id} style={{ marginBottom: 6 }}>
+          <div style={{ fontWeight: 600 }}>{item.title}</div>
+          <div style={{ color: '#6b7280' }}>{item.description}</div>
+          {item.example && <div style={{ color: '#2563eb', fontFamily: 'monospace' }}>例：{item.example}</div>}
+        </li>
+      ))}
+    </ol>,
+  )
+  return <div>{nodes}</div>
+}
+
+/** Rendered findings list for excel_insight results. */
+function InsightFromResult(result: unknown): ReactNode {
+  const record = result as Record<string, unknown>
+  const sheets = Array.isArray(record.sheets) ? record.sheets as Array<Record<string, unknown>> : []
+  const findings: Array<{ severity: string; message: string }> = []
+  for (const sheet of sheets) {
+    const list = Array.isArray(sheet.findings) ? sheet.findings as Array<Record<string, unknown>> : []
+    for (const finding of list) {
+      findings.push({
+        severity: String(finding.severity ?? 'info'),
+        message: String(finding.message ?? ''),
+      })
+    }
+  }
+  const suggestions = Array.isArray(record.suggestions) ? (record.suggestions as unknown[]) : []
+  const nodes: ReactNode[] = []
+  if (typeof record.summary === 'string') {
+    nodes.push(<pre key="summary" style={{ fontSize: 12, whiteSpace: 'pre-wrap', margin: '0 0 8px' }}>{record.summary}</pre>)
+  }
+  for (const finding of findings) {
+    const color = finding.severity === 'alert' ? '#b91c1c' : finding.severity === 'warn' ? '#b45309' : '#1f2937'
+    nodes.push(<div key={finding.message} style={{ fontSize: 12, color, marginBottom: 4 }}>• {finding.message}</div>)
+  }
+  if (suggestions.length > 0) {
+    nodes.push(<pre key="suggestions" style={{ fontSize: 12, whiteSpace: 'pre-wrap', margin: '8px 0 0' }}>{suggestions.join('\n')}</pre>)
+  }
+  return nodes.length > 0 ? <div>{nodes}</div> : null
+}
+
 /** Toolview for one excel_* tool: spreadsheet grid, repair diff, or summary. */
 export function ExcelToolView(props: ToolCallViewProps): ReactNode {
   const { toolName, block, inputActions } = props
@@ -325,6 +390,14 @@ export function ExcelToolView(props: ToolCallViewProps): ReactNode {
   if (DIFF_TOOLS.has(toolName) && parsed !== null && typeof parsed === 'object') {
     const diff = DiffFromResult(parsed)
     if (diff !== null) return diff
+  }
+  if (toolName === 'excel_menu' && parsed !== null && typeof parsed === 'object') {
+    const menu = MenuFromResult(parsed)
+    if (menu !== null) return menu
+  }
+  if (toolName === 'excel_insight' && parsed !== null && typeof parsed === 'object') {
+    const insight = InsightFromResult(parsed)
+    if (insight !== null) return insight
   }
   if (SUMMARY_TOOLS.has(toolName) && parsed !== null && typeof parsed === 'object') {
     const record = parsed as Record<string, unknown>

@@ -13,6 +13,19 @@
 
 ![dsh-excel-chat 真实演示（DeepSeek Harness Web + 真实模型录制）](assets/demo.gif)
 
+## 功能实录（对话内真实截图）
+
+| 能力菜单：给文件就给你选项 | 数据洞察：自动发现数据问题 |
+| --- | --- |
+| ![excel_menu 能力菜单](assets/feature-menu.png) | ![excel_insight 数据洞察](assets/feature-insight.png) |
+
+| 表格预览：对话内真网格 | 公式体检 + 自动修复：差异一目了然 |
+| --- | --- |
+| ![excel_preview 表格预览](assets/feature-preview.png) | ![excel_autofix 自动修复](assets/feature-autofix.png) |
+
+四张截图都是 DeepSeek Harness Web 里真实模型调用工具后，在消息流工具行内
+渲染出的结果：能力菜单、问题清单、可编辑表格、修复前后差异。
+
 ## 架构
 
 ```mermaid

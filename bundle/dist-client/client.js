@@ -8796,6 +8796,97 @@ window.__ModuleLoader__.load({
 			}
 			return nodes.length > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { children: nodes }) : null;
 		}
+		/** Rendered capability menu for excel_menu results. */
+		function MenuFromResult(result) {
+			const record = result;
+			const items = (Array.isArray(record.suggestions) ? record.suggestions : []).map((suggestion, index) => ({
+				id: String(suggestion.id ?? index + 1),
+				title: String(suggestion.title ?? ""),
+				description: String(suggestion.description ?? ""),
+				example: String(suggestion.example ?? "")
+			})).filter((item) => item.title !== "");
+			const summary = typeof record.summary === "string" ? record.summary : "";
+			const nodes = [];
+			if (summary) nodes.push(/* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
+				style: {
+					fontSize: 12,
+					whiteSpace: "pre-wrap",
+					margin: "0 0 8px"
+				},
+				children: summary
+			}, "summary"));
+			nodes.push(/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ol", {
+				style: {
+					margin: 0,
+					paddingLeft: 18,
+					fontSize: 12
+				},
+				children: items.map((item) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
+					style: { marginBottom: 6 },
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							style: { fontWeight: 600 },
+							children: item.title
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							style: { color: "#6b7280" },
+							children: item.description
+						}),
+						item.example && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							style: {
+								color: "#2563eb",
+								fontFamily: "monospace"
+							},
+							children: ["例：", item.example]
+						})
+					]
+				}, item.id))
+			}, "menu"));
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { children: nodes });
+		}
+		/** Rendered findings list for excel_insight results. */
+		function InsightFromResult(result) {
+			const record = result;
+			const sheets = Array.isArray(record.sheets) ? record.sheets : [];
+			const findings = [];
+			for (const sheet of sheets) {
+				const list = Array.isArray(sheet.findings) ? sheet.findings : [];
+				for (const finding of list) findings.push({
+					severity: String(finding.severity ?? "info"),
+					message: String(finding.message ?? "")
+				});
+			}
+			const suggestions = Array.isArray(record.suggestions) ? record.suggestions : [];
+			const nodes = [];
+			if (typeof record.summary === "string") nodes.push(/* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
+				style: {
+					fontSize: 12,
+					whiteSpace: "pre-wrap",
+					margin: "0 0 8px"
+				},
+				children: record.summary
+			}, "summary"));
+			for (const finding of findings) {
+				const color = finding.severity === "alert" ? "#b91c1c" : finding.severity === "warn" ? "#b45309" : "#1f2937";
+				nodes.push(/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					style: {
+						fontSize: 12,
+						color,
+						marginBottom: 4
+					},
+					children: ["• ", finding.message]
+				}, finding.message));
+			}
+			if (suggestions.length > 0) nodes.push(/* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
+				style: {
+					fontSize: 12,
+					whiteSpace: "pre-wrap",
+					margin: "8px 0 0"
+				},
+				children: suggestions.join("\n")
+			}, "suggestions"));
+			return nodes.length > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { children: nodes }) : null;
+		}
 		/** Toolview for one excel_* tool: spreadsheet grid, repair diff, or summary. */
 		function ExcelToolView(props) {
 			const { toolName, block, inputActions } = props;
@@ -8912,6 +9003,14 @@ window.__ModuleLoader__.load({
 			if (DIFF_TOOLS.has(toolName) && parsed !== null && typeof parsed === "object") {
 				const diff = DiffFromResult(parsed);
 				if (diff !== null) return diff;
+			}
+			if (toolName === "excel_menu" && parsed !== null && typeof parsed === "object") {
+				const menu = MenuFromResult(parsed);
+				if (menu !== null) return menu;
+			}
+			if (toolName === "excel_insight" && parsed !== null && typeof parsed === "object") {
+				const insight = InsightFromResult(parsed);
+				if (insight !== null) return insight;
 			}
 			if (SUMMARY_TOOLS.has(toolName) && parsed !== null && typeof parsed === "object") {
 				const record = parsed;
