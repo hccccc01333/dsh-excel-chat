@@ -145,7 +145,9 @@ export function sanitizePlan(steps: PlanStep[], sheetNames: string[]): Sanitized
       if (operation.op === 'fill' || operation.op === 'fillSeries') {
         const start = raw.start ?? raw.source
         const target = raw.target
-        const targetBody = typeof target === 'string' && target.includes('!') ? target.slice(target.lastIndexOf('!') + 1) : target
+        const targetBody = typeof target === 'string'
+          ? (target.includes('!') ? target.slice(target.lastIndexOf('!') + 1) : target)
+          : ''
         if (typeof start === 'string' && typeof target === 'string' && !targetBody.includes(':') && CELL_OR_RANGE.test(targetBody)) {
           raw.target = `${start}:${targetBody}`
           notes.push(`${operation.op} 的 target 已扩展为 ${start}:${targetBody}`)
