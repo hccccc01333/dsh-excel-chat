@@ -1,5 +1,6 @@
 import type { ExcelOperation } from './operations.ts';
 import { type TaskResult } from './task.ts';
+import { type WorkbookAssertion, type WorkbookVerification } from './verifier.ts';
 export interface PlanStep {
     name?: string;
     operations: ExcelOperation[];
@@ -38,6 +39,7 @@ export interface AgentRoundResult {
         achieved: boolean;
         reason: string;
     };
+    deterministicVerification?: WorkbookVerification;
 }
 export interface AgentTaskResult {
     outputPath: string;
@@ -57,5 +59,7 @@ export declare function runAgentTask(path: string, options: {
     planner: AgentPlanner;
     maxRounds?: number;
     outPath?: string;
+    /** Optional hard assertions used by deterministic benchmark/replay callers. */
+    deterministicAssertions?: WorkbookAssertion[];
 }): Promise<AgentTaskResult>;
 //# sourceMappingURL=agent.d.ts.map

@@ -1,0 +1,27 @@
+{
+  "goal": "把订单表头加粗，并把金额空值补为 0",
+  "plan": [
+    {
+      "name": "补空和加粗",
+      "operations": [
+        {
+          "op": "fillMissing",
+          "range": "订单!A2:B3",
+          "mode": "value",
+          "value": 0
+        },
+        {
+          "op": "style",
+          "range": "订单!A1:B1",
+          "style": {
+            "bold": true
+          }
+        }
+      ]
+    }
+  ],
+  "assertions": [
+    { "id": "订单!B3", "expect": "0" },
+    { "id": "订单!A1", "bold": true }
+  ]
+}

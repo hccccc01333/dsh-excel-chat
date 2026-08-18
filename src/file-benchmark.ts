@@ -1,29 +1,15 @@
 import { readFile, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import ExcelJS from 'exceljs'
 import { autofixWorkbookFile } from './autofix.ts'
 import { applyOperationsToWorkbook, type ExcelOperation } from './operations.ts'
 import { validate } from './validator.ts'
-import { normalizeCellId } from './score.ts'
-import { readWorkbookCells, stripPivotTableParts } from './workbook.ts'
+import { verifyWorkbookAssertions, type WorkbookAssertion } from './verifier.ts'
+import { readWorkbookCells } from './workbook.ts'
 
 export type FileBenchmarkCategory = 'formula' | 'editing' | 'analysis' | 'workflow'
 
-export interface FileCheck {
-  /** Cell id in the output workbook, e.g. "订单!D4". */
-  id: string
-  /** Expected exact cell content; null means the cell must be absent. */
-  expect?: string | null
-  /** Expected cell-content prefix (for formulas like "=SUMIFS("). */
-  startsWith?: string
-  /** Style assertions, evaluated by loading the output workbook. */
-  fill?: string
-  bold?: boolean
-  numberFormat?: string
-  wrapText?: boolean
-  hAlign?: string
-}
+export type FileCheck = WorkbookAssertion
 
 export interface FileBenchmarkTask {
   id: string
@@ -70,34 +56,8 @@ export interface CheckResult {
 
 /** Evaluate a task's checks against an output workbook (shared by offline and LLM runners). */
 export async function evaluateTaskChecks(task: FileBenchmarkTask, outputPath: string): Promise<CheckResult> {
-  const cells = await readWorkbookCells(await readFile(outputPath))
-  const styleChecks = task.checks.filter((check) => check.fill !== undefined || check.bold !== undefined || check.numberFormat !== undefined || check.wrapText !== undefined || check.hAlign !== undefined)
-  const styleCells = styleChecks.length > 0 ? await loadStyleCells(outputPath) : null
-  let checksPassed = 0
-  for (const check of task.checks) {
-    const normalized = normalizeCellId(check.id)
-    const actual = cells[normalized] ?? cells[findKey(cells, normalized) ?? '']
-    if (check.expect !== undefined) {
-      const exists = actual !== undefined && actual !== ''
-      if (check.expect === null ? !exists : actual === check.expect) checksPassed += 1
-      continue
-    }
-    if (check.startsWith !== undefined) {
-      if (typeof actual === 'string' && actual.startsWith(check.startsWith)) checksPassed += 1
-      continue
-    }
-    const cell = styleCells?.get(normalized)
-    if (!cell) continue
-    if (check.fill !== undefined) {
-      const argb = cell.fill?.type === 'pattern' ? (cell.fill.fgColor as { argb?: string } | undefined)?.argb?.toUpperCase() : undefined
-      if (argb?.endsWith(check.fill.toUpperCase())) checksPassed += 1
-    }
-    if (check.bold !== undefined && (cell.font?.bold ?? false) === check.bold) checksPassed += 1
-    if (check.numberFormat !== undefined && cell.numFmt === check.numberFormat) checksPassed += 1
-    if (check.wrapText !== undefined && (cell.alignment?.wrapText ?? false) === check.wrapText) checksPassed += 1
-    if (check.hAlign !== undefined && cell.alignment?.horizontal === check.hAlign) checksPassed += 1
-  }
-  return { passed: checksPassed, total: task.checks.length }
+  const verification = await verifyWorkbookAssertions(outputPath, task.checks)
+  return { passed: verification.passed, total: verification.total }
 }
 
 /**
@@ -170,22 +130,4 @@ export async function runFileBenchmark(tasks: FileBenchmarkTask[]): Promise<File
     categories,
     tasks: results,
   }
-}
-
-async function loadStyleCells(path: string): Promise<Map<string, ExcelJS.Cell>> {
-  const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(stripPivotTableParts(await readFile(path)) as any)
-  const cells = new Map<string, ExcelJS.Cell>()
-  workbook.eachSheet((sheet) => {
-    sheet.eachRow({ includeEmpty: false }, (row) => {
-      row.eachCell({ includeEmpty: false }, (cell) => {
-        cells.set(normalizeCellId(`${sheet.name}!${cell.address}`), cell)
-      })
-    })
-  })
-  return cells
-}
-
-function findKey(cells: Record<string, string>, normalized: string): string | undefined {
-  return Object.keys(cells).find((key) => normalizeCellId(key) === normalized)
 }

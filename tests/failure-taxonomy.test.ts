@@ -140,13 +140,13 @@ function cellTask(expectValue: string): FileBenchmarkTask {
   }
 }
 
-test('runLlmTask classifies a verifier false positive end-to-end', async () => {
+test('runLlmTask hard-gates a verifier false positive with deterministic assertions', async () => {
   const task = cellTask('x')
   const planner = plannerReturning([{ operations: [{ op: 'set', cells: { '订单!A1': 'WRONG' } }] }])
   const result = await runLlmTask(task, { planner, maxRounds: 2 })
   assert.equal(result.success, false)
-  assert.equal(result.achieved, true)
-  assert.equal(result.failure?.category, 'verification')
+  assert.equal(result.achieved, false)
+  assert.equal(result.failure?.category, 'replan')
 })
 
 test('runLlmTask classifies an argument mismatch end-to-end', async () => {

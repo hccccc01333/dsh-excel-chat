@@ -85,6 +85,7 @@ export async function runLlmTask(
       planner: options.planner,
       maxRounds,
       outPath,
+      deterministicAssertions: task.checks,
     })
     const { passed, total } = await evaluateTaskChecks(task, agent.outputPath)
     const integrity = (await validateWorkbookFile(agent.outputPath)).anomalies.length

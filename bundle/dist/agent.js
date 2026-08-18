@@ -6,6 +6,7 @@ import { sanitizePlan } from './plan-schema.js';
 import { profileWorkbook } from './profile.js';
 import { buildWorkbookSemanticProfile } from './semantic.js';
 import { runExcelTask } from './task.js';
+import { verifyWorkbookAssertions } from './verifier.js';
 import { readWorkbookCells, stripPivotTableParts, validateWorkbookFile } from './workbook.js';
 /**
  * Goal-driven agent loop (Plan -> Act -> Observe -> Verify -> Replan):
@@ -78,20 +79,25 @@ export async function runAgentTask(path, options) {
         const afterValidation = await validateWorkbookFile(result.outputPath);
         const cellSnapshot = await cellSnapshotOf(result.outputPath);
         const changed = (await workbookFingerprint(result.outputPath)) !== beforeFingerprint;
-        let verdict = await options.planner.verify({
-            ...planContext,
-            path: result.outputPath,
-            profileSummary: summarizeProfile(afterProfile),
-            validationSummary: `${afterValidation.anomalies.length} 个公式异常`,
-            executedPlan: plan,
-            executedResult: result,
-            cellSnapshot,
-        });
+        const deterministicVerification = options.deterministicAssertions === undefined
+            ? undefined
+            : await verifyWorkbookAssertions(result.outputPath, options.deterministicAssertions);
+        let verdict = deterministicVerification === undefined
+            ? await options.planner.verify({
+                ...planContext,
+                path: result.outputPath,
+                profileSummary: summarizeProfile(afterProfile),
+                validationSummary: `${afterValidation.anomalies.length} 个公式异常`,
+                executedPlan: plan,
+                executedResult: result,
+                cellSnapshot,
+            })
+            : { achieved: deterministicVerification.achieved, reason: deterministicVerification.reason };
         const deterministicNote = `${afterValidation.anomalies.length === 0 ? '公式无异常' : `仍有 ${afterValidation.anomalies.length} 个公式异常`}；文件${changed ? '有' : '没有'}实质变化`;
         if (!changed || afterValidation.anomalies.length > 0) {
             verdict = { achieved: false, reason: `${verdict.reason}（确定性校验：${deterministicNote}）` };
         }
-        rounds.push({ round, plan, result, verdict });
+        rounds.push({ round, plan, result, verdict, deterministicVerification });
         currentPath = result.outputPath;
         previousPlan = plan;
         previousResult = result;
