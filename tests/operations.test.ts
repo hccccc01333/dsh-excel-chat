@@ -1546,3 +1546,86 @@ test('rankColumn writes live RANK formulas over the metric range', async () => {
   assert.equal(cells['Sheet1!C2'], '=RANK(B2,Sheet1!$B$2:$B$4,0)')
   assert.equal(cells['Sheet1!C4'], '=RANK(B4,Sheet1!$B$2:$B$4,0)')
 })
+
+test('rowPageBreaks writes manual breaks and clearPageBreaks removes them', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    for (let row = 1; row <= 5; row++) sheet.getCell(`A${row}`).value = row
+  })
+  const outPath = join(join(path, '..'), 'breaks.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'rowPageBreaks', sheet: 'Sheet1', rows: [3] }], outPath)
+  // ExcelJS writes but does not read back rowBreaks; assert through the XML.
+  const { execSync } = await import('node:child_process')
+  const { mkdtempSync } = await import('node:fs')
+  const dir = mkdtempSync(join(tmpdir(), 'vera-breaks-'))
+  execSync(`unzip -o -q "${outPath}" "xl/worksheets/*" -d "${dir}"`)
+  const xml = await readFile(join(dir, 'xl/worksheets/sheet1.xml'), 'utf8')
+  assert.match(xml, /<brk id="2" max="16383" min="0" man="true"\/>/)
+  await applyOperationsToWorkbook(outPath, [{ op: 'clearPageBreaks', sheet: 'Sheet1' }], join(join(path, '..'), 'nobreaks.xlsx'))
+  const dir2 = mkdtempSync(join(tmpdir(), 'vera-breaks2-'))
+  execSync(`unzip -o -q "${join(join(path, '..'), 'nobreaks.xlsx')}" "xl/worksheets/*" -d "${dir2}"`)
+  const xml2 = await readFile(join(dir2, 'xl/worksheets/sheet1.xml'), 'utf8')
+  assert.doesNotMatch(xml2, /rowBreaks/)
+})
+
+test('addComment injects a comment ExcelJS can read back', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('B2').value = 100
+  })
+  const outPath = join(join(path, '..'), 'commented.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'addComment',
+    cell: 'Sheet1!B2',
+    text: '金额待复核',
+    author: '张三',
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const note: any = (workbook.getWorksheet('Sheet1')!.getCell('B2') as any).note
+  assert.ok(note, 'comment should survive the round-trip')
+  const text = typeof note === 'string' ? note : JSON.stringify(note)
+  assert.match(text, /金额待复核/)
+})
+
+test('addSparklines injects an x14 extension Excel preserves in the file', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('订单')
+    sheet.getCell('A1').value = '产品'
+    const rows = [[2, 3, 4, 5], [4, 6, 8, 10]]
+    rows.forEach((values, i) => {
+      values.forEach((value, j) => {
+        sheet.getCell(`${String.fromCharCode(66 + j)}${2 + i}`).value = value
+      })
+    })
+  })
+  const outPath = join(join(path, '..'), 'sparklines.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'addSparklines',
+    dataRange: '订单!B2:E3',
+    locationRange: '订单!G2:G3',
+    type: 'column',
+  }], outPath)
+  const { execSync } = await import('node:child_process')
+  const { mkdtempSync } = await import('node:fs')
+  const dir = mkdtempSync(join(tmpdir(), 'vera-spark-'))
+  execSync(`unzip -o -q "${outPath}" "xl/worksheets/*" -d "${dir}"`)
+  const xml = await readFile(join(dir, 'xl/worksheets/sheet1.xml'), 'utf8')
+  assert.match(xml, /sparklineGroups/)
+  assert.match(xml, /订单!B2:E2/)
+  assert.match(xml, /G2/)
+  assert.match(xml, /type="column"/)
+})
+test('addSparklines rejects mismatched row counts', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  await assert.rejects(
+    () => applyOperationsToWorkbook(path, [{
+      op: 'addSparklines',
+      dataRange: 'Sheet1!B2:F5',
+      locationRange: 'Sheet1!G2:G3',
+    }], join(join(path, '..'), 'bad.xlsx')),
+    /must match locationRange rows/,
+  )
+})

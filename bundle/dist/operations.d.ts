@@ -447,6 +447,32 @@ export type ExcelOperation = {
     outputColumn: string;
     descending?: boolean;
     skipHeader?: boolean;
+} | {
+    op: 'rowPageBreaks';
+    sheet: string;
+    rows: number[];
+} | {
+    op: 'clearPageBreaks';
+    sheet: string;
+} | {
+    op: 'addComment';
+    cell: string;
+    text: string;
+    author?: string;
+    width?: number;
+    height?: number;
+} | {
+    op: 'addSparklines';
+    /** Data range with one row per sparkline, e.g. "Sheet1!B2:F31". */
+    dataRange: string;
+    /** Location range with the same number of rows, e.g. "Sheet1!G2:G31". */
+    locationRange: string;
+    type?: 'line' | 'column' | 'stacked';
+    color?: string;
+    negativeColor?: string;
+    markers?: boolean;
+    highColor?: string;
+    lowColor?: string;
 };
 export interface ExcelStyle {
     bold?: boolean;

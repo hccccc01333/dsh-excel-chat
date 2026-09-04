@@ -70,3 +70,51 @@ test('sanitizePlan derives freezePanes row and column from a single-cell range',
   assert.equal(operation.column, 'A')
   assert.equal(operation.row, 2)
 })
+
+test('sanitizePlan validates joinSheets arrays and key fields', () => {
+  assert.throws(
+    () => sanitizePlan([{
+      operations: [{ op: 'joinSheets', source: '订单!A1:B4', sourceKey: 'A', lookup: '客户!A1:C3', lookupKey: 'A', valueColumns: ['B'] }],
+    }], ['订单']),
+    /缺少必填数组 outputColumns/,
+  )
+  assert.throws(
+    () => sanitizePlan([{
+      operations: [{ op: 'joinSheets', source: '订单!A1:B4', sourceKey: 'A', lookup: '客户!A1:C3', valueColumns: ['B'], outputColumns: ['C'] }],
+    }], ['订单']),
+    /缺少必填字段 lookupKey/,
+  )
+  const fixed = sanitizePlan([{
+    operations: [{ op: 'joinSheets', source: '订单!A1:B4', sourceKey: 'A', lookup: '客户!A1:C3', lookupKey: 'A', valueColumns: ['B'], outputColumns: ['C'] }],
+  }], ['订单'])
+  assert.ok(fixed.steps.length === 1)
+})
+
+test('sanitizePlan normalizes crosstab flat metric fields and validates function', () => {
+  const fixed = sanitizePlan([{
+    operations: [{ op: 'crosstab', source: '订单!A1:C4', rowColumn: 'A', columnColumn: 'B', metricColumn: 'C' }],
+  }], ['订单'])
+  const op = fixed.steps[0]!.operations[0] as Record<string, unknown>
+  assert.deepEqual(op.metric, { column: 'C', function: 'sum' })
+  assert.throws(
+    () => sanitizePlan([{
+      operations: [{ op: 'crosstab', source: '订单!A1:C4', rowColumn: 'A', columnColumn: 'B', metric: { column: 'C', function: 'median' } }],
+    }], ['订单']),
+    /metric.function 不支持/,
+  )
+})
+
+test('sanitizePlan checks rankColumn and new layout ops', () => {
+  assert.throws(
+    () => sanitizePlan([{ operations: [{ op: 'rankColumn', range: '订单!A1:B4', metricColumn: 'B' }] }], ['订单']),
+    /rankColumn 缺少必填字段 outputColumn/,
+  )
+  assert.throws(
+    () => sanitizePlan([{ operations: [{ op: 'hideRows', sheet: '订单', from: 2 }] }], ['订单']),
+    /hideRows 缺少必填数字 to/,
+  )
+  const fixed = sanitizePlan([{
+    operations: [{ op: 'moveSheet', name: '汇总', position: '1' }],
+  }], ['订单'])
+  assert.equal((fixed.steps[0]!.operations[0] as Record<string, unknown>).position, 1)
+})

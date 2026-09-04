@@ -11,6 +11,7 @@ import { guardFormulaInjection, parseCsv, stringifyCsv } from './csv.ts'
 import { validate, type ValidationResult } from './validator.ts'
 import { readWorkbookCells, stripPivotTableParts } from './workbook.ts'
 import { diffCellMaps, writePatchLog, type PatchLog } from './diff.ts'
+import { annotateWorkbookXml, emptyAnnotations, type CommentSpec, type SparklineGroupSpec, type WorkbookAnnotations } from './xml-postprocess.ts'
 import { readFile, writeFile } from 'node:fs/promises'
 
 export type ExcelOperation =
@@ -250,6 +251,29 @@ export type ExcelOperation =
       outputColumn: string
       descending?: boolean
       skipHeader?: boolean
+    }
+  | { op: 'rowPageBreaks'; sheet: string; rows: number[] }
+  | { op: 'clearPageBreaks'; sheet: string }
+  | {
+      op: 'addComment'
+      cell: string
+      text: string
+      author?: string
+      width?: number
+      height?: number
+    }
+  | {
+      op: 'addSparklines'
+      /** Data range with one row per sparkline, e.g. "Sheet1!B2:F31". */
+      dataRange: string
+      /** Location range with the same number of rows, e.g. "Sheet1!G2:G31". */
+      locationRange: string
+      type?: 'line' | 'column' | 'stacked'
+      color?: string
+      negativeColor?: string
+      markers?: boolean
+      highColor?: string
+      lowColor?: string
     }
 
 export interface ExcelStyle {
@@ -594,6 +618,7 @@ export async function applyOperationsToWorkbook(
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.load(stripPivotTableParts(await readFile(inputPath)) as any)
   const warnings: OperationWarning[] = []
+  const annotations = emptyAnnotations()
 
   for (const [index, operation] of operations.entries()) {
     switch (operation.op) {
@@ -1052,6 +1077,57 @@ export async function applyOperationsToWorkbook(
         applyRankColumn(workbook, operation)
         break
       }
+      case 'rowPageBreaks': {
+        const sheet = findSheet(workbook, operation.sheet)
+        if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
+        if (!operation.rows.length) throw new Error('rowPageBreaks requires at least one row')
+        // OOXML <brk id> is zero-based: a break "above 1-based row N" is id=N-1.
+        // ExcelJS models breaks on the worksheet (runtime property, untyped).
+        const target = sheet as ExcelJS.Worksheet & { rowBreaks: Array<{ id: number; max: number; min: number; man: boolean }> }
+        target.rowBreaks = operation.rows.map((row) => ({ id: row - 1, max: 16383, min: 0, man: true }))
+        break
+      }
+      case 'clearPageBreaks': {
+        const sheet = findSheet(workbook, operation.sheet)
+        if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
+        ;(sheet as ExcelJS.Worksheet & { rowBreaks: unknown[] }).rowBreaks = []
+        break
+      }
+      case 'addComment': {
+        const parsed = parseCellId(operation.cell)
+        const sheet = findSheet(workbook, parsed.sheet)
+        if (!sheet) throw new Error(`sheet not found: ${parsed.sheet}`)
+        if (!operation.text.trim()) throw new Error('addComment requires non-empty text')
+        const list = annotations.comments.get(sheet.name) ?? []
+        list.push({
+          ref: `${parsed.column}${parsed.row}`,
+          text: operation.text,
+          author: operation.author ?? 'dsh-excel-chat',
+          width: operation.width ?? 108,
+          height: operation.height ?? 60,
+        })
+        annotations.comments.set(sheet.name, list)
+        break
+      }
+      case 'addSparklines': {
+        const dataBang = operation.dataRange.lastIndexOf('!')
+        if (dataBang < 0) throw new Error(`addSparklines dataRange requires a sheet: ${operation.dataRange}`)
+        const sheetName = operation.dataRange.slice(0, dataBang)
+        if (!findSheet(workbook, sheetName)) throw new Error(`sheet not found: ${sheetName}`)
+        const groups = annotations.sparklines.get(sheetName) ?? []
+        groups.push({
+          dataRange: operation.dataRange,
+          locationRange: operation.locationRange,
+          type: operation.type ?? 'line',
+          color: normalizeColor(operation.color ?? '375623'),
+          negativeColor: normalizeColor(operation.negativeColor ?? 'D00000'),
+          markers: operation.markers ?? false,
+          highColor: normalizeColor(operation.highColor ?? 'FF7C00'),
+          lowColor: normalizeColor(operation.lowColor ?? 'D00000'),
+        })
+        annotations.sparklines.set(sheetName, groups)
+        break
+      }
       case 'addSheet': {
         workbook.addWorksheet(operation.name)
         break
@@ -1231,7 +1307,18 @@ export async function applyOperationsToWorkbook(
     }
   }
 
-  await workbook.xlsx.writeFile(outputPath)
+  const buffer = await workbook.xlsx.writeBuffer()
+  if (annotations.comments.size > 0 || annotations.sparklines.size > 0) {
+    // ExcelJS cannot write comments or sparklines; inject the XML parts now.
+    const sheetFileOf = new Map<string, string>()
+    workbook.eachSheet((sheet) => {
+      sheetFileOf.set(sheet.name, `xl/worksheets/sheet${sheet.id}.xml`)
+    })
+    const annotated = annotateWorkbookXml(new Uint8Array(buffer as ArrayBuffer), annotations, sheetFileOf)
+    await writeFile(outputPath, annotated)
+  } else {
+    await writeFile(outputPath, Buffer.from(buffer as ArrayBuffer))
+  }
   return { warnings }
 }
 

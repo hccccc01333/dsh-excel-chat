@@ -1,6 +1,32 @@
 # Changelog
 
-## v0.36.0 — 2026-09-01（本地版本，未发布）
+## v0.37.0 — 2026-09-04（本地版本，未发布）
+
+- LLM 规划/验证质量（基准失败归因：Verification 33/52、分析类参数复杂）：
+  - 规划器提示词全面升级：操作目录补齐 22+ 新操作并按用途分组，参数速查
+    覆盖 joinSheets/crosstab/rankColumn 等，新增 4 个分析类完整 few-shot
+    示例（汇总/两表关联/交叉表/排名+版式）与分析任务规则（禁用 set 写死
+    汇总、source 必须含表头与全部数据行、crosstab metric 是对象等）；
+  - 验证器提示词按目标类型给证据标准：汇总/透视必须看到输出表头+分组行+
+    SUMIFS 活公式；样式/隐藏/冻结等快照看不到的要求必须核对计划中确有对应
+    操作；新增"set 写静态数字不算汇总"反例；
+  - `cellSnapshot` 改为按工作表轮询采样（96 格），新建输出表的证据不再被
+    第一个表挤掉——这是 Verification 误判的最大杠杆；
+  - `sanitizePlan`/`normalizeOperation` 认识全部新操作：crosstab 扁平
+    metric 字段自动合并、joinSheets 标量数组自动包装、必填字段缺失明确
+    报错回喂重规划。
+- 能力盲区补齐（`excel_operate` 新增 4 操作 + 新模块 `src/xml-postprocess.ts`）：
+  - `addComment`（单元格批注）：ExcelJS 只读不写，保存后用 fflate 后处理
+    zip 注入 comments XML + VML 形状 + rels/ContentTypes/legacyDrawing，
+    Excel 正常渲染、ExcelJS 读回 `cell.note`；
+  - `addSparklines`（每行趋势迷你图）：手写 x14 sparklineGroups 扩展 XML
+    （line/column/stacked、高低点颜色），dataRange 与 locationRange 按行
+    一一配对；
+  - `rowPageBreaks` / `clearPageBreaks`（打印分页符）：ExcelJS 只写不读
+    rowBreaks（brk id 为 0-based，断言走 XML）。
+- 测试规模 249 → 253。
+
+## v0.36.0 — 2026-09-01
 
 - `excel_operate` 再增 10 个操作（跨平台）：
   - 编辑：`copyStyle`（格式刷：复制字体/填充/边框/对齐/数字格式到区域）、

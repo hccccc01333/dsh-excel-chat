@@ -3,6 +3,11 @@ const REQUIRED_STRINGS = {
     fill: ['source', 'target'],
     fillSeries: ['start', 'target'],
     copyRange: ['source', 'target'],
+    transpose: ['source', 'target'],
+    copyStyle: ['source', 'target'],
+    freezeFormulas: ['range'],
+    clearRange: ['range'],
+    uniqueValues: ['source', 'target'],
     dedupeRows: ['sheet'],
     fillMissing: ['range'],
     removeEmptyRows: ['range'],
@@ -28,6 +33,25 @@ const REQUIRED_STRINGS = {
     renameSheet: ['oldName', 'newName'],
     duplicateSheet: ['name', 'newName'],
     mailMerge: ['template', 'data'],
+    hideRows: ['sheet'],
+    hideColumns: ['sheet'],
+    groupRows: ['sheet'],
+    groupColumns: ['sheet', 'from', 'to'],
+    autoFitColumnWidths: ['sheet'],
+    unfreezePanes: ['sheet'],
+    unmergeAll: ['sheet'],
+    setZoom: ['sheet'],
+    showGridLines: ['sheet'],
+    headerFooter: ['sheet'],
+    printTitles: ['sheet'],
+    moveSheet: ['name'],
+    setHyperlink: ['cell'],
+    joinSheets: ['source', 'sourceKey', 'lookup', 'lookupKey'],
+    rankColumn: ['range', 'metricColumn', 'outputColumn'],
+    rowPageBreaks: ['sheet'],
+    clearPageBreaks: ['sheet'],
+    addComment: ['cell', 'text'],
+    addSparklines: ['dataRange', 'locationRange'],
 };
 const REQUIRED_ARRAYS = {
     sortRange: ['keys'],
@@ -38,12 +62,19 @@ const REQUIRED_ARRAYS = {
     subtotal: ['summaryColumns'],
     highlightRows: ['criteria'],
     conditionalFormatting: ['rules'],
+    joinSheets: ['valueColumns', 'outputColumns'],
+    hideColumns: ['columns'],
+    rowPageBreaks: ['rows'],
 };
 const REQUIRED_NUMBERS = {
     freezePanes: ['row'],
     splitColumn: ['startRow'],
     setColumnWidth: ['width'],
     setRowHeight: ['row', 'height'],
+    hideRows: ['from', 'to'],
+    groupRows: ['start', 'end'],
+    setZoom: ['zoom'],
+    moveSheet: ['position'],
 };
 const REQUIRED_STRING_EXTRA = {
     freezePanes: ['sheet', 'column'],
@@ -119,6 +150,28 @@ export function sanitizePlan(steps, sheetNames) {
                     raw.column = match[1];
                     raw.row = Number(match[2]);
                     notes.push(`freezePanes 已从 range ${raw.range} 推导 row/column`);
+                }
+            }
+            if (operation.op === 'crosstab') {
+                // Planners sometimes emit flat metric fields instead of the object.
+                if (raw.metric === undefined && (raw.metricColumn !== undefined || raw.metricFunction !== undefined)) {
+                    raw.metric = { column: raw.metricColumn, function: raw.metricFunction ?? 'sum' };
+                    notes.push('crosstab 的 metricColumn/metricFunction 已合并为 metric 对象');
+                }
+                if (raw.metric !== undefined && raw.metric !== null && typeof raw.metric === 'object' && !Array.isArray(raw.metric)) {
+                    const metric = { ...raw.metric };
+                    if (metric.function === undefined) {
+                        metric.function = 'sum';
+                        notes.push('crosstab 的 metric.function 已补默认 sum');
+                    }
+                    if (typeof metric.function !== 'string' || !['sum', 'average', 'count', 'counta', 'max', 'min'].includes(metric.function)) {
+                        throw new Error(`crosstab 的 metric.function 不支持：${String(metric.function)}`);
+                    }
+                    if (metric.column !== undefined && typeof metric.column !== 'string') {
+                        metric.column = String(metric.column);
+                        notes.push('crosstab 的 metric.column 已转为字符串');
+                    }
+                    raw.metric = metric;
                 }
             }
             for (const key of REQUIRED_NUMBERS[operation.op] ?? []) {

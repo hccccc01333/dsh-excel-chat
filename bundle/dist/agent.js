@@ -132,12 +132,37 @@ function summarizePlanOps(steps) {
     }
     return parts.join(' -> ');
 }
-async function cellSnapshotOf(path, limit = 80) {
+/**
+ * Compact cell snapshot for LLM verification. Per-sheet round-robin sampling:
+ * each sheet (especially summary sheets the plan just created) contributes
+ * cells, instead of "first 80 cells of sheet 1" which hides the evidence the
+ * verifier needs for analysis tasks.
+ */
+async function cellSnapshotOf(path, limit = 96) {
     const cells = await readWorkbookCells(await readFile(path));
-    return Object.entries(cells)
-        .slice(0, limit)
-        .map(([id, content]) => `${id}=${content.slice(0, 60)}`)
-        .join('\n');
+    const bySheet = new Map();
+    for (const [id, content] of Object.entries(cells)) {
+        const sheet = id.slice(0, Math.max(0, id.lastIndexOf('!')));
+        const list = bySheet.get(sheet) ?? [];
+        list.push([id, content]);
+        bySheet.set(sheet, list);
+    }
+    const groups = [...bySheet.values()];
+    const lines = [];
+    let index = 0;
+    // Round-robin across sheets so late-created output sheets are visible.
+    while (lines.length < limit && groups.some((group) => index < group.length)) {
+        for (const group of groups) {
+            const entry = group[index];
+            if (!entry)
+                continue;
+            lines.push(`${entry[0]}=${entry[1].slice(0, 60)}`);
+            if (lines.length >= limit)
+                break;
+        }
+        index++;
+    }
+    return lines.join('\n');
 }
 async function workbookFingerprint(path) {
     const workbook = new ExcelJS.Workbook();

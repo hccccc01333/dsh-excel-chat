@@ -593,5 +593,27 @@ export const excelOperationSchema = {
             descending: bool('Rank 1 = largest value (default true); false ranks smallest first.'),
             skipHeader: bool('Range includes a header row (default true); set false for data-only ranges.'),
         }),
+        opSchema('rowPageBreaks', {
+            sheet: text('Sheet name.', true),
+            rows: { type: 'array', items: { type: 'number' }, required: true, description: '1-based row numbers; a manual page break is inserted above each row, e.g. [11, 21] prints rows 1-10 then 11-20.' },
+        }),
+        opSchema('clearPageBreaks', { sheet: text('Sheet name.', true) }),
+        opSchema('addComment', {
+            cell: text('Cell id for the comment, e.g. "Sheet1!B2".', true),
+            text: text('Comment text (plain text).', true),
+            author: text('Author name (default dsh-excel-chat).'),
+            width: num('Comment box width in points (default 108).'),
+            height: num('Comment box height in points (default 60).'),
+        }),
+        opSchema('addSparklines', {
+            dataRange: text('Data range with one row per sparkline, e.g. "Sheet1!B2:F31".', true),
+            locationRange: text('Location range with the same number of rows, e.g. "Sheet1!G2:G31"; sparkline i renders row i of dataRange.', true),
+            type: { type: 'string', enum: ['line', 'column', 'stacked'], description: 'Sparkline style (default line).' },
+            color: text('Series color hex (default green 375623).'),
+            negativeColor: text('Color for negative values (default red D00000).'),
+            markers: bool('Show markers with high/low highlighting.'),
+            highColor: text('Color for the highest point (default orange FF7C00).'),
+            lowColor: text('Color for the lowest point (default red D00000).'),
+        }),
     ],
 };
