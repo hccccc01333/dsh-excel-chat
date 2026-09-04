@@ -88,7 +88,7 @@ dsh web --profile demo                             # 打开对话界面
 - “按区域生成透视表，金额合计，再生成柱状图”
 
 平台说明：公式校验/修复、读写单元格、样式、汇总、合并、邮件合并等功能跨平台；
-图表创建/改参、原生透视表、图表 PNG 导出需要 Windows + 本机安装 Excel。
+图表创建/改参、原生透视表、图表 PNG 导出、PDF 导出需要 Windows + 本机安装 Excel。
 
 锁定版本：`dsh plugin --profile demo add dsh-excel-chat@0.23.0`（不写版本默认 latest）。
 
@@ -111,13 +111,14 @@ dsh web --profile demo                             # 打开对话界面
 | `excel_autofix` | 一键自愈闭环：体检 → 确定性修复（可选 LLM）→ 复检 → 人话汇报，输出修复副本（自动附带隐藏健康报告表，可 `healthReport:false` 关闭） |
 | `excel_health_report` | 把公式体检报告写进工作簿本身：隐藏「_dsh_体检报告」表，含健康分、异常清单、生成时间，报告跟着文件走 |
 | `excel_diff_workbook` | 两个 workbook 的单元格级 diff |
-| `excel_operate` | 精细化 Excel 操作：写值、填充/序列、行列增删、复制/移动、排序、`report` 一键报表模板（排序+汇总+动态透视+筛选+样式+冻结+格式）、分类汇总、动态透视报表、高级筛选、样式（字号/字体/边框）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、命名区域、冻结窗格、查找替换、工作表保护（细化权限）、邮件合并、工作表管理、合并、数据清洗（去重/填充缺失/删空行空列/去空格/大小写转换/全角半角标准化/分列）、整行条件高亮（highlightRows）、两表模糊匹配（fuzzyMatch）；操作后自动复验公式并写审计日志 |
+| `excel_operate` | 精细化 Excel 操作：写值、填充/序列、行列增删、复制/移动/转置/仅粘贴值、格式刷（copyStyle）、公式转值（freezeFormulas）、唯一值提取（uniqueValues）、排名列（rankColumn）、排序、`report` 一键报表模板（排序+汇总+动态透视+筛选+样式+冻结+格式）、分类汇总、动态透视报表、二维交叉透视表（crosstab）、两表精确关联回填（joinSheets，无公式 VLOOKUP）、高级筛选、样式（字号/字体/边框/删除线/旋转/缩进）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、页眉页脚（headerFooter）、打印标题行/列（printTitles）、命名区域、冻结/取消冻结窗格、缩放（setZoom）、网格线开关（showGridLines）、隐藏行列（hideRows/hideColumns）、行列分组折叠（groupRows/groupColumns）、自适应列宽（autoFitColumnWidths）、超链接（站内跳转与外部 URL）、查找替换、工作表保护（细化权限）、邮件合并、工作表管理（增删改名复制隐藏标签色/重排 moveSheet）、文档属性与打开时重算（setWorkbookProperties）、合并、取消全部合并（unmergeAll）、数据清洗（去重/填充缺失/删空行空列/去空格/大小写转换/全角半角标准化/分列/区域清除 clearRange）、整行条件高亮（highlightRows）、两表模糊匹配（fuzzyMatch）；操作后自动复验公式并写审计日志 |
 | `excel_validate_charts` | 图表结构校验：类型、系列、缺失单元格、二维范围、日期排序 |
 | `excel_validate_charts_visual` | Excel 导出 PNG + 视觉 LLM 评审 |
 | `excel_export_charts` | 用本地 Excel 把图表导出为 PNG（Windows） |
 | `excel_create_chart` | 用本地 Excel 创建图表：数据范围、类型、标题（Windows） |
 | `excel_modify_chart` | 修改图表参数：类型、标题、图例、坐标轴（Windows） |
 | `excel_create_pivot` | 原生数据透视表（pivotCache + pivotTable）：多行字段、列字段、报表筛选器 + 值字段（求和/计数/平均/最大/最小），Excel 生成、可刷新（Windows） |
+| `excel_export_pdf` | 用本机 Excel COM 把工作簿或单个工作表导出为 PDF（Windows，只读打开不动源文件） |
 
 能力深度与可靠性进展：100 个职场任务的自建评测语料（ExcelBench lite）与
 真实 LLM 基线见 [docs/benchmark.md](docs/benchmark.md)；右侧可编辑 Excel

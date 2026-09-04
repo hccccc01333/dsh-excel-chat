@@ -168,6 +168,43 @@ export function runPowerShell(args, signal) {
         });
     });
 }
+const PDF_EXPORT_SCRIPT = `
+param([string]$WorkbookPath, [string]$OutPath, [string]$SheetName)
+$ErrorActionPreference = 'Stop'
+$excel = New-Object -ComObject Excel.Application
+try {
+  $excel.Visible = $false
+  $excel.DisplayAlerts = $false
+  $wb = $excel.Workbooks.Open($WorkbookPath, $null, $true)
+  try {
+    if ($SheetName) {
+      $ws = $wb.Worksheets.Item($SheetName)
+      $ws.ExportAsFixedFormat(0, $OutPath)
+    } else {
+      $wb.ExportAsFixedFormat(0, $OutPath)
+    }
+  } finally {
+    $wb.Close($false)
+  }
+} finally {
+  $excel.Quit()
+}
+Write-Output "ok"
+`;
+/**
+ * Export a workbook (or a single sheet) to PDF using local Excel COM.
+ * Windows only; the file is opened read-only and left untouched.
+ */
+export async function exportWorkbookToPdf(inputPath, outPath, sheet, signal) {
+    const scriptPath = join(tmpdir(), `vera-pdf-${randomUUID()}.ps1`);
+    await writeFile(scriptPath, PDF_EXPORT_SCRIPT, 'utf8');
+    await runPowerShell([
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
+        '-WorkbookPath', inputPath,
+        '-OutPath', outPath,
+        '-SheetName', sheet ?? '',
+    ], signal);
+}
 export function buildVisionPrompt() {
     return [
         'You are the visual critic for Excel charts exported as PNG images.',

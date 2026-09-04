@@ -21,6 +21,11 @@ export declare function createChartWithExcel(inputPath: string, options: ChartCr
 /** Modify chart parameters (type, title, legend, axis titles) in an .xlsx copy. */
 export declare function modifyChartWithExcel(inputPath: string, chartName: string, changes: ChartModifyOptions, outPath: string, signal?: AbortSignal): Promise<void>;
 export declare function runPowerShell(args: string[], signal?: AbortSignal): Promise<string>;
+/**
+ * Export a workbook (or a single sheet) to PDF using local Excel COM.
+ * Windows only; the file is opened read-only and left untouched.
+ */
+export declare function exportWorkbookToPdf(inputPath: string, outPath: string, sheet?: string, signal?: AbortSignal): Promise<void>;
 export type VisionText = (imagePath: string, prompt: string, signal?: AbortSignal) => Promise<string>;
 export interface VisualIssue {
     kind: string;

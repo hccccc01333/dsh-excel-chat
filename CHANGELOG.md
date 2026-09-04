@@ -1,5 +1,49 @@
 # Changelog
 
+## v0.36.0 — 2026-09-01（本地版本，未发布）
+
+- `excel_operate` 再增 10 个操作（跨平台）：
+  - 编辑：`copyStyle`（格式刷：复制字体/填充/边框/对齐/数字格式到区域）、
+    `freezeFormulas`（公式转值：就地替换为缓存结果）、`uniqueValues`
+    （提取列去重值，首现顺序）、`rankColumn`（活 RANK 公式排名列）、
+    `unmergeAll`（一键取消全表合并）；
+  - 视图：`setZoom`（缩放 10-400，保留冻结窗格）、`showGridLines`
+    （网格线开关）；
+  - 打印：`headerFooter`（&-code 页眉页脚，支持奇偶页/首页不同）；
+  - 工作簿：`moveSheet`（按 orderNo 重排工作表标签）、`setWorkbookProperties`
+    （作者/标题/关键词 + `recalcOnOpen` 打开时强制重算，写入 calcPr）。
+- 新工具 `excel_export_pdf`：用本机 Excel COM 把整个工作簿或单个工作表导出
+  PDF（Windows；只读打开，不改动源文件）。
+- 引擎发现：exceljs 的 `worksheets` getter 按 `orderNo` 排序——重排只需改
+  orderNo，不碰私有 `_sheets`；`headerFooter` 是 worksheet 顶层属性而非
+  pageSetup 子字段；`calcPr fullCalcOnLoad` 会写 XML 但读取时不解析（测试
+  直接断言 XML）。
+- 测试规模 233 → 243。
+
+## v0.35.0 — 2026-08-25（本地版本，未发布）
+
+- `excel_operate` 新增 12 个操作，补齐常用 Excel 能力：
+  - 行列可见性与分组：`hideRows` / `hideColumns`（隐藏/取消隐藏，空行也可靠
+    持久化）、`groupRows` / `groupColumns`（大纲分级 1-7，可折叠，自动同步
+    sheet 的 outlineLevelRow/Col 属性让 +/- 控件正常显示）；
+  - 布局：`autoFitColumnWidths`（按内容自适应列宽，CJK 计双宽、min/max 可调）、
+    `unfreezePanes`（取消冻结）；
+  - 编辑增强：`transpose`（转置粘贴，公式相对引用随新位置偏移）、`copyRange`
+    新增 `valuesOnly`（选择性粘贴-数值，取公式缓存结果）、`clearRange`
+    （contents / formats / all 三档，对应 Excel「清除」菜单）；
+  - 分析：`joinSheets`（两表精确匹配多列回填，VLOOKUP 无公式版，
+    key 归一化 trim+lowercase，支持 missValue 兜底）、`crosstab`（二维交叉
+    透视表，单元格用活 SUMIFS/COUNTIFS 公式引用源区域与输出表头地址，
+    sum/count/counta 自动加总计行列，average 包 IFERROR 防 DIV/0）；
+  - 其他：`setHyperlink`（外部 URL 与站内 location 跳转链接）、`printTitles`
+    （打印时每页重复标题行/标题列）。
+- `style` 操作扩展：删除线 strikeThrough、文字旋转 textRotation、缩小字体
+  填充 shrinkToFit、缩进 indent；边框样式枚举扩展 hair / mediumDashed /
+  dashDot / mediumDashDot / dashDotDot / slantDashDot。
+- 引擎适配说明：ExcelJS 空行仅设 hidden 不落盘——hideRows/groupRows 对无值行
+  补写默认行高保证序列化；批注（comment）ExcelJS 只读不写，暂不提供。
+- 测试规模 174 → 233（operations.test.ts 新增 14 个覆盖保存往返的用例）。
+
 ## v0.34.0 — 2026-08-15（本地版本，未发布）
 
 - 按评审 P0 转向 evaluation-driven：新增文件级真实任务语料 ExcelBench lite

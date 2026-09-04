@@ -528,6 +528,220 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 warnings.push({ op: index, message: `fuzzyMatch matched ${matched}/${sourceParsed.endRow - sourceParsed.startRow + 1} source row(s) at threshold ${threshold}` });
                 break;
             }
+            case 'hideRows': {
+                const sheet = findSheet(workbook, operation.sheet);
+                if (!sheet)
+                    throw new Error(`sheet not found: ${operation.sheet}`);
+                if (operation.from < 1 || operation.to < operation.from)
+                    throw new Error(`invalid hideRows: from=${operation.from} to=${operation.to}`);
+                const hidden = operation.hidden ?? true;
+                for (let row = operation.from; row <= operation.to; row++) {
+                    const target = sheet.getRow(row);
+                    target.hidden = hidden;
+                    // ExcelJS drops empty rows on save unless they carry a height, so an
+                    // empty hidden row needs one to survive the round-trip.
+                    if (hidden && !target.hasValues && target.height === undefined) {
+                        target.height = sheet.properties.defaultRowHeight ?? 15;
+                    }
+                }
+                break;
+            }
+            case 'hideColumns': {
+                const sheet = findSheet(workbook, operation.sheet);
+                if (!sheet)
+                    throw new Error(`sheet not found: ${operation.sheet}`);
+                if (!operation.columns.length)
+                    throw new Error('hideColumns requires at least one column');
+                const hidden = operation.hidden ?? true;
+                for (const column of operation.columns) {
+                    sheet.getColumn(columnToNumber(column)).hidden = hidden;
+                }
+                break;
+            }
+            case 'groupRows': {
+                const sheet = findSheet(workbook, operation.sheet);
+                if (!sheet)
+                    throw new Error(`sheet not found: ${operation.sheet}`);
+                const { start, end } = operation;
+                const level = operation.level ?? 1;
+                if (start < 1 || end < start)
+                    throw new Error(`invalid groupRows: start=${start} end=${end}`);
+                for (let row = start; row <= end; row++) {
+                    const target = sheet.getRow(row);
+                    target.outlineLevel = level;
+                    if (operation.collapse) {
+                        target.hidden = true;
+                        if (!target.hasValues && target.height === undefined) {
+                            target.height = sheet.properties.defaultRowHeight ?? 15;
+                        }
+                    }
+                }
+                sheet.properties.outlineLevelRow = Math.max(sheet.properties.outlineLevelRow ?? 0, level);
+                break;
+            }
+            case 'groupColumns': {
+                const sheet = findSheet(workbook, operation.sheet);
+                if (!sheet)
+                    throw new Error(`sheet not found: ${operation.sheet}`);
+                const from = columnToNumber(operation.from);
+                const to = columnToNumber(operation.to);
+                const level = operation.level ?? 1;
+                if (from < 1 || to < from)
+                    throw new Error(`invalid groupColumns: from=${operation.from} to=${operation.to}`);
+                for (let col = from; col <= to; col++) {
+                    const target = sheet.getColumn(col);
+                    target.outlineLevel = level;
+                    if (operation.collapse)
+                        target.hidden = true;
+                }
+                sheet.properties.outlineLevelCol = Math.max(sheet.properties.outlineLevelCol ?? 0, level);
+                break;
+            }
+            case 'autoFitColumnWidths': {
+                const sheet = findSheet(workbook, operation.sheet);
+                if (!sheet)
+                    throw new Error(`sheet not found: ${operation.sheet}`);
+                const columns = operation.columns?.length
+                    ? operation.columns.map((column) => columnToNumber(column))
+                    : Array.from({ length: sheet.columnCount }, (_, i) => i + 1);
+                const minWidth = operation.minWidth ?? 8;
+                const maxWidth = operation.maxWidth ?? 60;
+                for (const col of columns) {
+                    let widest = 0;
+                    for (let row = 1; row <= sheet.rowCount; row++) {
+                        const text = displayTextOf(sheet.getCell(`${numberToColumn(col)}${row}`));
+                        widest = Math.max(widest, displayWidth(text));
+                    }
+                    sheet.getColumn(col).width = Math.min(maxWidth, Math.max(minWidth, widest + 2));
+                }
+                break;
+            }
+            case 'unfreezePanes': {
+                const sheet = findSheet(workbook, operation.sheet);
+                if (!sheet)
+                    throw new Error(`sheet not found: ${operation.sheet}`);
+                sheet.views = [];
+                break;
+            }
+            case 'transpose': {
+                transposeRange(workbook, operation.source, operation.target);
+                warnings.push({ op: index, message: 'transpose copied values and formulas (styles are not transposed)' });
+                break;
+            }
+            case 'clearRange': {
+                clearRange(workbook, operation.range, operation.mode ?? 'contents');
+                break;
+            }
+            case 'joinSheets': {
+                joinSheets(workbook, operation, warnings, index);
+                break;
+            }
+            case 'crosstab': {
+                applyCrosstab(workbook, operation, warnings, index);
+                break;
+            }
+            case 'setHyperlink': {
+                setHyperlink(workbook, operation);
+                break;
+            }
+            case 'printTitles': {
+                const sheet = findSheet(workbook, operation.sheet);
+                if (!sheet)
+                    throw new Error(`sheet not found: ${operation.sheet}`);
+                if (operation.rows)
+                    sheet.pageSetup.printTitlesRow = operation.rows;
+                if (operation.columns)
+                    sheet.pageSetup.printTitlesColumn = operation.columns;
+                break;
+            }
+            case 'copyStyle': {
+                copyStyle(workbook, operation.source, operation.target);
+                break;
+            }
+            case 'freezeFormulas': {
+                const frozen = freezeFormulas(workbook, operation.range);
+                warnings.push({ op: index, message: `freezeFormulas converted ${frozen} formula(s) to their cached values` });
+                break;
+            }
+            case 'uniqueValues': {
+                const extracted = uniqueValues(workbook, operation);
+                warnings.push({ op: index, message: `uniqueValues extracted ${extracted} distinct value(s)` });
+                break;
+            }
+            case 'unmergeAll': {
+                const sheet = findSheet(workbook, operation.sheet);
+                if (!sheet)
+                    throw new Error(`sheet not found: ${operation.sheet}`);
+                const merges = [...(sheet.model.merges ?? [])];
+                for (const range of merges)
+                    sheet.unMergeCells(range);
+                warnings.push({ op: index, message: `unmergeAll removed ${merges.length} merged range(s) from ${sheet.name}` });
+                break;
+            }
+            case 'setZoom': {
+                const sheet = findSheet(workbook, operation.sheet);
+                if (!sheet)
+                    throw new Error(`sheet not found: ${operation.sheet}`);
+                if (operation.zoom < 10 || operation.zoom > 400)
+                    throw new Error(`invalid zoom: ${operation.zoom} (10-400)`);
+                applySheetView(sheet, (view) => {
+                    view.zoomScale = operation.zoom;
+                    view.zoomScaleNormal = operation.normalZoom ?? operation.zoom;
+                });
+                break;
+            }
+            case 'showGridLines': {
+                const sheet = findSheet(workbook, operation.sheet);
+                if (!sheet)
+                    throw new Error(`sheet not found: ${operation.sheet}`);
+                applySheetView(sheet, (view) => {
+                    view.showGridLines = operation.visible;
+                });
+                break;
+            }
+            case 'headerFooter': {
+                const sheet = findSheet(workbook, operation.sheet);
+                if (!sheet)
+                    throw new Error(`sheet not found: ${operation.sheet}`);
+                const headerFooter = {
+                    ...sheet.headerFooter,
+                    ...(operation.oddHeader !== undefined ? { oddHeader: operation.oddHeader } : {}),
+                    ...(operation.oddFooter !== undefined ? { oddFooter: operation.oddFooter } : {}),
+                    ...(operation.evenHeader !== undefined ? { evenHeader: operation.evenHeader } : {}),
+                    ...(operation.evenFooter !== undefined ? { evenFooter: operation.evenFooter } : {}),
+                    ...(operation.firstHeader !== undefined ? { firstHeader: operation.firstHeader } : {}),
+                    ...(operation.firstFooter !== undefined ? { firstFooter: operation.firstFooter } : {}),
+                    ...(operation.differentOddEven !== undefined ? { differentOddEven: operation.differentOddEven } : {}),
+                    ...(operation.differentFirst !== undefined ? { differentFirst: operation.differentFirst } : {}),
+                };
+                sheet.headerFooter = headerFooter;
+                break;
+            }
+            case 'moveSheet': {
+                moveSheet(workbook, operation.name, operation.position);
+                break;
+            }
+            case 'setWorkbookProperties': {
+                if (operation.creator !== undefined)
+                    workbook.creator = operation.creator;
+                if (operation.lastModifiedBy !== undefined)
+                    workbook.lastModifiedBy = operation.lastModifiedBy;
+                if (operation.title !== undefined)
+                    workbook.title = operation.title;
+                if (operation.subject !== undefined)
+                    workbook.subject = operation.subject;
+                if (operation.description !== undefined)
+                    workbook.description = operation.description;
+                if (operation.keywords !== undefined)
+                    workbook.keywords = operation.keywords;
+                if (operation.recalcOnOpen)
+                    workbook.calcProperties.fullCalcOnLoad = true;
+                break;
+            }
+            case 'rankColumn': {
+                applyRankColumn(workbook, operation);
+                break;
+            }
             case 'addSheet': {
                 workbook.addWorksheet(operation.name);
                 break;
@@ -561,7 +775,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 break;
             }
             case 'copyRange': {
-                copyRange(workbook, operation.source, operation.target, operation.move ?? false);
+                copyRange(workbook, operation.source, operation.target, operation.move ?? false, operation.valuesOnly ?? false);
                 break;
             }
             case 'fillSeries': {
@@ -1500,7 +1714,7 @@ function parseTargetCell(workbook, target, defaultSheet) {
         throw new Error(`sheet not found: ${sheetName}`);
     return { sheet, col: columnToNumber(match[1]), row: Number(match[2]) };
 }
-function copyRange(workbook, sourceRange, targetCell, move) {
+function copyRange(workbook, sourceRange, targetCell, move, valuesOnly = false) {
     const parsed = parseRange(workbook, sourceRange);
     const bang = targetCell.lastIndexOf('!');
     const targetSheetName = bang >= 0 ? targetCell.slice(0, bang) : parsed.sheet.name;
@@ -1519,6 +1733,12 @@ function copyRange(workbook, sourceRange, targetCell, move) {
             const destCol = targetCol + (col - parsed.startCol);
             const destRow = targetRow + (row - parsed.startRow);
             const dest = targetSheet.getCell(`${numberToColumn(destCol)}${destRow}`);
+            if (valuesOnly) {
+                // Paste-special: values only. Formulas contribute their last cached
+                // result; empty cells clear the destination.
+                dest.value = source.formula ? (source.result ?? null) : source.value;
+                continue;
+            }
             const content = cellContentOf(source);
             if (!content) {
                 dest.value = null;
@@ -1596,6 +1816,7 @@ function applyStyle(workbook, range, style) {
             if (style.bold !== undefined ||
                 style.italic !== undefined ||
                 style.underline !== undefined ||
+                style.strikeThrough !== undefined ||
                 style.fontColor !== undefined ||
                 style.fontSize !== undefined ||
                 style.fontName !== undefined) {
@@ -1604,6 +1825,7 @@ function applyStyle(workbook, range, style) {
                     bold: style.bold ?? font.bold,
                     italic: style.italic ?? font.italic,
                     underline: style.underline ?? font.underline,
+                    strike: style.strikeThrough ?? font.strike,
                     size: style.fontSize ?? font.size,
                     name: style.fontName ?? font.name,
                     color: style.fontColor ? { argb: normalizeColor(style.fontColor) } : font.color,
@@ -1615,12 +1837,20 @@ function applyStyle(workbook, range, style) {
             if (style.numberFormat !== undefined)
                 cell.numFmt = style.numberFormat;
             const alignment = cell.alignment ?? {};
-            if (style.hAlign !== undefined || style.vAlign !== undefined || style.wrapText !== undefined) {
+            if (style.hAlign !== undefined ||
+                style.vAlign !== undefined ||
+                style.wrapText !== undefined ||
+                style.textRotation !== undefined ||
+                style.shrinkToFit !== undefined ||
+                style.indent !== undefined) {
                 cell.alignment = {
                     ...alignment,
                     horizontal: style.hAlign ?? alignment.horizontal,
                     vertical: style.vAlign ?? alignment.vertical,
                     wrapText: style.wrapText ?? alignment.wrapText,
+                    textRotation: style.textRotation ?? alignment.textRotation,
+                    shrinkToFit: style.shrinkToFit ?? alignment.shrinkToFit,
+                    indent: style.indent ?? alignment.indent,
                 };
             }
             if (style.border) {
@@ -1794,6 +2024,321 @@ function applyMerge(workbook, range, unmerge) {
         sheet.unMergeCells(body);
     else
         sheet.mergeCells(body);
+}
+/** Visible text of a cell for width estimation: formula cells use their cached result. */
+function displayTextOf(cell) {
+    const value = cell.formula ? cell.result : cell.value;
+    if (value === null || value === undefined)
+        return '';
+    if (value instanceof Date)
+        return '2026-12-31';
+    if (typeof value === 'object')
+        return JSON.stringify(value);
+    return String(value);
+}
+/**
+ * Approximate display width in character units: CJK/fullwidth characters count
+ * as 2 columns, everything else as 1.
+ */
+function displayWidth(text) {
+    let width = 0;
+    for (const char of text) {
+        const code = char.codePointAt(0) ?? 0;
+        width += code > 0x2e7f ? 2 : 1;
+    }
+    return width;
+}
+function transposeRange(workbook, sourceRange, targetCell) {
+    const parsed = parseRange(workbook, sourceRange);
+    const target = parseTargetCell(workbook, targetCell, parsed.sheet.name);
+    for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+        for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+            const source = parsed.sheet.getCell(`${numberToColumn(col)}${row}`);
+            // (row,col) maps to (targetRow + colOffset, targetCol + rowOffset).
+            const destRow = target.row + (col - parsed.startCol);
+            const destCol = target.col + (row - parsed.startRow);
+            const dest = target.sheet.getCell(`${numberToColumn(destCol)}${destRow}`);
+            const content = cellContentOf(source);
+            if (!content)
+                continue;
+            dest.value = content.startsWith('=')
+                ? toCellValue(shiftFormulaReferences(content, parsed.sheet.name, null, {
+                    rowDelta: destRow - row,
+                    colDelta: destCol - col,
+                }))
+                : source.value;
+        }
+    }
+}
+function clearRange(workbook, range, mode) {
+    const parsed = parseRange(workbook, range);
+    for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+        for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+            const cell = parsed.sheet.getCell(`${numberToColumn(col)}${row}`);
+            if (mode === 'contents') {
+                cell.value = null;
+            }
+            else if (mode === 'formats') {
+                cell.style = {};
+            }
+            else {
+                cell.value = null;
+                cell.style = {};
+            }
+        }
+    }
+}
+function joinSheets(workbook, operation, warnings, opIndex) {
+    if (operation.valueColumns.length !== operation.outputColumns.length) {
+        throw new Error(`joinSheets valueColumns (${operation.valueColumns.length}) and outputColumns (${operation.outputColumns.length}) must have the same length`);
+    }
+    const sourceParsed = parseRange(workbook, operation.source);
+    const lookupParsed = parseRange(workbook, operation.lookup);
+    const lookupKeyCol = columnToNumber(operation.lookupKey);
+    // First match wins, mirroring VLOOKUP's approximate=false behaviour.
+    const index = new Map();
+    for (let row = lookupParsed.startRow + 1; row <= lookupParsed.endRow; row++) {
+        const key = normalizeJoinKey(lookupParsed.sheet.getCell(`${numberToColumn(lookupKeyCol)}${row}`).value);
+        if (!key || index.has(key))
+            continue;
+        index.set(key, operation.valueColumns.map((column) => cellContentOf(lookupParsed.sheet.getCell(`${numberToColumn(columnToNumber(column))}${row}`))));
+    }
+    const sourceKeyCol = columnToNumber(operation.sourceKey);
+    let matched = 0;
+    let missed = 0;
+    for (let row = sourceParsed.startRow + 1; row <= sourceParsed.endRow; row++) {
+        const key = normalizeJoinKey(sourceParsed.sheet.getCell(`${numberToColumn(sourceKeyCol)}${row}`).value);
+        const values = key ? index.get(key) : undefined;
+        if (!values) {
+            missed++;
+            if (operation.missValue !== undefined) {
+                operation.outputColumns.forEach((column, i) => {
+                    sourceParsed.sheet.getCell(`${numberToColumn(columnToNumber(column))}${row}`).value =
+                        typeof operation.missValue === 'number' ? operation.missValue : String(operation.missValue ?? '');
+                });
+            }
+            continue;
+        }
+        matched++;
+        values.forEach((value, i) => {
+            const column = columnToNumber(operation.outputColumns[i]);
+            sourceParsed.sheet.getCell(`${numberToColumn(column)}${row}`).value =
+                value.startsWith('=') ? { formula: value.slice(1) } : toCellValue(value);
+        });
+    }
+    warnings.push({ op: opIndex, message: `joinSheets matched ${matched} row(s), ${missed} without a lookup hit` });
+}
+/** Join keys are compared trimmed + lowercased, numbers via their text form. */
+function normalizeJoinKey(value) {
+    if (value === null || value === undefined)
+        return '';
+    return String(typeof value === 'object' && !(value instanceof Date) ? JSON.stringify(value) : value).trim().toLowerCase();
+}
+const CROSSTAB_FUNCTIONS = {
+    sum: 'SUMIFS',
+    average: 'AVERAGEIFS',
+    count: 'COUNTIFS',
+    counta: 'COUNTIFS',
+    max: 'MAXIFS',
+    min: 'MINIFS',
+};
+/** Aggregations where a grand total of the computed grid is meaningful. */
+const CROSSTAB_TOTALABLE = new Set(['sum', 'count', 'counta']);
+function applyCrosstab(workbook, options, warnings, opIndex) {
+    const needsMetric = options.metric.function !== 'count' && options.metric.function !== 'counta';
+    if (needsMetric && !options.metric.column) {
+        throw new Error(`crosstab function "${options.metric.function}" requires metric.column`);
+    }
+    const parsed = parseRange(workbook, options.source);
+    const rowCol = columnToNumber(options.rowColumn);
+    const colCol = columnToNumber(options.columnColumn);
+    const firstData = parsed.startRow + 1;
+    const collectKeys = (col) => {
+        const keys = [];
+        const seen = new Set();
+        for (let row = firstData; row <= parsed.endRow; row++) {
+            const raw = parsed.sheet.getCell(`${numberToColumn(col)}${row}`).value;
+            const key = raw === null || raw === undefined ? '' : String(raw);
+            if (!seen.has(key)) {
+                seen.add(key);
+                keys.push(key);
+            }
+        }
+        return keys;
+    };
+    const rowKeys = collectKeys(rowCol);
+    const colKeys = collectKeys(colCol);
+    if (!rowKeys.length || !colKeys.length)
+        throw new Error('crosstab source has no data rows');
+    const sheetRange = (col) => `${parsed.sheet.name}!$${numberToColumn(col)}$${firstData}:$${numberToColumn(col)}$${parsed.endRow}`;
+    const rowRange = sheetRange(rowCol);
+    const colRange = sheetRange(colCol);
+    const metricRange = options.metric.column ? sheetRange(columnToNumber(options.metric.column)) : null;
+    const fn = CROSSTAB_FUNCTIONS[options.metric.function];
+    const outputSheetName = options.outputSheet ?? `${parsed.sheet.name}-交叉表`;
+    let output = findSheet(workbook, outputSheetName);
+    if (!output)
+        output = workbook.addWorksheet(outputSheetName);
+    const rowHeader = String(parsed.sheet.getCell(`${numberToColumn(rowCol)}${parsed.startRow}`).value ?? options.rowColumn);
+    const colHeader = String(parsed.sheet.getCell(`${numberToColumn(colCol)}${parsed.startRow}`).value ?? options.columnColumn);
+    const corner = output.getCell('A1');
+    corner.value = `${rowHeader}\\${colHeader}`;
+    corner.font = { bold: true };
+    colKeys.forEach((key, i) => {
+        const cell = output.getCell(`${numberToColumn(2 + i)}1`);
+        cell.value = key;
+        cell.font = { bold: true };
+    });
+    rowKeys.forEach((rowKey, rowIndex) => {
+        const outRow = 2 + rowIndex;
+        output.getCell(`A${outRow}`).value = rowKey;
+        colKeys.forEach((_colKey, colIndex) => {
+            const columnLetter = numberToColumn(2 + colIndex);
+            // Criteria point at output-sheet cells, so keys never need quoting.
+            const body = metricRange
+                ? `${metricRange},${rowRange},$A${outRow},${colRange},${columnLetter}$1`
+                : `${rowRange},$A${outRow},${colRange},${columnLetter}$1`;
+            const formula = `${fn}(${body})`;
+            output.getCell(`${columnLetter}${outRow}`).value = {
+                formula: options.metric.function === 'average' ? `IFERROR(${formula},0)` : formula,
+            };
+        });
+    });
+    const totals = options.totals ?? true;
+    if (totals && CROSSTAB_TOTALABLE.has(options.metric.function)) {
+        const totalRow = 2 + rowKeys.length;
+        const totalCol = 2 + colKeys.length;
+        output.getCell(`A${totalRow}`).value = '总计';
+        output.getCell(`A${totalRow}`).font = { bold: true };
+        colKeys.forEach((_colKey, colIndex) => {
+            const columnLetter = numberToColumn(2 + colIndex);
+            const cell = output.getCell(`${columnLetter}${totalRow}`);
+            cell.value = { formula: `SUM(${columnLetter}2:${columnLetter}${totalRow - 1})` };
+            cell.font = { bold: true };
+        });
+        for (let row = 2; row <= totalRow; row++) {
+            const last = numberToColumn(totalCol - 1);
+            const cell = output.getCell(`${numberToColumn(totalCol)}${row}`);
+            cell.value = { formula: `SUM(B${row}:${last}${row})` };
+            if (row === totalRow)
+                cell.font = { bold: true };
+        }
+    }
+    warnings.push({
+        op: opIndex,
+        message: `crosstab built ${rowKeys.length}x${colKeys.length} grid on ${outputSheetName} with live ${fn} formulas`,
+    });
+}
+function setHyperlink(workbook, options) {
+    const cell = resolveCell(workbook, options.cell);
+    const text = options.text;
+    if (options.url) {
+        cell.value = { text: text ?? options.url, hyperlink: options.url };
+        return;
+    }
+    if (options.location) {
+        const location = options.location.startsWith('#') ? options.location : `#${options.location}`;
+        cell.value = { text: text ?? location.slice(1), hyperlink: location };
+        return;
+    }
+    throw new Error('setHyperlink requires url (external) or location (internal, e.g. "Sheet2!A1")');
+}
+/** Clone font/fill/border/alignment/number format from one cell onto every cell in the target range. */
+function copyStyle(workbook, sourceId, targetRange) {
+    const source = resolveCell(workbook, sourceId);
+    const style = JSON.parse(JSON.stringify(source.style ?? {}));
+    const parsed = parseRange(workbook, targetRange);
+    for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+        for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+            const cell = parsed.sheet.getCell(`${numberToColumn(col)}${row}`);
+            cell.style = JSON.parse(JSON.stringify(style));
+        }
+    }
+}
+/** Replace formulas with their cached results ("paste values" in place). */
+function freezeFormulas(workbook, range) {
+    const parsed = parseRange(workbook, range);
+    let frozen = 0;
+    for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+        for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+            const cell = parsed.sheet.getCell(`${numberToColumn(col)}${row}`);
+            if (!cell.formula)
+                continue;
+            const result = cell.result;
+            cell.value = result === undefined || result === null ? null : result;
+            frozen++;
+        }
+    }
+    return frozen;
+}
+/** Write the distinct values of a source column into a target column, first-seen order. */
+function uniqueValues(workbook, options) {
+    const parsed = parseRange(workbook, options.source);
+    const target = parseTargetCell(workbook, options.target, parsed.sheet.name);
+    const seen = new Set();
+    const ordered = [];
+    const firstDataRow = options.includeHeader ? parsed.startRow : parsed.startRow + 1;
+    for (let row = firstDataRow; row <= parsed.endRow; row++) {
+        const cell = parsed.sheet.getCell(`${numberToColumn(parsed.startCol)}${row}`);
+        const raw = cell.formula ? cell.result : cell.value;
+        const key = raw === null || raw === undefined ? '' : String(raw);
+        if (seen.has(key))
+            continue;
+        seen.add(key);
+        ordered.push(raw);
+    }
+    let outRow = target.row;
+    for (const value of ordered) {
+        target.sheet.getCell(`${numberToColumn(target.col)}${outRow}`).value = value === null || value === undefined ? '' : value;
+        outRow++;
+    }
+    if (options.includeHeader) {
+        const header = parsed.sheet.getCell(`${numberToColumn(parsed.startCol)}${parsed.startRow}`).value;
+        target.sheet.getCell(`${numberToColumn(target.col)}${target.row}`).value = header;
+    }
+    return ordered.length;
+}
+/** Patch every existing sheet view without dropping frozen panes or other flags. */
+function applySheetView(sheet, patch) {
+    // exceljs types views as strict unions but accepts partial views at runtime,
+    // so the default view is cast from a minimal object.
+    const existing = (sheet.views ?? []);
+    const views = existing.length
+        ? existing
+        : [{ workbookViewId: 0 }];
+    for (const view of views)
+        patch(view);
+    sheet.views = views;
+}
+/** Reorder sheets by rewriting orderNo (worksheets getter sorts by it). */
+function moveSheet(workbook, name, position) {
+    const sheet = findSheet(workbook, name);
+    if (!sheet)
+        throw new Error(`sheet not found: ${name}`);
+    const ordered = workbook.worksheets;
+    const others = ordered.filter((entry) => entry.id !== sheet.id);
+    const clamped = Math.max(1, Math.min(position, ordered.length));
+    const before = others.slice(0, clamped - 1);
+    const after = others.slice(clamped - 1);
+    [...before, sheet, ...after].forEach((entry, i) => {
+        ;
+        entry.orderNo = i + 1;
+    });
+}
+/** Append a live RANK column next to a metric column. */
+function applyRankColumn(workbook, options) {
+    const parsed = parseRange(workbook, options.range);
+    const metricCol = columnToNumber(options.metricColumn);
+    if (metricCol < parsed.startCol || metricCol > parsed.endCol) {
+        throw new Error(`rankColumn metric column outside range: ${options.metricColumn}`);
+    }
+    const firstData = options.skipHeader === false ? parsed.startRow : parsed.startRow + 1;
+    const metricRange = `${parsed.sheet.name}!$${numberToColumn(metricCol)}$${firstData}:$${numberToColumn(metricCol)}$${parsed.endRow}`;
+    for (let row = firstData; row <= parsed.endRow; row++) {
+        parsed.sheet.getCell(`${options.outputColumn}${row}`).value = {
+            formula: `RANK(${numberToColumn(metricCol)}${row},${metricRange},${options.descending === false ? 1 : 0})`,
+        };
+    }
 }
 export async function operateWorkbookFile(path, operations, outputPath) {
     const result = await applyOperationsToWorkbook(path, operations, outputPath);

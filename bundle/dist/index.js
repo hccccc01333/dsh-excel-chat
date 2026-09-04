@@ -4,7 +4,7 @@ import { runAgentTask } from './agent.js';
 import { createLlmRepairAdvisor } from './advisor.js';
 import { autofixWorkbookFile } from './autofix.js';
 import { validateCharts } from './chart-validator.js';
-import { createChartWithExcel, exportChartsWithExcel, modifyChartWithExcel, } from './chart-visual.js';
+import { createChartWithExcel, exportChartsWithExcel, exportWorkbookToPdf, modifyChartWithExcel, } from './chart-visual.js';
 import { readChartInfos } from './charts.js';
 import { compileFormula } from './compiler.js';
 import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.js';
@@ -214,7 +214,7 @@ export function apply(ctx) {
     }));
     ctx.tools.register(defineTool({
         name: 'excel_operate',
-        description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill, fillSeries, insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel), copyRange (move:true moves), sortRange, report (one-shot report template: sort + subtotals + dynamic SUMIFS summary + filter + header style + freeze + number format), preset (role templates: ops 运营 = report + data bars; product 产品 = report + color scale; data 数分 = report + color scale + filtered copy), subtotal (group summaries), aggregateReport (dynamic pivot-style summary with live SUMIFS formulas), filterToRange (advanced filter), style, dataValidation, conditionalFormatting, autoFilter, addTable, importCsv / exportCsv (RFC 4180 with formula-injection guard), setColumnWidth / setRowHeight / freezePanes, findReplace, protectSheet / unprotectSheet, mailMerge (expand {Placeholder} templates per data row), addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor, clear, merge / unmerge, dedupeRows (remove duplicate rows by key columns, keep first/last), fillMissing (fill blanks with a value / forward from above / from the left), removeEmptyRows / removeEmptyColumns, trimText (strip whitespace), changeCase (upper / lower / proper), normalizeText (fullwidth-to-halfwidth + whitespace cleanup), splitColumn (text to columns by delimiter), highlightRows (highlight whole rows matching criteria, e.g. find and highlight a customer), fuzzyMatch (two-table fuzzy match by similarity and write the matched value back, e.g. reconcile names). The operations array is a strict union on "op": choose the matching object shape. Example: {"operations":[{"op":"set","cells":{"Sheet1!A1":"100"}},{"op":"style","range":"Sheet1!A1:C1","style":{"bold":true}}]}. Writes <path>.edited.xlsx (or outPath) and returns the post-operation validation result.',
+        description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill, fillSeries, insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel), copyRange (move:true moves, valuesOnly:true pastes cached results), transpose (paste transposed with formula shifting), copyStyle (format painter: clone font/fill/border/alignment/number format onto a range), freezeFormulas (convert formulas to their cached values), sortRange, report (one-shot report template: sort + subtotals + dynamic SUMIFS summary + filter + header style + freeze + number format), preset (role templates: ops 运营 = report + data bars; product 产品 = report + color scale; data 数分 = report + color scale + filtered copy), subtotal (group summaries), aggregateReport (dynamic pivot-style summary with live SUMIFS formulas), crosstab (two-dimension pivot grid with live SUMIFS/COUNTIFS formulas plus totals), filterToRange (advanced filter), joinSheets (exact-match two-table lookup: copy one or more columns from a lookup table back into the source by key, like VLOOKUP without formulas), fuzzyMatch (two-table fuzzy match by similarity and write the matched value back, e.g. reconcile names), uniqueValues (extract distinct values of a column), rankColumn (live RANK formula column), style, dataValidation, conditionalFormatting, autoFilter, addTable, importCsv / exportCsv (RFC 4180 with formula-injection guard), setColumnWidth / setRowHeight / autoFitColumnWidths (content-based fit, CJK aware) / freezePanes / unfreezePanes, hideRows / hideColumns, groupRows / groupColumns (outline levels, optional collapse), setZoom, showGridLines, headerFooter (&-code page headers/footers), findReplace, protectSheet / unprotectSheet, mailMerge (expand {Placeholder} templates per data row), pageSetup, printTitles (repeat header rows/columns on every printed page), definedName, setHyperlink (external URL or internal location link), addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor / moveSheet (reorder tabs), setWorkbookProperties (author/title/keywords + recalcOnOpen), unmergeAll, clear (cells) / clearRange (contents / formats / all), merge / unmerge, dedupeRows (remove duplicate rows by key columns, keep first/last), fillMissing (fill blanks with a value / forward from above / from the left), removeEmptyRows / removeEmptyColumns, trimText (strip whitespace), changeCase (upper / lower / proper), normalizeText (fullwidth-to-halfwidth + whitespace cleanup), splitColumn (text to columns by delimiter), highlightRows (highlight whole rows matching criteria, e.g. find and highlight a customer). The operations array is a strict union on "op": choose the matching object shape. Example: {"operations":[{"op":"set","cells":{"Sheet1!A1":"100"}},{"op":"style","range":"Sheet1!A1:C1","style":{"bold":true}}]}. Writes <path>.edited.xlsx (or outPath) and returns the post-operation validation result.',
         parameters: {
             path: {
                 type: 'string',
@@ -590,6 +590,36 @@ export function apply(ctx) {
         async execute(args, exec) {
             const outDir = args.outDir ?? `${args.path.replace(/\.xlsx$/i, '')}.charts`;
             return { images: await exportChartsWithExcel(args.path, outDir, exec.signal) };
+        },
+    }));
+    ctx.tools.register(defineTool({
+        name: 'excel_export_pdf',
+        description: 'Export an .xlsx file (whole workbook or one sheet) to a PDF using local Microsoft Excel COM. Windows only; the source file is opened read-only and left untouched.',
+        parameters: {
+            path: {
+                type: 'string',
+                required: true,
+                description: 'Absolute path to an .xlsx file.',
+            },
+            outPath: {
+                type: 'string',
+                description: 'Output PDF path (default: <path>.pdf).',
+            },
+            sheet: {
+                type: 'string',
+                description: 'Export only this sheet (default all sheets).',
+            },
+        },
+        output: {
+            schema: { type: 'object', additionalProperties: true },
+            render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+        },
+        async execute(args, exec) {
+            const outPath = typeof args.outPath === 'string' && args.outPath
+                ? args.outPath
+                : args.path.replace(/\.xlsx$/i, '.pdf');
+            await exportWorkbookToPdf(args.path, outPath, typeof args.sheet === 'string' && args.sheet ? args.sheet : undefined, exec.signal);
+            return { pdfPath: outPath };
         },
     }));
     ctx.tools.register(defineTool({

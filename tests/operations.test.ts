@@ -1061,3 +1061,488 @@ test('fuzzyMatch matches source keys to target keys by similarity and writes val
   assert.equal(cells['订单!C5'], undefined)
   assert.ok(Number(cells['订单!D2']) >= 0.9)
 })
+
+test('hideRows hides and shows a range, surviving the save round-trip', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    for (let row = 1; row <= 4; row++) sheet.getCell(`A${row}`).value = row
+  })
+  const outPath = join(join(path, '..'), 'hidden.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'hideRows', sheet: 'Sheet1', from: 2, to: 3 }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getRow(2).hidden, true)
+  assert.equal(sheet.getRow(3).hidden, true)
+  assert.equal(sheet.getRow(4).hidden, false)
+  await applyOperationsToWorkbook(outPath, [{ op: 'hideRows', sheet: 'Sheet1', from: 2, to: 3, hidden: false }], join(join(path, '..'), 'shown.xlsx'))
+  const shown = new ExcelJS.Workbook()
+  await shown.xlsx.readFile(join(join(path, '..'), 'shown.xlsx'))
+  assert.equal(shown.getWorksheet('Sheet1')!.getRow(2).hidden, false)
+})
+
+test('hideRows keeps empty rows hidden across the round-trip', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'head'
+    sheet.getCell('A5').value = 'tail'
+  })
+  const cells = await readAfter(path, [{ op: 'hideRows', sheet: 'Sheet1', from: 2, to: 4 }], 'empty-hidden.xlsx')
+  assert.equal(cells['Sheet1!A5'], 'tail')
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(join(join(path, '..'), 'empty-hidden.xlsx'))
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getRow(2).hidden, true)
+  assert.equal(sheet.getRow(3).hidden, true)
+  assert.equal(sheet.getRow(4).hidden, true)
+})
+
+test('hideColumns hides and shows columns', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'a'
+    sheet.getCell('B1').value = 'b'
+    sheet.getCell('C1').value = 'c'
+    sheet.getCell('D1').value = 'd'
+  })
+  const outPath = join(join(path, '..'), 'cols.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'hideColumns', sheet: 'Sheet1', columns: ['B', 'D'] }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getColumn('B').hidden, true)
+  assert.equal(sheet.getColumn('D').hidden, true)
+  assert.equal(sheet.getColumn('C').hidden, false)
+})
+
+test('groupRows sets outline levels and collapses; groupColumns groups columns', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    for (let row = 1; row <= 5; row++) sheet.getCell(`A${row}`).value = row
+    sheet.getCell('B1').value = 'b1'
+    sheet.getCell('C1').value = 'c1'
+  })
+  const outPath = join(join(path, '..'), 'grouped.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'groupRows', sheet: 'Sheet1', start: 3, end: 4, collapse: true },
+    { op: 'groupColumns', sheet: 'Sheet1', from: 'B', to: 'C' },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getRow(3).outlineLevel, 1)
+  assert.equal(sheet.getRow(4).outlineLevel, 1)
+  assert.equal(sheet.getRow(3).hidden, true)
+  assert.equal(sheet.getRow(5).outlineLevel, 0)
+  assert.equal(sheet.getColumn('B').outlineLevel, 1)
+  assert.equal(sheet.getColumn('C').outlineLevel, 1)
+  assert.ok((sheet.properties.outlineLevelRow ?? 0) >= 1)
+  assert.ok((sheet.properties.outlineLevelCol ?? 0) >= 1)
+})
+
+test('autoFitColumnWidths sizes columns from content with CJK counted double', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'id'
+    sheet.getCell('A2').value = 12345678901
+    sheet.getCell('B1').value = '名称'
+    sheet.getCell('B2').value = '苹果手机'
+  })
+  const outPath = join(join(path, '..'), 'fitted.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'autoFitColumnWidths', sheet: 'Sheet1' }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  // "12345678901" = 11 chars + padding.
+  assert.equal(sheet.getColumn('A').width, 13)
+  // "苹果手机" = 8 display columns + padding.
+  assert.equal(sheet.getColumn('B').width, 10)
+})
+
+test('unfreezePanes clears a frozen view', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 1, topLeftCell: 'A2' }]
+    sheet.getCell('A1').value = 'head'
+  })
+  const outPath = join(join(path, '..'), 'unfrozen.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'unfreezePanes', sheet: 'Sheet1' }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const views = workbook.getWorksheet('Sheet1')!.views
+  assert.ok(!Array.isArray(views) || !views.some((view: any) => view.state === 'frozen'))
+})
+
+test('copyRange valuesOnly pastes cached formula results instead of formulas', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('B2').value = 10
+    sheet.getCell('C2').value = 4
+    // Real .xlsx files carry cached formula results alongside the formula.
+    sheet.getCell('D2').value = { formula: 'B2-C2', result: 6 }
+    sheet.getCell('D3').value = { formula: 'B2*C2', result: 40 }
+  })
+  const cells = await readAfter(path, [{
+    op: 'copyRange',
+    source: 'Sheet1!D2:D3',
+    target: 'Sheet1!F2',
+    valuesOnly: true,
+  }])
+  assert.equal(cells['Sheet1!F2'], '6')
+  assert.equal(cells['Sheet1!F3'], '40')
+})
+
+test('transpose copies a range transposed and shifts relative references', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'x'
+    sheet.getCell('B1').value = 'y'
+    sheet.getCell('A2').value = 1
+    sheet.getCell('B2').value = { formula: 'A2*10' }
+  })
+  const cells = await readAfter(path, [{
+    op: 'transpose',
+    source: 'Sheet1!A1:B2',
+    target: 'Sheet1!D1',
+  }])
+  // Transpose swaps rows and columns: B1 lands at D2, A2 at E1.
+  assert.equal(cells['Sheet1!D1'], 'x')
+  assert.equal(cells['Sheet1!E1'], '1')
+  assert.equal(cells['Sheet1!D2'], 'y')
+  // B2 -> E2 shifts its relative reference by +3 columns: A2 becomes D2.
+  assert.equal(cells['Sheet1!E2'], '=D2*10')
+})
+
+test('clearRange contents keeps styles while formats keeps values', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'keep'
+    sheet.getCell('A1').font = { bold: true }
+    sheet.getCell('B1').value = 'drop'
+    sheet.getCell('B1').font = { bold: true }
+  })
+  const cells = await readAfter(path, [
+    { op: 'clearRange', range: 'Sheet1!A1:A1', mode: 'formats' },
+    { op: 'clearRange', range: 'Sheet1!B1:B1', mode: 'contents' },
+  ])
+  assert.equal(cells['Sheet1!A1'], 'keep')
+  assert.equal(cells['Sheet1!B1'], undefined)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(join(join(path, '..'), 'out.xlsx'))
+  const sheet = workbook.getWorksheet('Sheet1')!
+  // formats: value kept, style reset.
+  assert.notEqual(sheet.getCell('A1').font?.bold, true)
+  // contents: value gone, style untouched.
+  assert.equal(sheet.getCell('B1').font?.bold, true)
+})
+
+test('joinSheets copies multiple lookup columns back by exact key match', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const orders = workbook.addWorksheet('订单')
+    orders.getCell('A1').value = '客户'
+    orders.getCell('B1').value = '金额'
+    orders.getCell('A2').value = '北京公司'
+    orders.getCell('B2').value = 100
+    orders.getCell('A3').value = '上海公司'
+    orders.getCell('B3').value = 200
+    orders.getCell('A4').value = '广州公司'
+    orders.getCell('B4').value = 50
+    const crm = workbook.addWorksheet('CRM')
+    crm.getCell('A1').value = '公司'
+    crm.getCell('B1').value = '负责人'
+    crm.getCell('C1').value = '电话'
+    crm.getCell('A2').value = '上海公司'
+    crm.getCell('B2').value = '李四'
+    crm.getCell('C2').value = '13900000000'
+    crm.getCell('A3').value = '北京公司'
+    crm.getCell('B3').value = '张三'
+    crm.getCell('C3').value = '13811112222'
+  })
+  const cells = await readAfter(path, [{
+    op: 'joinSheets',
+    source: '订单!A1:B4',
+    sourceKey: 'A',
+    lookup: 'CRM!A1:C3',
+    lookupKey: 'A',
+    valueColumns: ['B', 'C'],
+    outputColumns: ['C', 'D'],
+    missValue: '未匹配',
+  }])
+  assert.equal(cells['订单!C2'], '张三')
+  assert.equal(cells['订单!D2'], '13811112222')
+  assert.equal(cells['订单!C3'], '李四')
+  assert.equal(cells['订单!C4'], '未匹配')
+  assert.equal(cells['订单!D4'], '未匹配')
+})
+
+test('crosstab builds a live two-dimension summary with totals', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('数据')
+    sheet.getCell('A1').value = '地区'
+    sheet.getCell('B1').value = '季度'
+    sheet.getCell('C1').value = '销售额'
+    const rows: Array<[string, string, number]> = [
+      ['华东', 'Q1', 100],
+      ['华北', 'Q1', 80],
+      ['华东', 'Q2', 120],
+      ['华南', 'Q2', 60],
+    ]
+    rows.forEach(([region, quarter, amount], i) => {
+      sheet.getCell(`A${2 + i}`).value = region
+      sheet.getCell(`B${2 + i}`).value = quarter
+      sheet.getCell(`C${2 + i}`).value = amount
+    })
+  })
+  const outPath = join(join(path, '..'), 'crosstab.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'crosstab',
+    source: '数据!A1:C5',
+    rowColumn: 'A',
+    columnColumn: 'B',
+    metric: { column: 'C', function: 'sum' },
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const output = workbook.getWorksheet('数据-交叉表')!
+  assert.equal(output.getCell('A1').value, '地区\\季度')
+  assert.equal(output.getCell('B1').value, 'Q1')
+  assert.equal(output.getCell('C1').value, 'Q2')
+  assert.deepEqual([output.getCell('A2').value, output.getCell('A3').value, output.getCell('A4').value], ['华东', '华北', '华南'])
+  assert.match(String(output.getCell('B2').formula ?? ''), /SUMIFS/)
+  assert.match(String(output.getCell('C2').formula ?? ''), /SUMIFS/)
+  assert.equal(output.getCell('A5').value, '总计')
+  assert.match(String(output.getCell('D5').formula ?? ''), /SUM\(/)
+})
+
+test('setHyperlink writes external and internal links that survive saving', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    workbook.addWorksheet('明细')
+    sheet.getCell('A1').value = 'old'
+  })
+  const outPath = join(join(path, '..'), 'links.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'setHyperlink', cell: 'Sheet1!A1', url: 'https://example.com', text: '官网' },
+    { op: 'setHyperlink', cell: 'Sheet1!B1', location: '明细!A1', text: '跳转明细' },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  const external = sheet.getCell('A1').value as any
+  assert.equal(external.text, '官网')
+  assert.equal(external.hyperlink, 'https://example.com')
+  const internal = sheet.getCell('B1').value as any
+  assert.equal(internal.text, '跳转明细')
+  assert.equal(internal.hyperlink, '#明细!A1')
+})
+
+test('printTitles repeats header rows on every printed page', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'head'
+  })
+  const outPath = join(join(path, '..'), 'titles.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'printTitles', sheet: 'Sheet1', rows: '1:1', columns: 'A:A' }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const pageSetup = workbook.getWorksheet('Sheet1')!.pageSetup as any
+  assert.equal(pageSetup.printTitlesRow, '1:1')
+  assert.equal(pageSetup.printTitlesColumn, 'A:A')
+})
+
+test('style strikeThrough and textRotation persist after saving', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'done'
+  })
+  const outPath = join(join(path, '..'), 'styled.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'style',
+    range: 'Sheet1!A1:A1',
+    style: { strikeThrough: true, textRotation: 45, shrinkToFit: true, indent: 1 },
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const cell = workbook.getWorksheet('Sheet1')!.getCell('A1')
+  assert.equal(cell.font?.strike, true)
+  assert.equal(cell.alignment?.textRotation, 45)
+  assert.equal(cell.alignment?.shrinkToFit, true)
+})
+
+test('copyStyle paints formatting from one cell onto a target range', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'model'
+    sheet.getCell('A1').font = { bold: true, color: { argb: 'FFFF0000' } }
+    sheet.getCell('A1').numFmt = '#,##0.00'
+    sheet.getCell('B1').value = 'plain'
+    sheet.getCell('B2').value = 'plain'
+  })
+  const outPath = join(join(path, '..'), 'painted.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'copyStyle', source: 'Sheet1!A1', target: 'Sheet1!B1:B2' }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('B1').font?.bold, true)
+  assert.equal(sheet.getCell('B2').font?.bold, true)
+  assert.equal(sheet.getCell('B2').numFmt, '#,##0.00')
+  // Values are untouched by the format painter.
+  assert.equal(sheet.getCell('B1').value, 'plain')
+})
+
+test('freezeFormulas replaces formulas with cached results', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 10
+    sheet.getCell('A2').value = 4
+    sheet.getCell('A3').value = { formula: 'A1+A2', result: 14 }
+  })
+  const cells = await readAfter(path, [{ op: 'freezeFormulas', range: 'Sheet1!A1:A3' }])
+  assert.equal(cells['Sheet1!A3'], '14')
+})
+
+test('uniqueValues extracts distinct values in first-seen order', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '地区'
+    const rows = ['华东', '华北', '华东', '华南', '华北', '华东']
+    rows.forEach((value, i) => { sheet.getCell(`A${2 + i}`).value = value })
+  })
+  const cells = await readAfter(path, [{
+    op: 'uniqueValues',
+    source: 'Sheet1!A1:A7',
+    target: 'Sheet1!C1',
+    includeHeader: true,
+  }])
+  assert.equal(cells['Sheet1!C1'], '地区')
+  assert.equal(cells['Sheet1!C2'], '华东')
+  assert.equal(cells['Sheet1!C3'], '华北')
+  assert.equal(cells['Sheet1!C4'], '华南')
+  assert.equal(cells['Sheet1!C5'], undefined)
+})
+
+test('unmergeAll removes every merged range on the sheet', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'x'
+    sheet.mergeCells('A1:B2')
+    sheet.mergeCells('D1:E1')
+  })
+  const outPath = join(join(path, '..'), 'unmerged.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'unmergeAll', sheet: 'Sheet1' }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal((sheet.model.merges ?? []).length, 0)
+})
+
+test('setZoom and showGridLines update the sheet view and persist', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const outPath = join(join(path, '..'), 'view.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'setZoom', sheet: 'Sheet1', zoom: 85 },
+    { op: 'showGridLines', sheet: 'Sheet1', visible: false },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const view: any = workbook.getWorksheet('Sheet1')!.views[0]
+  assert.equal(view.zoomScale, 85)
+  assert.equal(view.showGridLines, false)
+})
+
+test('setZoom keeps frozen panes when patching the view', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 1, topLeftCell: 'A2' }]
+    sheet.getCell('A1').value = 'head'
+  })
+  const outPath = join(join(path, '..'), 'zoom-frozen.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'setZoom', sheet: 'Sheet1', zoom: 120 }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const view: any = workbook.getWorksheet('Sheet1')!.views[0]
+  assert.equal(view.state, 'frozen')
+  assert.equal(view.zoomScale, 120)
+})
+
+test('headerFooter writes page header and footer that survive saving', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const outPath = join(join(path, '..'), 'hf.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'headerFooter',
+    sheet: 'Sheet1',
+    oddHeader: '&L公司&C月报',
+    oddFooter: '第 &P 页 / 共 &N 页',
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const hf: any = workbook.getWorksheet('Sheet1')!.headerFooter
+  assert.equal(hf.oddHeader, '&L公司&C月报')
+  assert.equal(hf.oddFooter, '第 &P 页 / 共 &N 页')
+})
+
+test('moveSheet reorders tabs by position', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('A')
+    workbook.addWorksheet('B')
+    workbook.addWorksheet('C')
+  })
+  const outPath = join(join(path, '..'), 'moved.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'moveSheet', name: 'C', position: 1 }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  assert.deepEqual(workbook.worksheets.map((sheet) => sheet.name), ['C', 'A', 'B'])
+})
+
+test('setWorkbookProperties stores metadata and recalc flag', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 1
+  })
+  const outPath = join(join(path, '..'), 'props.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'setWorkbookProperties',
+    creator: '张三',
+    title: '月度报表',
+    keywords: '报表,月度',
+    recalcOnOpen: true,
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  assert.equal(workbook.creator, '张三')
+  assert.equal(workbook.title, '月度报表')
+  assert.equal(workbook.keywords, '报表,月度')
+  // fullCalcOnLoad is written to workbook.xml but exceljs does not parse it
+  // back; assert through the raw XML instead.
+  const { execSync } = await import('node:child_process')
+  const { mkdtempSync } = await import('node:fs')
+  const dir = mkdtempSync(join(tmpdir(), 'vera-props-'))
+  execSync(`unzip -o -q "${outPath}" xl/workbook.xml -d "${dir}"`)
+  const xml = await readFile(join(dir, 'xl/workbook.xml'), 'utf8')
+  assert.match(xml, /fullCalcOnLoad="1"/)
+})
+
+test('rankColumn writes live RANK formulas over the metric range', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '姓名'
+    sheet.getCell('B1').value = '分数'
+    const rows: Array<[string, number]> = [['甲', 90], ['乙', 70], ['丙', 90]]
+    rows.forEach(([name, score], i) => {
+      sheet.getCell(`A${2 + i}`).value = name
+      sheet.getCell(`B${2 + i}`).value = score
+    })
+  })
+  const cells = await readAfter(path, [{
+    op: 'rankColumn',
+    range: 'Sheet1!A1:B4',
+    metricColumn: 'B',
+    outputColumn: 'C',
+  }])
+  assert.equal(cells['Sheet1!C2'], '=RANK(B2,Sheet1!$B$2:$B$4,0)')
+  assert.equal(cells['Sheet1!C4'], '=RANK(B4,Sheet1!$B$2:$B$4,0)')
+})

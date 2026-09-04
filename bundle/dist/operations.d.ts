@@ -51,6 +51,7 @@ export type ExcelOperation = {
     source: string;
     target: string;
     move?: boolean;
+    valuesOnly?: boolean;
 } | {
     op: 'fillSeries';
     start: string;
@@ -318,11 +319,140 @@ export type ExcelOperation = {
     outputColumn: string;
     threshold?: number;
     scoreColumn?: string;
+} | {
+    op: 'hideRows';
+    sheet: string;
+    from: number;
+    to: number;
+    hidden?: boolean;
+} | {
+    op: 'hideColumns';
+    sheet: string;
+    columns: string[];
+    hidden?: boolean;
+} | {
+    op: 'groupRows';
+    sheet: string;
+    start: number;
+    end: number;
+    level?: number;
+    collapse?: boolean;
+} | {
+    op: 'groupColumns';
+    sheet: string;
+    from: string;
+    to: string;
+    level?: number;
+    collapse?: boolean;
+} | {
+    op: 'autoFitColumnWidths';
+    sheet: string;
+    columns?: string[];
+    minWidth?: number;
+    maxWidth?: number;
+} | {
+    op: 'unfreezePanes';
+    sheet: string;
+} | {
+    op: 'transpose';
+    source: string;
+    target: string;
+} | {
+    op: 'clearRange';
+    range: string;
+    mode?: 'contents' | 'formats' | 'all';
+} | {
+    op: 'joinSheets';
+    source: string;
+    sourceKey: string;
+    lookup: string;
+    lookupKey: string;
+    valueColumns: string[];
+    outputColumns: string[];
+    missValue?: string | number;
+} | {
+    op: 'crosstab';
+    source: string;
+    rowColumn: string;
+    columnColumn: string;
+    metric: {
+        column?: string;
+        function: 'sum' | 'average' | 'count' | 'counta' | 'max' | 'min';
+    };
+    outputSheet?: string;
+    totals?: boolean;
+} | {
+    op: 'setHyperlink';
+    cell: string;
+    url?: string;
+    location?: string;
+    text?: string;
+} | {
+    op: 'printTitles';
+    sheet: string;
+    rows?: string;
+    columns?: string;
+} | {
+    op: 'copyStyle';
+    source: string;
+    target: string;
+} | {
+    op: 'freezeFormulas';
+    range: string;
+} | {
+    op: 'uniqueValues';
+    source: string;
+    target: string;
+    includeHeader?: boolean;
+} | {
+    op: 'unmergeAll';
+    sheet: string;
+} | {
+    op: 'setZoom';
+    sheet: string;
+    zoom: number;
+    normalZoom?: number;
+} | {
+    op: 'showGridLines';
+    sheet: string;
+    visible: boolean;
+} | {
+    op: 'headerFooter';
+    sheet: string;
+    oddHeader?: string;
+    oddFooter?: string;
+    evenHeader?: string;
+    evenFooter?: string;
+    firstHeader?: string;
+    firstFooter?: string;
+    differentOddEven?: boolean;
+    differentFirst?: boolean;
+} | {
+    op: 'moveSheet';
+    name: string;
+    position: number;
+} | {
+    op: 'setWorkbookProperties';
+    creator?: string;
+    lastModifiedBy?: string;
+    title?: string;
+    subject?: string;
+    description?: string;
+    keywords?: string;
+    recalcOnOpen?: boolean;
+} | {
+    op: 'rankColumn';
+    range: string;
+    metricColumn: string;
+    outputColumn: string;
+    descending?: boolean;
+    skipHeader?: boolean;
 };
 export interface ExcelStyle {
     bold?: boolean;
     italic?: boolean;
     underline?: boolean;
+    strikeThrough?: boolean;
     fontSize?: number;
     fontName?: string;
     fontColor?: string;
@@ -331,10 +461,13 @@ export interface ExcelStyle {
     hAlign?: 'left' | 'center' | 'right';
     vAlign?: 'top' | 'middle' | 'bottom';
     wrapText?: boolean;
+    textRotation?: number;
+    shrinkToFit?: boolean;
+    indent?: number;
     border?: BorderSpec;
 }
 export interface BorderEdgeSpec {
-    style?: 'thin' | 'medium' | 'thick' | 'dashed' | 'dotted' | 'double';
+    style?: 'thin' | 'medium' | 'thick' | 'dashed' | 'dotted' | 'double' | 'hair' | 'mediumDashed' | 'dashDot' | 'mediumDashDot' | 'dashDotDot' | 'slantDashDot';
     color?: string;
 }
 export interface BorderSpec {
