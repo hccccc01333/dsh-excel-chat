@@ -163,6 +163,12 @@ export interface LlmBenchmarkOptions {
   outFile?: string
   /** Called after each freshly executed task (not for checkpoint-skipped ones). */
   onProgress?: (result: LlmTaskResult, completed: number, total: number) => void
+  /** Retry attempts for transient provider errors (default 3). */
+  retries?: number
+  /** Base backoff between transient-error retries in ms (default 20000). */
+  retryDelayMs?: number
+  /** Pause between tasks in ms to stay under provider rate limits. */
+  interTaskDelayMs?: number
 }
 
 /** Read a JSONL checkpoint file into id -> result (last line wins). */
@@ -186,6 +192,31 @@ export async function readBenchmarkCheckpoint(outFile: string): Promise<Map<stri
   return completed
 }
 
+/** Server-side failures worth retrying: rate limits, outages, network blips. */
+const TRANSIENT_ERROR = /429|500|503|fetch failed|temporarily_unavailable|query_data_error/i
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Run one task, retrying transient provider failures (429/503/network) with
+ * linear backoff so flaky hosted endpoints don't poison the whole report.
+ */
+export async function runLlmTaskWithRetry(
+  task: FileBenchmarkTask,
+  options: { planner: AgentPlanner; maxRounds?: number; retries?: number; retryDelayMs?: number },
+): Promise<LlmTaskResult> {
+  const attempts = Math.max(1, options.retries ?? 3)
+  const delay = options.retryDelayMs ?? 20_000
+  let last = await runLlmTask(task, options)
+  for (let attempt = 1; attempt < attempts && last.error !== null && TRANSIENT_ERROR.test(last.error); attempt++) {
+    await sleep(delay * attempt)
+    last = await runLlmTask(task, options)
+  }
+  return last
+}
+
 export async function runLlmBenchmark(
   tasks: FileBenchmarkTask[],
   options: LlmBenchmarkOptions,
@@ -199,13 +230,14 @@ export async function runLlmBenchmark(
       results.push(prior)
       continue
     }
-    const result = await runLlmTask(task, options)
+    const result = await runLlmTaskWithRetry(task, options)
     results.push(result)
     if (outFile && result.error === null) {
       await mkdir(dirname(outFile), { recursive: true })
       await appendFile(outFile, `${JSON.stringify(result)}\n`, 'utf8')
     }
     onProgress?.(result, results.length, tasks.length)
+    if (options.interTaskDelayMs) await sleep(options.interTaskDelayMs)
   }
   const success = results.filter((result) => result.success).length
   const accuracySum = results.reduce((sum, result) => sum + (result.checksTotal === 0 ? 1 : result.checksPassed / result.checksTotal), 0)

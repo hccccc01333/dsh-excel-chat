@@ -29,6 +29,9 @@ const report = await runLlmBenchmark(tasks, {
   planner,
   maxRounds,
   outFile,
+  retries: process.env.LLM_BENCH_RETRIES ? Number(process.env.LLM_BENCH_RETRIES) : 4,
+  retryDelayMs: process.env.LLM_BENCH_RETRY_DELAY ? Number(process.env.LLM_BENCH_RETRY_DELAY) : 30_000,
+  interTaskDelayMs: process.env.LLM_BENCH_TASK_DELAY ? Number(process.env.LLM_BENCH_TASK_DELAY) : 3_000,
   onProgress: (result: LlmTaskResult, completed: number, total: number) => {
     const mark = result.success ? 'PASS' : `FAIL(${result.failure?.category ?? 'crashed'})`
     console.error(`[${model}] ${completed}/${total} ${result.id} ${mark} checks=${result.checksPassed}/${result.checksTotal}`)
