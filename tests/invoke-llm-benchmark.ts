@@ -10,7 +10,9 @@ import { deepseekLlmTextFromEnv } from '../src/deepseek.ts'
 import { runLlmBenchmark } from '../src/llm-benchmark.ts'
 import { createLlmPlanner } from '../src/llm-planner.ts'
 
-const model = process.env.DEEPSEEK_MODEL ?? 'deepseek-chat'
+const model = process.env.LLM_PROVIDER === 'bai'
+  ? (process.env.BAI_MODEL ?? 'glm-5.3-flash')
+  : (process.env.DEEPSEEK_MODEL ?? 'deepseek-chat')
 const sample = process.env.LLM_BENCH_SAMPLE ? Number(process.env.LLM_BENCH_SAMPLE) : corpusTasks.length
 const offset = process.env.LLM_BENCH_OFFSET ? Number(process.env.LLM_BENCH_OFFSET) : 0
 const tasks = corpusTasks.slice(offset, offset + sample)
