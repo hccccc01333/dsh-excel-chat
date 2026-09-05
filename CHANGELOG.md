@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.37.1 — 2026-09-05（本地版本，未发布）
+
+- 修复 issue #2 两个插件生命周期问题（报告基于 v0.34.1 发布产物）：
+  - 插件标识对齐：`export const name` 由 `vera-formula-validator` 改为
+    `dsh-excel-chat`（与 bundle 包名、cordis.patch.yml 的 name 一致），
+    加载日志同步更新；
+  - 生命周期绑定：全部 27 处注册（21 个 excel_* 工具 + 3 个命令 +
+    system prompt 段落 + 2 处间接注册）改用 `ctx.effect(() => register(...))`
+    包裹，disposer 交给插件 fiber 收集——插件停用/更新时工具自动注销，
+    不再残留；load-bundle 新增「卸载后工具消失」回归测试。
+- 测试规模 256 → 258。
+
 ## v0.37.0 — 2026-09-04（本地版本，未发布）
 
 - LLM 规划/验证质量（基准失败归因：Verification 33/52、分析类参数复杂）：

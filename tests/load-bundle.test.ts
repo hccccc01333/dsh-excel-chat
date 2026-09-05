@@ -25,6 +25,22 @@ test('bundle manifest points at an existing patch and entry', async () => {
   assert.match(entry, /excel_validate_formulas/)
 })
 
+test('plugin identity matches the package name (issue #2)', async () => {
+  const plugin = await import(bundleUrl)
+  assert.equal(plugin.name, 'dsh-excel-chat')
+})
+
+test('unloading the plugin unregisters its tools (issue #2 ctx.effect)', async () => {
+  const plugin = await import(bundleUrl)
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  const fiber = await ctx.plugin(plugin)
+  assert.ok(ctx.tools.get('excel_operate'), 'tool should be registered while loaded')
+  await fiber.dispose()
+  assert.equal(ctx.tools.get('excel_operate'), undefined, 'tool should be gone after unload')
+})
+
 test('built bundle loads as a plugin and runs a tool', async () => {
   const plugin = await import(bundleUrl)
   const ctx = new Context()
