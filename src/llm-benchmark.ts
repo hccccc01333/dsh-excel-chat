@@ -1,3 +1,5 @@
+import { appendFile, mkdir, readFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -149,13 +151,61 @@ export async function runLlmTask(
   }
 }
 
+export interface LlmBenchmarkOptions {
+  planner: AgentPlanner
+  maxRounds?: number
+  /**
+   * JSONL checkpoint file: every completed task is appended as one line and
+   * previously recorded task ids are skipped on rerun, so sliced or crashed
+   * benchmark runs can resume without losing progress. Crashed tasks (API
+   * errors) are NOT checkpointed so the next invocation retries them.
+   */
+  outFile?: string
+  /** Called after each freshly executed task (not for checkpoint-skipped ones). */
+  onProgress?: (result: LlmTaskResult, completed: number, total: number) => void
+}
+
+/** Read a JSONL checkpoint file into id -> result (last line wins). */
+export async function readBenchmarkCheckpoint(outFile: string): Promise<Map<string, LlmTaskResult>> {
+  const completed = new Map<string, LlmTaskResult>()
+  let text: string
+  try {
+    text = await readFile(outFile, 'utf8')
+  } catch {
+    return completed
+  }
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    try {
+      const result = JSON.parse(line) as LlmTaskResult
+      if (result && typeof result.id === 'string') completed.set(result.id, result)
+    } catch {
+      // Tolerate a torn final line from a killed process.
+    }
+  }
+  return completed
+}
+
 export async function runLlmBenchmark(
   tasks: FileBenchmarkTask[],
-  options: { planner: AgentPlanner; maxRounds?: number },
+  options: LlmBenchmarkOptions,
 ): Promise<LlmBenchmarkReport> {
+  const { outFile, onProgress } = options
+  const checkpoint = outFile ? await readBenchmarkCheckpoint(outFile) : new Map<string, LlmTaskResult>()
   const results: LlmTaskResult[] = []
   for (const task of tasks) {
-    results.push(await runLlmTask(task, options))
+    const prior = checkpoint.get(task.id)
+    if (prior) {
+      results.push(prior)
+      continue
+    }
+    const result = await runLlmTask(task, options)
+    results.push(result)
+    if (outFile && result.error === null) {
+      await mkdir(dirname(outFile), { recursive: true })
+      await appendFile(outFile, `${JSON.stringify(result)}\n`, 'utf8')
+    }
+    onProgress?.(result, results.length, tasks.length)
   }
   const success = results.filter((result) => result.success).length
   const accuracySum = results.reduce((sum, result) => sum + (result.checksTotal === 0 ? 1 : result.checksPassed / result.checksTotal), 0)

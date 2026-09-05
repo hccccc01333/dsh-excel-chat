@@ -4,3 +4,4 @@ fixtures/
 *.tgz
 .DS_Store
 .demo-recorder/
+benchmarks/
