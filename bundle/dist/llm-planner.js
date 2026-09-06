@@ -135,6 +135,11 @@ export function createLlmPlanner(llm) {
                 '- joinSheets 的 valueColumns/outputColumns 是等长数组，一一对应。',
                 '- fill 的 source 是单元格、target 是区域；不要用 fill 顶替 set。',
                 '- 上一轮计划执行了但验证不通过时，优先补缺失的步骤而不是整体重来。',
+                'Verifier 2.0 机器断言：在 JSON 里追加 "assertions" 数组（3-8 条），每条 {"id":"汇总!B2","startsWith":"=SUMIFS("} 或 {"id":"订单!A1","expect":"区域"}：',
+                '- id 必须是 工作表!单元格（断言你计划创建/修改的结果所在单元格）。',
+                '- 公式结果用 startsWith 前缀（如 "=SUMIFS("、"=RANK("），精确文本/数字用 expect（数字直接写数值）。',
+                '- 只断言你计划产出的内容；不要断言你没做的样式，也不要断言你不确定的值。',
+                '- 返回格式：{"steps":[...],"assertions":[...]}。',
             ].join('\n');
             const text = await llm(prompt);
             const parsed = JSON.parse(stripFence(text));
@@ -142,10 +147,11 @@ export function createLlmPlanner(llm) {
                 throw new Error('planner reply must contain a non-empty steps array');
             }
             const firstSheet = context.sheetNames[0] ?? 'Sheet1';
-            return parsed.steps.map((step) => ({
+            const steps = parsed.steps.map((step) => ({
                 name: step.name,
                 operations: step.operations.map((operation) => normalizeOperation(operation, firstSheet)),
             }));
+            return { steps, assertions: parsed.assertions };
         },
         async verify(context) {
             const prompt = [

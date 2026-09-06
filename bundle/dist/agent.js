@@ -2,7 +2,7 @@ import { copyFile, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import ExcelJS from 'exceljs';
-import { sanitizePlan } from './plan-schema.js';
+import { sanitizeAssertions, sanitizePlan } from './plan-schema.js';
 import { profileWorkbook } from './profile.js';
 import { buildWorkbookSemanticProfile } from './semantic.js';
 import { runExcelTask } from './task.js';
@@ -44,11 +44,17 @@ export async function runAgentTask(path, options) {
             verifierNote,
         };
         let plan;
+        let planAssertions = [];
         try {
-            plan = await options.planner.plan(planContext);
-            if (!plan || plan.length === 0)
+            const rawPlan = await options.planner.plan(planContext);
+            const steps = Array.isArray(rawPlan) ? rawPlan : rawPlan.steps;
+            if (!steps || steps.length === 0)
                 throw new Error('planner returned an empty plan');
-            plan = sanitizePlan(plan, planContext.sheetNames).steps;
+            plan = sanitizePlan(steps, planContext.sheetNames).steps;
+            if (!Array.isArray(rawPlan) && rawPlan.assertions !== undefined) {
+                const sanitized = sanitizeAssertions(rawPlan.assertions, planContext.sheetNames);
+                planAssertions = sanitized.assertions;
+            }
         }
         catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -82,6 +88,10 @@ export async function runAgentTask(path, options) {
         const deterministicVerification = options.deterministicAssertions === undefined
             ? undefined
             : await verifyWorkbookAssertions(result.outputPath, options.deterministicAssertions);
+        // Verifier 2.0: deterministic check of the planner's own assertions.
+        const assertionCheck = planAssertions.length > 0
+            ? await verifyWorkbookAssertions(result.outputPath, planAssertions)
+            : undefined;
         let verdict = deterministicVerification === undefined
             ? await options.planner.verify({
                 ...planContext,
@@ -97,7 +107,13 @@ export async function runAgentTask(path, options) {
         if (!changed || afterValidation.anomalies.length > 0) {
             verdict = { achieved: false, reason: `${verdict.reason}（确定性校验：${deterministicNote}）` };
         }
-        rounds.push({ round, plan, result, verdict, deterministicVerification });
+        if (assertionCheck && !assertionCheck.achieved) {
+            verdict = {
+                achieved: false,
+                reason: `${verdict.reason}（规划器断言未过 ${assertionCheck.passed}/${assertionCheck.total}：${assertionCheck.failures.slice(0, 3).join('；')}）`,
+            };
+        }
+        rounds.push({ round, plan, result, verdict, deterministicVerification, planAssertions: assertionCheck });
         currentPath = result.outputPath;
         previousPlan = plan;
         previousResult = result;

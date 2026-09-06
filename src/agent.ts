@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import ExcelJS from 'exceljs'
 import type { ExcelOperation } from './operations.ts'
-import { sanitizePlan } from './plan-schema.ts'
+import { sanitizeAssertions, sanitizePlan } from './plan-schema.ts'
 import { profileWorkbook, type WorkbookProfile } from './profile.ts'
 import { buildWorkbookSemanticProfile } from './semantic.ts'
 import { runExcelTask, type TaskResult } from './task.ts'
@@ -14,6 +14,18 @@ export interface PlanStep {
   name?: string
   operations: ExcelOperation[]
 }
+
+/**
+ * Verifier 2.0: the planner may accompany its steps with machine-checkable
+ * assertions ("expect") that are verified deterministically against the
+ * executed workbook, in addition to the LLM verdict.
+ */
+export interface PlanWithAssertions {
+  steps: PlanStep[]
+  assertions?: WorkbookAssertion[]
+}
+
+export type PlannerPlanOutput = PlanStep[] | PlanWithAssertions
 
 export interface AgentPlanContext {
   goal: string
@@ -37,7 +49,7 @@ export interface AgentVerifierContext extends AgentPlanContext {
 }
 
 export interface AgentPlanner {
-  plan(context: AgentPlanContext): Promise<PlanStep[]>
+  plan(context: AgentPlanContext): Promise<PlannerPlanOutput>
   verify(context: AgentVerifierContext): Promise<{ achieved: boolean; reason: string }>
 }
 
@@ -47,6 +59,8 @@ export interface AgentRoundResult {
   result: TaskResult
   verdict: { achieved: boolean; reason: string }
   deterministicVerification?: WorkbookVerification
+  /** Verifier 2.0: deterministic check of the planner's own assertions. */
+  planAssertions?: WorkbookVerification
 }
 
 export interface AgentTaskResult {
@@ -102,10 +116,16 @@ export async function runAgentTask(
       verifierNote,
     }
     let plan: PlanStep[]
+    let planAssertions: WorkbookAssertion[] = []
     try {
-      plan = await options.planner.plan(planContext)
-      if (!plan || plan.length === 0) throw new Error('planner returned an empty plan')
-      plan = sanitizePlan(plan, planContext.sheetNames).steps
+      const rawPlan = await options.planner.plan(planContext)
+      const steps = Array.isArray(rawPlan) ? rawPlan : rawPlan.steps
+      if (!steps || steps.length === 0) throw new Error('planner returned an empty plan')
+      plan = sanitizePlan(steps, planContext.sheetNames).steps
+      if (!Array.isArray(rawPlan) && rawPlan.assertions !== undefined) {
+        const sanitized = sanitizeAssertions(rawPlan.assertions, planContext.sheetNames)
+        planAssertions = sanitized.assertions
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       if (round < maxRounds) {
@@ -137,6 +157,10 @@ export async function runAgentTask(
     const deterministicVerification = options.deterministicAssertions === undefined
       ? undefined
       : await verifyWorkbookAssertions(result.outputPath, options.deterministicAssertions)
+    // Verifier 2.0: deterministic check of the planner's own assertions.
+    const assertionCheck = planAssertions.length > 0
+      ? await verifyWorkbookAssertions(result.outputPath, planAssertions)
+      : undefined
     let verdict = deterministicVerification === undefined
       ? await options.planner.verify({
           ...planContext,
@@ -152,7 +176,13 @@ export async function runAgentTask(
     if (!changed || afterValidation.anomalies.length > 0) {
       verdict = { achieved: false, reason: `${verdict.reason}（确定性校验：${deterministicNote}）` }
     }
-    rounds.push({ round, plan, result, verdict, deterministicVerification })
+    if (assertionCheck && !assertionCheck.achieved) {
+      verdict = {
+        achieved: false,
+        reason: `${verdict.reason}（规划器断言未过 ${assertionCheck.passed}/${assertionCheck.total}：${assertionCheck.failures.slice(0, 3).join('；')}）`,
+      }
+    }
+    rounds.push({ round, plan, result, verdict, deterministicVerification, planAssertions: assertionCheck })
     currentPath = result.outputPath
     previousPlan = plan
     previousResult = result

@@ -57,7 +57,7 @@ test('planner prompt includes new ops, few-shot examples, and analysis rules', a
     captured = prompt
     return JSON.stringify({ steps: [{ name: 's', operations: [{ op: 'aggregateReport' }] }] })
   })
-  const steps = await planner.plan({
+  const plan = await planner.plan({
     goal: '按区域汇总金额',
     path: 'D:/sales.xlsx',
     round: 1,
@@ -65,12 +65,15 @@ test('planner prompt includes new ops, few-shot examples, and analysis rules', a
     profileSummary: '订单：3 行 × 3 列',
     validationSummary: '0 个公式异常',
   })
+  const steps = Array.isArray(plan) ? plan : plan.steps
   assert.match(captured, /crosstab/)
   assert.match(captured, /joinSheets/)
   assert.match(captured, /rankColumn/)
   assert.match(captured, /完整示例/)
   assert.match(captured, /禁止用 set 写死汇总数字/)
   assert.match(captured, /metric 是对象/)
+  assert.match(captured, /assertions/)
+  assert.match(captured, /机器断言/)
 })
 
 test('planner normalizes crosstab flat metric and single-string arrays', async () => {
@@ -83,7 +86,7 @@ test('planner normalizes crosstab flat metric and single-string arrays', async (
       ],
     }],
   }))
-  const steps = await planner.plan({
+  const plan = await planner.plan({
     goal: '交叉表',
     path: 'D:/x.xlsx',
     round: 1,
@@ -91,9 +94,27 @@ test('planner normalizes crosstab flat metric and single-string arrays', async (
     profileSummary: '',
     validationSummary: '',
   })
+  const steps = Array.isArray(plan) ? plan : plan.steps
   const crosstab = steps[0]!.operations[0] as Record<string, unknown>
   assert.deepEqual(crosstab.metric, { column: 'C', function: 'average' })
   const join = steps[0]!.operations[1] as Record<string, unknown>
   assert.deepEqual(join.valueColumns, ['B'])
   assert.deepEqual(join.outputColumns, ['C'])
+})
+
+test('planner passes machine assertions through when the model emits them', async () => {
+  const planner = createLlmPlanner(async () => JSON.stringify({
+    steps: [{ name: 's', operations: [{ op: 'aggregateReport', source: '订单!A1:C4', groupColumn: 'A', metrics: [{ column: 'C', function: 'sum' }] }] }],
+    assertions: [{ id: '汇总!B2', startsWith: '=SUMIFS(' }],
+  }))
+  const plan = await planner.plan({
+    goal: '按区域汇总金额',
+    path: 'D:/x.xlsx',
+    round: 1,
+    sheetNames: ['订单'],
+    profileSummary: '',
+    validationSummary: '',
+  })
+  assert.ok(!Array.isArray(plan))
+  assert.deepEqual(plan.assertions, [{ id: '汇总!B2', startsWith: '=SUMIFS(' }])
 })

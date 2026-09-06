@@ -5,6 +5,16 @@ export interface PlanStep {
     name?: string;
     operations: ExcelOperation[];
 }
+/**
+ * Verifier 2.0: the planner may accompany its steps with machine-checkable
+ * assertions ("expect") that are verified deterministically against the
+ * executed workbook, in addition to the LLM verdict.
+ */
+export interface PlanWithAssertions {
+    steps: PlanStep[];
+    assertions?: WorkbookAssertion[];
+}
+export type PlannerPlanOutput = PlanStep[] | PlanWithAssertions;
 export interface AgentPlanContext {
     goal: string;
     path: string;
@@ -25,7 +35,7 @@ export interface AgentVerifierContext extends AgentPlanContext {
     cellSnapshot: string;
 }
 export interface AgentPlanner {
-    plan(context: AgentPlanContext): Promise<PlanStep[]>;
+    plan(context: AgentPlanContext): Promise<PlannerPlanOutput>;
     verify(context: AgentVerifierContext): Promise<{
         achieved: boolean;
         reason: string;
@@ -40,6 +50,8 @@ export interface AgentRoundResult {
         reason: string;
     };
     deterministicVerification?: WorkbookVerification;
+    /** Verifier 2.0: deterministic check of the planner's own assertions. */
+    planAssertions?: WorkbookVerification;
 }
 export interface AgentTaskResult {
     outputPath: string;

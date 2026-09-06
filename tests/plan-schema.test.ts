@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { sanitizePlan } from '../src/plan-schema.ts'
+import { sanitizeAssertions, sanitizePlan } from '../src/plan-schema.ts'
 
 test('sanitizePlan prefixes bare ranges with the first sheet', () => {
   const { steps } = sanitizePlan([{
@@ -144,4 +144,29 @@ test('sanitizePlan aliases exceljs-native alignment names in style', () => {
   const style = (fixed.steps[0]!.operations[0] as Record<string, unknown>).style as Record<string, unknown>
   assert.equal(style.hAlign, 'center')
   assert.equal(style.vAlign, 'middle')
+})
+
+test('sanitizeAssertions keeps well-formed assertions and repairs salvageable ones', () => {
+  const { assertions, notes } = sanitizeAssertions([
+    { id: '汇总!B2', startsWith: '=SUMIFS(' },
+    { id: 'B3', expect: 0 },
+    { id: '订单!A1', expect: null },
+    { expect: 1 },
+    { id: '', expect: 'x' },
+    { id: '订单!C1' },
+    { id: '订单!D1', startsWith: '' },
+    'not-an-object',
+  ], ['订单'])
+  assert.deepEqual(assertions, [
+    { id: '汇总!B2', startsWith: '=SUMIFS(' },
+    { id: '订单!B3', expect: '0' },
+    { id: '订单!A1', expect: null },
+  ])
+  assert.ok(notes.length >= 4)
+})
+
+test('sanitizeAssertions ignores a non-array field entirely', () => {
+  const { assertions, notes } = sanitizeAssertions('nope', ['订单'])
+  assert.deepEqual(assertions, [])
+  assert.ok(notes.some((note) => note.includes('不是数组')))
 })

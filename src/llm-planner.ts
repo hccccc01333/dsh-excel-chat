@@ -1,6 +1,7 @@
 import type { LlmText } from './advisor.ts'
-import type { AgentPlanContext, AgentPlanner, AgentVerifierContext, PlanStep } from './agent.ts'
+import type { AgentPlanContext, AgentPlanner, AgentVerifierContext, PlannerPlanOutput, PlanStep } from './agent.ts'
 import type { ExcelOperation } from './operations.ts'
+import type { WorkbookAssertion } from './verifier.ts'
 
 const OPERATION_CATALOG = [
   '汇总/透视（活公式，优先用）',
@@ -107,7 +108,7 @@ function stripFence(text: string): string {
  */
 export function createLlmPlanner(llm: LlmText): AgentPlanner {
   return {
-    async plan(context: AgentPlanContext): Promise<PlanStep[]> {
+    async plan(context: AgentPlanContext): Promise<PlannerPlanOutput> {
       const prompt = [
         '你是 Excel 自动化规划器。你的任务是给下面的目标设计 excel_operate 操作步骤。',
         `用户目标：${context.goal}`,
@@ -143,17 +144,23 @@ export function createLlmPlanner(llm: LlmText): AgentPlanner {
         '- joinSheets 的 valueColumns/outputColumns 是等长数组，一一对应。',
         '- fill 的 source 是单元格、target 是区域；不要用 fill 顶替 set。',
         '- 上一轮计划执行了但验证不通过时，优先补缺失的步骤而不是整体重来。',
+        'Verifier 2.0 机器断言：在 JSON 里追加 "assertions" 数组（3-8 条），每条 {"id":"汇总!B2","startsWith":"=SUMIFS("} 或 {"id":"订单!A1","expect":"区域"}：',
+        '- id 必须是 工作表!单元格（断言你计划创建/修改的结果所在单元格）。',
+        '- 公式结果用 startsWith 前缀（如 "=SUMIFS("、"=RANK("），精确文本/数字用 expect（数字直接写数值）。',
+        '- 只断言你计划产出的内容；不要断言你没做的样式，也不要断言你不确定的值。',
+        '- 返回格式：{"steps":[...],"assertions":[...]}。',
       ].join('\n')
       const text = await llm(prompt)
-      const parsed = JSON.parse(stripFence(text)) as { steps?: PlanStep[] }
+      const parsed = JSON.parse(stripFence(text)) as { steps?: PlanStep[]; assertions?: WorkbookAssertion[] }
       if (!Array.isArray(parsed.steps) || parsed.steps.length === 0) {
         throw new Error('planner reply must contain a non-empty steps array')
       }
       const firstSheet = context.sheetNames[0] ?? 'Sheet1'
-      return parsed.steps.map((step) => ({
+      const steps = parsed.steps.map((step) => ({
         name: step.name,
         operations: step.operations.map((operation) => normalizeOperation(operation, firstSheet)),
       }))
+      return { steps, assertions: parsed.assertions }
     },
     async verify(context: AgentVerifierContext): Promise<{ achieved: boolean; reason: string }> {
       const prompt = [

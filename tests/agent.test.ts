@@ -109,3 +109,78 @@ test('agent loop feeds an invalid plan back to the planner for a corrected round
   assert.equal(result.achieved, true)
   assert.ok(planner.seen[1]!.verifierNote?.includes('计划无效'))
 })
+
+test('Verifier 2.0: failing plan assertions block the verdict and feed back', async () => {
+  const path = await makeWorkbook()
+  const seen: AgentPlanContext[] = []
+  let calls = 0
+  const planner: AgentPlanner = {
+    async plan(context) {
+      calls++
+      seen.push(context)
+      if (calls === 1) {
+        // Plan fills the blanks but asserts a wrong value on purpose.
+        return {
+          steps: [{ name: 'fill', operations: [{ op: 'fillMissing', range: '订单!A2:B4', mode: 'value', value: 0 }] }],
+          assertions: [{ id: '订单!B3', expect: 999 }],
+        }
+      }
+      return {
+        steps: [{ name: 'fill', operations: [{ op: 'fillMissing', range: '订单!A2:B4', mode: 'value', value: 0 }] }, { name: 'label', operations: [{ op: 'set', cells: { '订单!E1': '已补齐' } }] }],
+        assertions: [{ id: '订单!B3', expect: 0 }, { id: '订单!E1', expect: '已补齐' }],
+      }
+    },
+    async verify() {
+      return { achieved: true, reason: 'LLM 认为完成' }
+    },
+  }
+  const result = await runAgentTask(path, { goal: '补空值', planner, maxRounds: 3 })
+  // Round 1: LLM says achieved, but the planner's own assertion fails -> replan.
+  assert.ok(result.rounds[0]!.planAssertions)
+  assert.equal(result.rounds[0]!.planAssertions!.achieved, false)
+  assert.equal(result.rounds[0]!.verdict.achieved, false)
+  assert.match(result.rounds[0]!.verdict.reason, /规划器断言未过/)
+  assert.ok(seen[1]!.verifierNote?.includes('规划器断言未过'))
+  // Round 2: assertions pass -> goal achieved despite the LLM being noisy-positive.
+  assert.equal(result.rounds.length, 2)
+  assert.equal(result.achieved, true)
+})
+
+test('Verifier 2.0: passing plan assertions cannot override a negative LLM verdict', async () => {
+  const path = await makeWorkbook()
+  const planner: AgentPlanner = {
+    async plan() {
+      return {
+        steps: [{ name: 'fill', operations: [{ op: 'fillMissing', range: '订单!A2:B4', mode: 'value', value: 0 }] }],
+        assertions: [{ id: '订单!B3', expect: 0 }],
+      }
+    },
+    async verify() {
+      return { achieved: false, reason: '还缺别的' }
+    },
+  }
+  const result = await runAgentTask(path, { goal: '补空值', planner, maxRounds: 1 })
+  assert.equal(result.rounds[0]!.planAssertions!.achieved, true)
+  assert.equal(result.rounds[0]!.verdict.achieved, false)
+  assert.equal(result.achieved, false)
+})
+
+test('Verifier 2.0: invalid planner assertions are dropped without breaking the loop', async () => {
+  const path = await makeWorkbook()
+  const planner: AgentPlanner = {
+    async plan() {
+      return {
+        steps: [{ name: 'fill', operations: [{ op: 'fillMissing', range: '订单!A2:B4', mode: 'value', value: 0 }] }],
+        assertions: [{ expect: 1 }, { id: '', expect: 'x' }, { id: '订单!B3' }, { id: '订单!B3', expect: 0 }],
+      }
+    },
+    async verify() {
+      return { achieved: true, reason: '完成' }
+    },
+  }
+  const result = await runAgentTask(path, { goal: '补空值', planner, maxRounds: 1 })
+  // Only the one well-formed assertion survives sanitation and passes.
+  assert.equal(result.rounds[0]!.planAssertions!.total, 1)
+  assert.equal(result.rounds[0]!.planAssertions!.achieved, true)
+  assert.equal(result.achieved, true)
+})

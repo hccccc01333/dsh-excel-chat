@@ -1,6 +1,24 @@
 # Changelog
 
-## v0.37.2 — 2026-09-07（本地版本，未发布）
+## v0.38.0 — 2026-09-07（本地版本，未发布）
+
+- **Verifier 2.0：规划器机器可查断言**（goal 模式验证合取的第 2 层确定性
+  防线，继 v0.37.0 清零 Verification 误判后进一步压 Argument/Planning 类
+  失败）：
+  - `AgentPlanner.plan` 可返回 `{steps, assertions}`：assertions 是
+    `{"id":"汇总!B2","startsWith":"=SUMIFS("}` / `{"id":"订单!A1","expect":"区域"}`
+    形式的机器断言，复用 `verifyWorkbookAssertions` 对执行后的文件确定性
+    校验（值/公式前缀/填充/加粗/数字格式/对齐/换行）；
+  - 合取判定：LLM 判定 ∧ 确定性校验 ∧ 规划器自身断言——断言失败会阻止
+    "已达成"并携带失败明细回喂重规划；断言通过不能推翻负判定（不引入新的
+    误判方向）；
+  - `sanitizeAssertions` 净化层：补工作表前缀、数字/布尔 expect 归一化为
+    序列化文本、丢弃缺 id/无可检查字段/类型不支持的条目，容错不炸循环；
+  - 规划器提示词要求每轮输出 3-8 条断言（只断言计划产出的内容）。
+- 测试规模 262 → 268（agent 合取 4 用例 + sanitizeAssertions 2 用例 +
+  提示词/透传断言）。
+
+## v0.37.2 — 2026-09-07
 
 - 基准运行器加固（真实 100 任务全量跑通的前提）：
   - `runLlmBenchmark` 支持 `outFile` JSONL 断点续跑（逐任务落盘、重跑跳过

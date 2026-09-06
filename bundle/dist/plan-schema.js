@@ -93,6 +93,88 @@ const REQUIRED_STRING_EXTRA = {
     freezePanes: ['sheet', 'column'],
 };
 /**
+ * Normalize planner-produced assertions into WorkbookAssertions (Verifier 2.0):
+ * keep only fully-formed entries, coerce ids to strings, and drop style-only
+ * assertions that carry no checkable property. Invalid-but-salvageable fields
+ * are repaired; entries with neither an id nor any expected value are dropped.
+ */
+export function sanitizeAssertions(assertions, sheetNames) {
+    const notes = [];
+    if (assertions === undefined || assertions === null)
+        return { assertions: [], notes };
+    if (!Array.isArray(assertions)) {
+        notes.push('断言不是数组，已丢弃');
+        return { assertions: [], notes };
+    }
+    const out = [];
+    assertions.forEach((entry, index) => {
+        if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+            notes.push(`断言[${index}] 不是对象，已丢弃`);
+            return;
+        }
+        const raw = { ...entry };
+        if (typeof raw.id !== 'string' || raw.id.trim() === '') {
+            notes.push(`断言[${index}] 缺少 id，已丢弃`);
+            return;
+        }
+        const id = raw.id.trim();
+        // Bare cell/range ids get the first sheet prefix, matching op salvage.
+        const body = id.includes('!') ? id.slice(id.lastIndexOf('!') + 1) : id;
+        let normalizedId = id;
+        if (!id.includes('!')) {
+            if (CELL_OR_RANGE.test(id) || /^([A-Za-z]{1,3})(\d+)$/.test(id)) {
+                normalizedId = `${sheetNames[0] ?? 'Sheet1'}!${id}`;
+                notes.push(`断言[${index}] 的 id 已补工作表前缀`);
+            }
+        }
+        const result = { id: normalizedId };
+        let hasCheck = false;
+        if (raw.expect !== undefined) {
+            if (raw.expect === null) {
+                result.expect = null;
+                hasCheck = true;
+            }
+            else if (typeof raw.expect === 'string' || typeof raw.expect === 'number' || typeof raw.expect === 'boolean') {
+                // Content checks compare against the serialized cell text.
+                result.expect = String(raw.expect);
+                hasCheck = true;
+            }
+            else {
+                notes.push(`断言[${index}] 的 expect 类型不支持，已忽略该字段`);
+            }
+        }
+        if (raw.startsWith !== undefined) {
+            if (typeof raw.startsWith === 'string' && raw.startsWith !== '') {
+                result.startsWith = raw.startsWith;
+                hasCheck = true;
+            }
+            else {
+                notes.push(`断言[${index}] 的 startsWith 必须是非空字符串，已忽略`);
+            }
+        }
+        for (const key of ['fill', 'numberFormat', 'hAlign']) {
+            const value = raw[key];
+            if (typeof value === 'string' && value !== '') {
+                result[key] = value;
+                hasCheck = true;
+            }
+        }
+        for (const key of ['bold', 'wrapText']) {
+            const value = raw[key];
+            if (typeof value === 'boolean') {
+                result[key] = value;
+                hasCheck = true;
+            }
+        }
+        if (!hasCheck) {
+            notes.push(`断言[${index}] 没有可检查字段，已丢弃`);
+            return;
+        }
+        out.push(result);
+    });
+    return { assertions: out, notes };
+}
+/**
  * Validate and repair a planner-produced plan before execution. Salvageable
  * issues are fixed in place (sheet prefix, missing sheet, array wrapping,
  * alias fields, cell values); unsalvageable issues throw so the agent loop
