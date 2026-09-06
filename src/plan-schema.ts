@@ -3,6 +3,20 @@ import type { PlanStep } from './agent.ts'
 
 const CELL_OR_RANGE = /^[A-Za-z]{1,3}\d+$|^[A-Za-z]{1,3}\d+:[A-Za-z]{1,3}\d+$/
 
+/** Ops whose `name` field references an EXISTING sheet (new-name ops excluded). */
+const EXISTING_SHEET_NAME_OPS = new Set(['deleteSheet', 'hideSheet', 'duplicateSheet', 'setTabColor', 'moveSheet'])
+
+/**
+ * Salvage colloquial sheet references ("订单表") onto the exact sheet list
+ * ("订单") when one contains the other; leave unknown names untouched so
+ * genuinely wrong names still fail loudly.
+ */
+function matchSheetName(value: string, sheetNames: string[]): string {
+  if (sheetNames.some((sheet) => sheet === value)) return value
+  const hit = sheetNames.find((sheet) => value.includes(sheet) || sheet.includes(value))
+  return hit ?? value
+}
+
 const REQUIRED_STRINGS: Record<string, string[]> = {
   fill: ['source', 'target'],
   fillSeries: ['start', 'target'],
@@ -126,6 +140,28 @@ export function sanitizePlan(steps: PlanStep[], sheetNames: string[]): Sanitized
         raw.sheet = firstSheet
         notes.push(`${operation.op} 已补默认工作表`)
       }
+      // Salvage colloquial sheet references onto the exact sheet list.
+      if (typeof raw.sheet === 'string') {
+        const matched = matchSheetName(raw.sheet, sheetNames)
+        if (matched !== raw.sheet) {
+          raw.sheet = matched
+          notes.push(`${operation.op} 的 sheet 已匹配为 ${matched}`)
+        }
+      }
+      if (EXISTING_SHEET_NAME_OPS.has(operation.op) && typeof raw.name === 'string') {
+        const matched = matchSheetName(raw.name, sheetNames)
+        if (matched !== raw.name) {
+          raw.name = matched
+          notes.push(`${operation.op} 的 name 已匹配为 ${matched}`)
+        }
+      }
+      if (operation.op === 'renameSheet' && typeof raw.oldName === 'string') {
+        const matched = matchSheetName(raw.oldName, sheetNames)
+        if (matched !== raw.oldName) {
+          raw.oldName = matched
+          notes.push(`renameSheet 的 oldName 已匹配为 ${matched}`)
+        }
+      }
       for (const key of ['sheet', 'column', 'groupColumn', 'valueColumn', 'outputColumn', 'sourceKey', 'targetKey', 'name', 'oldName', 'newName', 'template', 'data', 'find', 'replace', 'delimiter'] as const) {
         const value = raw[key]
         if (value === undefined) continue
@@ -183,6 +219,19 @@ export function sanitizePlan(steps: PlanStep[], sheetNames: string[]): Sanitized
           }
           raw.metric = metric
         }
+      }
+      if (operation.op === 'style' && raw.style !== undefined && raw.style !== null && typeof raw.style === 'object') {
+        // Salvage exceljs-native alignment names onto the DSL fields.
+        const style = { ...(raw.style as Record<string, unknown>) }
+        if (style.hAlign === undefined && style.horizontal !== undefined) {
+          style.hAlign = style.horizontal
+          notes.push('style 的 horizontal 已改名为 hAlign')
+        }
+        if (style.vAlign === undefined && style.vertical !== undefined) {
+          style.vAlign = style.vertical
+          notes.push('style 的 vertical 已改名为 vAlign')
+        }
+        raw.style = style
       }
       for (const key of REQUIRED_NUMBERS[operation.op] ?? []) {
         const value = raw[key]

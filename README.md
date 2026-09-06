@@ -120,8 +120,9 @@ dsh web --profile demo                             # 打开对话界面
 | `excel_create_pivot` | 原生数据透视表（pivotCache + pivotTable）：多行字段、列字段、报表筛选器 + 值字段（求和/计数/平均/最大/最小），Excel 生成、可刷新（Windows） |
 | `excel_export_pdf` | 用本机 Excel COM 把工作簿或单个工作表导出为 PDF（Windows，只读打开不动源文件） |
 
-能力深度与可靠性进展：100 个职场任务的自建评测语料（ExcelBench lite）与
-真实 LLM 基线见 [docs/benchmark.md](docs/benchmark.md)；右侧可编辑 Excel
+能力深度与可靠性进展：100 个职场任务的自建评测语料（ExcelBench lite），
+goal 模式 + glm-5.3-flash 全量实测成功率 86%（DeepSeek 基线 52%），指标与
+失败归因见 [docs/benchmark.md](docs/benchmark.md)；右侧可编辑 Excel
 面板的设计与实测见 [docs/web-panel.md](docs/web-panel.md)。
 
 ## Modules

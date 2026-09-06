@@ -43,6 +43,8 @@ const PARAM_REFERENCE = [
     'report: {"op":"report","source":"订单!A1:B4","groupColumn":"A","metrics":[{"column":"B","function":"sum"}],"outputSheet":"经营报表"}',
     'subtotal: {"op":"subtotal","sheet":"订单","range":"订单!A1:B4","groupColumn":"A","summaryColumns":[{"column":"B","function":"sum"}]}',
     'filterToRange: {"op":"filterToRange","source":"订单!A1:C4","criteria":[{"column":"A","operator":"eq","value":"华东"}],"target":"华东!A1"}',
+    'preset: {"op":"preset","role":"ops|product|data","source":"订单!A1:C4","groupColumn":"A","metrics":[{"column":"C","function":"sum"}],"filter":{"column":"A","operator":"eq","value":"华东"}}',
+    'fuzzyMatch: {"op":"fuzzyMatch","source":"订单!A1:B4","sourceKey":"A","target":"价目表!A1:B4","targetKey":"A","valueColumn":"B","outputColumn":"C","threshold":0.6}',
     'rankColumn: {"op":"rankColumn","range":"订单!A1:B4","metricColumn":"B","outputColumn":"C","descending":true,"skipHeader":true}',
     'uniqueValues: {"op":"uniqueValues","source":"订单!A1:A7","target":"订单!E1","includeHeader":true}',
     'fillMissing: {"op":"fillMissing","range":"订单!A2:B4","mode":"value|forward|left","value":0}',
@@ -50,6 +52,10 @@ const PARAM_REFERENCE = [
     'style: {"op":"style","range":"订单!A1:B1","style":{"bold":true,"fill":"FFFF00","numberFormat":"#,##0.00"}}',
     'sortRange: {"op":"sortRange","range":"订单!A1:B4","keys":[{"column":"B","direction":"asc|desc"}],"headerRows":1}',
     'copyRange: {"op":"copyRange","source":"订单!A2:B3","target":"订单!D2","valuesOnly":false}',
+    'fill: {"op":"fill","source":"订单!D2","target":"订单!D2:D11"}',
+    'fillSeries: {"op":"fillSeries","start":"订单!A2","target":"订单!A2:A11","step":1}',
+    'renameSheet: {"op":"renameSheet","oldName":"Sheet1","newName":"订单"}',
+    'addSheet/deleteSheet/hideSheet: {"op":"addSheet","name":"汇总"}；duplicateSheet 用 name+newName',
     'clearRange: {"op":"clearRange","range":"订单!D2:E9","mode":"contents|formats|all"}',
     'transpose: {"op":"transpose","source":"订单!A1:C4","target":"转置!A1"}',
     'copyStyle: {"op":"copyStyle","source":"订单!A1","target":"订单!B1:B9"}',
@@ -117,12 +123,15 @@ export function createLlmPlanner(llm) {
                 '返回 ONLY JSON，格式：{"steps":[{"name":"步骤名","operations":[{"op":"操作名",...参数}]}]}。',
                 'operations 里的每个对象是 excel_operate 的一个操作，参数按该操作的字段写。',
                 '重要：所有 range/source/target/单元格引用必须带工作表前缀（如 "订单!A2:B4"）；需要 sheet 字段的操作必须写 sheet。',
+                '- 工作表名必须用「工作表」清单里的精确名称（如清单是"订单"就不要写成"订单表"）；renameSheet 的 oldName 是现有表、newName 才是新名字。',
                 '分析类任务规则：',
                 '- 汇总/透视/交叉表/排名一律用 aggregateReport/crosstab/subtotal/rankColumn 等活公式操作，禁止用 set 写死汇总数字（验证器会因快照中无公式而判未达成）。',
                 '- source/数据区域必须包含表头行且覆盖全部数据行（概览里有行数，如 39 行数据则写到第 40 行）。',
                 '- groupColumn/rowColumn/columnColumn 必须是语义画像里的维度列；metrics 的 column 必须是指标列；画像没提到的列不要猜。',
                 '- aggregateReport/crosstab 会自动建输出表，不要先 addSheet；outputSheet 起一个新名字避免覆盖。',
                 '- crosstab 的 metric 是对象 {"column":"C","function":"sum"}，不是字符串。',
+                '- preset 必须带 role（ops 运营 / product 产品 / data 数分，按目标判断）。',
+                '- aggregateReport 的 outputSheet 默认命名「汇总」、crosstab 默认「交叉表」，除非用户指定了名字。',
                 '- joinSheets 的 valueColumns/outputColumns 是等长数组，一一对应。',
                 '- fill 的 source 是单元格、target 是区域；不要用 fill 顶替 set。',
                 '- 上一轮计划执行了但验证不通过时，优先补缺失的步骤而不是整体重来。',
@@ -187,6 +196,9 @@ function normalizeOperation(operation, firstSheet) {
         if (raw.value === undefined && raw.fillValue !== undefined)
             raw.value = raw.fillValue;
     }
+    if (operation.op === 'fillSeries' && raw.target === undefined && typeof raw.range === 'string') {
+        raw.target = raw.range;
+    }
     if (operation.op === 'renameSheet') {
         if (raw.oldName === undefined && raw.sheet !== undefined)
             raw.oldName = raw.sheet;
@@ -207,6 +219,14 @@ function normalizeOperation(operation, firstSheet) {
         if (raw.metric === undefined && (raw.metricColumn !== undefined || raw.metricFunction !== undefined)) {
             raw.metric = { column: raw.metricColumn, function: raw.metricFunction ?? 'sum' };
         }
+    }
+    if (operation.op === 'style' && raw.style && typeof raw.style === 'object') {
+        // Models often emit exceljs-native alignment names instead of the DSL's.
+        const style = raw.style;
+        if (style.hAlign === undefined && style.horizontal !== undefined)
+            style.hAlign = style.horizontal;
+        if (style.vAlign === undefined && style.vertical !== undefined)
+            style.vAlign = style.vertical;
     }
     if (['joinSheets', 'hideColumns'].includes(operation.op)) {
         for (const key of ['valueColumns', 'outputColumns', 'columns']) {

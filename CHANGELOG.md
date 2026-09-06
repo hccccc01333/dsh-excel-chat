@@ -1,6 +1,31 @@
 # Changelog
 
-## v0.37.1 — 2026-09-05（本地版本，未发布）
+## v0.37.2 — 2026-09-07（本地版本，未发布）
+
+- 基准运行器加固（真实 100 任务全量跑通的前提）：
+  - `runLlmBenchmark` 支持 `outFile` JSONL 断点续跑（逐任务落盘、重跑跳过
+    已完成、崩溃任务自动重试）与 `onProgress`（stderr 进度）；
+  - 瞬态错误重试（429/500/503/fetch failed，默认 4 次线性退避）+ 任务间隔
+    节流（`LLM_BENCH_RETRIES` / `LLM_BENCH_RETRY_DELAY` / `LLM_BENCH_TASK_DELAY`）；
+  - 逐任务单跑脚本 `scripts/bench-run-missing.sh`，托管端点限流时只补缺失。
+- LLM 基准新增 BAI 供应商（api.b.ai，OpenAI 兼容）：`LLM_PROVIDER=bai` +
+  `BAI_MODEL`（glm-5.3-flash / qwen3.8-flash），`BAI_MAX_TOKENS` 默认 4000
+  适配思考型模型。
+- **glm-5.3-flash 全量 100 任务：成功率 86%（DeepSeek 基线 52%，+34pp）、
+  准确率 88.5%、完整性 99%；分析类 28% → 84%，公式 68% → 95.5%，工作流
+  39% → 77.8%；Verification 误判清零**（证据标准 + 按表轮询快照采样的
+  直接效果）。数字为提示词 + 模型双变量叠加，见 docs/benchmark.md 归因。
+- 全量实测暴露并修复的规划容错：
+  - `style.horizontal/vertical` 别名到 `hAlign/vAlign`（sanitizePlan 确定性
+    salvage）；
+  - 口语化表名（"订单表"）匹配到精确表名（"订单"）——renameSheet/
+    dedupeRows 等的 sheet/oldName/name 字段；
+  - `fillSeries` 的 `range` 别名到 `target`；
+  - 提示词补 preset.role 必填、outputSheet 默认命名、fuzzyMatch/fill/
+    fillSeries/renameSheet 参数速查（全量跑缺示例的操作恰是缺字段重灾区）。
+- 测试规模 258 → 262。
+
+## v0.37.1 — 2026-09-05
 
 - 修复 issue #2 两个插件生命周期问题（报告基于 v0.34.1 发布产物）：
   - 插件标识对齐：`export const name` 由 `vera-formula-validator` 改为

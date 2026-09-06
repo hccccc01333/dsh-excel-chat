@@ -17,8 +17,24 @@
 ```sh
 node --test tests/invoke-file-benchmark.ts   # 打印聚合报告
 node --test tests/file-benchmark.test.ts     # 语料回归守护（100/100）
-node --test tests/invoke-llm-benchmark.ts    # 真实 LLM 规划基准（需 DEEPSEEK_API_KEY）
+node --test tests/invoke-llm-benchmark.ts    # 真实 LLM 规划基准
 ```
+
+LLM 基准支持双供应商（OpenAI 兼容端点）：
+
+```sh
+# DeepSeek（默认）
+DEEPSEEK_API_KEY=sk-... node --test tests/invoke-llm-benchmark.ts
+# BAI（api.b.ai，glm-5.3-flash / qwen3.8-flash）
+LLM_PROVIDER=bai BAI_MODEL=glm-5.3-flash node --test tests/invoke-llm-benchmark.ts
+```
+
+可选环境变量：`LLM_BENCH_SAMPLE`/`LLM_BENCH_OFFSET`（切片）、
+`LLM_BENCH_OUT`（JSONL 断点续跑文件，逐任务落盘、重跑自动跳过已完成、
+崩溃任务重试）、`LLM_BENCH_ROUNDS`（重规划轮数，默认 3）、
+`LLM_BENCH_RETRIES`/`LLM_BENCH_RETRY_DELAY`/`LLM_BENCH_TASK_DELAY`
+（瞬态错误退避与限流节奏）。进度走 stderr，stdout 只输出最终 JSON 报告。
+托管端点不稳时建议小批量逐个跑（切片 + 断点），避免限流污染整轮结果。
 
 ## 真实 LLM 规划基准（基线）
 
@@ -49,7 +65,8 @@ node --test tests/invoke-llm-benchmark.ts    # 真实 LLM 规划基准（需 DEE
 三次迭代数字：47%（基线）→ 49% → 48%（增强后；完整性 79% → 89%，分析类
 24% → 36%，引擎异常噪音清零，剩余失败全部是语义/规划质量问题）。
 
-复现：`node --test tests/invoke-llm-benchmark.ts`（每次消耗 DeepSeek API）。
+复现：`node --test tests/invoke-llm-benchmark.ts`（每次消耗供应商 API，
+用法见上文「运行」）。
 
 ## 失败分类（v0.35 Failure Taxonomy）
 
@@ -102,6 +119,40 @@ argument）允许人工复核后调整。
 Execution 0。结论：Semantic Layer 显著改善公式与多步工作流；分析类仍在
 噪声区间，最大瓶颈依然是**验证器把没做完的活判成完成**（33/52），
 下一步集中做断言级校验（Verifier 2.0）。
+
+### v0.37 全量实测（100 任务，glm-5.3-flash，maxRounds=3）
+
+v0.37.0 规划器提示词全面升级（按用途分组操作目录 + 分析类 few-shot +
+任务规则）+ 验证器按目标类型给证据标准 + cellSnapshot 按表轮询采样 +
+sanitizePlan 认识全部新操作后，换用 glm-5.3-flash（api.b.ai）全量重跑：
+
+| 指标 | DeepSeek 基线（v0.36 前提示词） | glm-5.3-flash（v0.37 提示词） |
+|---|---|---|
+| 任务成功率 | 52% | **86%** |
+| 平均准确率 | 61.0% | **88.5%** |
+| 完整性率 | 93% | **99%** |
+| 编辑 | 65.7% | 85.7% |
+| 分析 | 28% | **84%** |
+| 公式 | 68.2% | **95.5%** |
+| 工作流 | 38.9% | **77.8%** |
+
+失败分类：Argument 9、Planning 3、Replan 1、Intent 1（Verification 0、
+Execution 0）。上轮最大失败源 Verification 误判（33/52）清零——按目标
+类型给证据标准 + 按表轮询快照采样是主要杠杆。
+
+剩余 14 个失败归因（该轮实测）：
+- 9 Argument：多为良性命名差（outputSheet 自由命名、style.horizontal
+  别名、preset.role 漏带）——已加确定性 salvage（horizontal→hAlign 别名、
+  口语化表名匹配精确表名）与提示词约束（outputSheet 默认「汇总」、
+  preset 必须带 role），待复测；
+- 3 Planning：漏步骤（filterToRange/report）；
+- 1 Intent + 1 Replan。
+
+说明：换模型与换提示词同时发生，86% 是两者叠加的结果，不是提示词的
+单独贡献；复测方式是同一提示词回跑 DeepSeek 基线。托管端点限流严重
+（429/503 频发），该轮结果依赖 JSONL 断点续跑逐任务补齐。
+
+复现：`node --test tests/invoke-llm-benchmark.ts`（每次消耗供应商 API）。
 
 ## 语料结构
 

@@ -118,3 +118,30 @@ test('sanitizePlan checks rankColumn and new layout ops', () => {
   }], ['订单'])
   assert.equal((fixed.steps[0]!.operations[0] as Record<string, unknown>).position, 1)
 })
+
+test('sanitizePlan salvages colloquial sheet names onto the exact sheet list', () => {
+  const fixed = sanitizePlan([{
+    operations: [{ op: 'renameSheet', oldName: '订单表', newName: '销售表' }],
+  }], ['订单'])
+  const op = fixed.steps[0]!.operations[0] as Record<string, unknown>
+  assert.equal(op.oldName, '订单')
+  assert.equal(op.newName, '销售表')
+  const deduped = sanitizePlan([{
+    operations: [{ op: 'dedupeRows', sheet: '订单表', columns: ['A'] }],
+  }], ['订单'])
+  assert.equal((deduped.steps[0]!.operations[0] as Record<string, unknown>).sheet, '订单')
+  // Unknown names pass through untouched.
+  const untouched = sanitizePlan([{
+    operations: [{ op: 'renameSheet', oldName: '不存在的表', newName: 'x' }],
+  }], ['订单'])
+  assert.equal((untouched.steps[0]!.operations[0] as Record<string, unknown>).oldName, '不存在的表')
+})
+
+test('sanitizePlan aliases exceljs-native alignment names in style', () => {
+  const fixed = sanitizePlan([{
+    operations: [{ op: 'style', range: '订单!A1:B1', style: { wrapText: true, horizontal: 'center', vertical: 'middle' } }],
+  }], ['订单'])
+  const style = (fixed.steps[0]!.operations[0] as Record<string, unknown>).style as Record<string, unknown>
+  assert.equal(style.hAlign, 'center')
+  assert.equal(style.vAlign, 'middle')
+})
