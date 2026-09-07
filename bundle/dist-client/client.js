@@ -18,7 +18,7 @@ window.__ModuleLoader__.load({
 		//#endregion
 		let react = require("react");
 		let react_jsx_runtime = require("react/jsx-runtime");
-		//#region node_modules/x-data-spreadsheet/dist/xspreadsheet.js
+		//#region node_modules/.pnpm/x-data-spreadsheet@1.1.9/node_modules/x-data-spreadsheet/dist/xspreadsheet.js
 		var xspreadsheet_exports = /* @__PURE__ */ __exportAll({});
 		(function(t) {
 			var e = {};
@@ -87,8 +87,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), "string" == typeof e ? (this.el = document.createElement(e), this.el.className = n) : this.el = e, this.data = {};
 					}
-					var e, n, o;
-					return e = t, (n = [
+					var e = t, n, o;
+					return (n = [
 						{
 							key: "data",
 							value: function(t, e) {
@@ -422,8 +422,7 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this.sri = e, this.sci = n, this.eri = r, this.eci = i, this.w = o, this.h = a;
 					}
-					var e, n, r;
-					return e = t, r = [{
+					var e = t, n, r = [{
 						key: "valueOf",
 						value: function(e) {
 							var n = e.split(":"), r = d(f(n[0]), 2), i = r[0], o = r[1], a = o, l = i;
@@ -433,7 +432,8 @@ window.__ModuleLoader__.load({
 							}
 							return new t(o, i, a, l);
 						}
-					}], (n = [
+					}];
+					return (n = [
 						{
 							key: "set",
 							value: function(t, e, n, r) {
@@ -545,8 +545,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this.range = new v(0, 0, 0, 0), this.ri = 0, this.ci = 0;
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "multiple",
 							value: function() {
@@ -584,8 +584,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this.undoItems = [], this.redoItems = [];
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "add",
 							value: function(t) {
@@ -632,8 +632,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this.range = null, this.state = "clear";
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "copy",
 							value: function(t) {
@@ -871,8 +871,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this._ = e;
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "forEach",
 							value: function(t) {
@@ -1076,8 +1076,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this._ = {}, this.len = n, this.height = r;
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "getHeight",
 							value: function(t) {
@@ -1376,8 +1376,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this._ = {}, this.len = n, this.width = r, this.indexWidth = i, this.minWidth = o;
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "setData",
 							value: function(t) {
@@ -1675,8 +1675,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this.required = n, this.value = r, this.type = e, this.operator = i, this.message = "";
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "parseValue",
 							value: function(t) {
@@ -2006,8 +2006,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this.settings = z.merge(lt, n || {}), this.name = e || "sheet", this.freeze = [0, 0], this.styles = [], this.merges = new A(), this.rows = new N(this.settings.row), this.cols = new W(this.settings.col), this.validations = new rt(), this.hyperlinks = {}, this.comments = {}, this.selector = new g(), this.scroll = new m(), this.history = new k(), this.clipboard = new S(), this.autoFilter = new T(), this.change = function() {}, this.exceptRowSet = /* @__PURE__ */ new Set(), this.sortedRowMap = /* @__PURE__ */ new Map(), this.unsortedRowMap = /* @__PURE__ */ new Map();
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "addValidation",
 							value: function(t, e, n) {
@@ -2791,8 +2791,8 @@ window.__ModuleLoader__.load({
 							return e.mousedownHandler(t);
 						}), this.lineEl = a("div", "".concat(kt, "-resizer-line")).hide()).hide(), this.cRect = null, this.finishedFn = null, this.minDistance = r, this.unhideFn = function() {};
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "showUnhide",
 							value: function(t) {
@@ -2874,8 +2874,8 @@ window.__ModuleLoader__.load({
 							n.moveFn && n.moveFn(n.vertical ? r : i, t);
 						});
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "move",
 							value: function(t) {
@@ -3233,8 +3233,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this.filterItems = [], this.items = e, this.el = a("div", "".concat(kt, "-suggest")).css("width", r).hide(), this.itemClick = n, this.itemIndex = -1;
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "setOffset",
 							value: function(t) {
@@ -3404,8 +3404,8 @@ window.__ModuleLoader__.load({
 							return a("th", "cell").child(t);
 						})))), this.bodyEl)), this.selectChange = function() {};
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "setValue",
 							value: function(t) {
@@ -3483,8 +3483,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this.calendar = new re(/* @__PURE__ */ new Date()), this.el = a("div", "".concat(kt, "-datepicker")).child(this.calendar.el).hide();
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "setValue",
 							value: function(t) {
@@ -3609,8 +3609,8 @@ window.__ModuleLoader__.load({
 							h: 0
 						}, this.cell = null, this.inputText = "", this.change = function() {};
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "setFreezeLengths",
 							value: function(t, e) {
@@ -4586,8 +4586,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this.el = e, this.draw = new Ce(e, n.viewWidth(), n.viewHeight()), this.data = n;
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "resetData",
 							value: function(t) {
@@ -4709,8 +4709,8 @@ window.__ModuleLoader__.load({
 							e.orientation = un[t.target.value], this.preview();
 						}.bind(this))))))).hide();
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "resetData",
 							value: function(t) {
@@ -4878,8 +4878,8 @@ window.__ModuleLoader__.load({
 							if (!(t instanceof e)) throw new TypeError("Cannot call a class as a function");
 						})(this, t), this.menuItems = bn.call(this), this.el = (n = a("div", "".concat(kt, "-contextmenu"))).children.apply(n, dn(this.menuItems)).hide(), this.viewFn = e, this.itemClick = function() {}, this.isHide = r, this.setMode("range");
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "setMode",
 							value: function(t) {
@@ -4919,8 +4919,8 @@ window.__ModuleLoader__.load({
 							return t[1].toUpperCase();
 						}))), n && (this.tip += " (".concat(n, ")")), this.tag = e, this.shortcut = n, this.value = r, this.el = this.element(), this.change = function() {};
 					}
-					var e, n, r;
-					return e = t, (n = [{
+					var e = t, n, r;
+					return (n = [{
 						key: "element",
 						value: function() {
 							var t = this.tip;
@@ -7164,8 +7164,8 @@ window.__ModuleLoader__.load({
 							Ca.call(r);
 						}));
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "paintformatActive",
 							value: function() {
@@ -7230,8 +7230,8 @@ window.__ModuleLoader__.load({
 							return i.hide();
 						}), this.title), (r = a("div", "".concat(kt, "-modal-content"))).children.apply(r, Pa(n))).hide();
 					}
-					var e, n, r;
-					return e = t, (n = [{
+					var e = t, n, r;
+					return (n = [{
 						key: "show",
 						value: function() {
 							var t = this;
@@ -7266,8 +7266,8 @@ window.__ModuleLoader__.load({
 							return r.vchange(t);
 						}).attr("placeholder", n), this.el.child(this.input);
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "focus",
 							value: function() {
@@ -7315,8 +7315,8 @@ window.__ModuleLoader__.load({
 							return i.show();
 						});
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "show",
 							value: function() {
@@ -7355,8 +7355,8 @@ window.__ModuleLoader__.load({
 							return o.validate();
 						}, this.el = a("div", "".concat(kt, "-form-field")).children(this.label, e.el, this.tip);
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "isShow",
 							value: function() {
@@ -7589,8 +7589,8 @@ window.__ModuleLoader__.load({
 							return e.btnClick("ok");
 						}))).hide(), this.ci = null, this.sortDesc = null, this.values = null, this.filterValues = [];
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "btnClick",
 							value: function(t) {
@@ -8114,8 +8114,8 @@ window.__ModuleLoader__.load({
 							return r.getRect();
 						}, !c), this.selector = new qt(n), this.overlayerCEl = a("div", "".concat(kt, "-overlayer-content")).children(this.editor.el, this.selector.el), this.overlayerEl = a("div", "".concat(kt, "-overlayer")).child(this.overlayerCEl), this.sortFilter = new Ja(), this.el.children(this.tableEl, this.overlayerEl.el, this.rowResizer.el, this.colResizer.el, this.verticalScrollbar.el, this.horizontalScrollbar.el, this.contextMenu.el, this.modalValidation.el, this.sortFilter.el), this.table = new an(this.tableEl.el, n), gl.call(this), al.call(this), nl.call(this, !1, 0, 0);
 					}
-					var e, n, r;
-					return e = t, (n = [
+					var e = t, n, r;
+					return (n = [
 						{
 							key: "on",
 							value: function(t, e) {
@@ -8480,13 +8480,13 @@ window.__ModuleLoader__.load({
 						});
 						i.appendChild(o.el), this.sheet = new ml(o, this.data), null !== this.bottombar && o.child(this.bottombar.el);
 					}
-					var e, n, r;
-					return e = t, r = [{
+					var e = t, n, r = [{
 						key: "locale",
 						value: function(t, e) {
 							Y(t, e);
 						}
-					}], (n = [
+					}];
+					return (n = [
 						{
 							key: "addSheet",
 							value: function(t) {
@@ -8597,9 +8597,9 @@ window.__ModuleLoader__.load({
 		* results render as an old→new repair diff.
 		*/
 		/** Tools whose settled result is a cell table (excel_read / excel_preview). */
-		const TABLE_TOOLS = new Set(["excel_read", "excel_preview"]);
+		const TABLE_TOOLS = /* @__PURE__ */ new Set(["excel_read", "excel_preview"]);
 		/** Tools whose settled result is a report/summary object. */
-		const SUMMARY_TOOLS = new Set([
+		const SUMMARY_TOOLS = /* @__PURE__ */ new Set([
 			"excel_insight",
 			"excel_operate",
 			"excel_autofix",
@@ -8607,7 +8607,7 @@ window.__ModuleLoader__.load({
 			"excel_menu"
 		]);
 		/** Tools whose result carries repair diffs (old → new). */
-		const DIFF_TOOLS = new Set(["excel_autofix", "excel_task"]);
+		const DIFF_TOOLS = /* @__PURE__ */ new Set(["excel_autofix", "excel_task"]);
 		const inject = ["slots", "remote.commands"];
 		const Spreadsheet = window.x_spreadsheet ?? void 0 ?? xspreadsheet_exports;
 		/** Set once by the client plugin body; used by the toolview for in-place edits. */
@@ -8628,11 +8628,44 @@ window.__ModuleLoader__.load({
 			if (typeof value === "object") return JSON.stringify(value);
 			return String(value);
 		}
+		/** 1-based column index → letters ("A", "Z", "AA"), matching Excel addressing. */
+		function columnName(index) {
+			let name = "";
+			let value = index;
+			while (value > 0) {
+				const remainder = (value - 1) % 26;
+				name = `${String.fromCharCode(65 + remainder)}${name}`;
+				value = Math.floor((value - remainder - 1) / 26);
+			}
+			return name;
+		}
+		/** Inline viewport height; the fullscreen overlay uses most of the window. */
+		const INLINE_VIEW_HEIGHT = 560;
+		/** Display caps: bigger sheets get a truncation notice instead of silent loss. */
+		const MAX_RENDER_ROWS = 2e3;
+		const MAX_RENDER_COLS = 100;
 		/** Real spreadsheet grid (Excel-like) for excel_read / excel_preview results. */
 		function SpreadsheetView({ sheets, editable, onCellEdited }) {
 			const ref = (0, react.useRef)(null);
 			const ssRef = (0, react.useRef)(null);
 			const [initError, setInitError] = (0, react.useState)(null);
+			const [fullscreen, setFullscreen] = (0, react.useState)(false);
+			const [viewportTick, setViewportTick] = (0, react.useState)(0);
+			const truncatedRows = (0, react.useRef)(0);
+			const truncatedCols = (0, react.useRef)(0);
+			(0, react.useEffect)(() => {
+				if (!fullscreen) return;
+				const onResize = () => setViewportTick((tick) => tick + 1);
+				const onKeyDown = (event) => {
+					if (event.key === "Escape") setFullscreen(false);
+				};
+				window.addEventListener("resize", onResize);
+				window.addEventListener("keydown", onKeyDown);
+				return () => {
+					window.removeEventListener("resize", onResize);
+					window.removeEventListener("keydown", onKeyDown);
+				};
+			}, [fullscreen]);
 			(0, react.useEffect)(() => {
 				const el = ref.current;
 				if (!el) return;
@@ -8648,19 +8681,24 @@ window.__ModuleLoader__.load({
 						});
 						return cols.length > 0 ? Math.max(...cols) : 1;
 					}));
+					truncatedRows.current = Math.max(0, maxRows - MAX_RENDER_ROWS);
+					truncatedCols.current = Math.max(0, maxCols - MAX_RENDER_COLS);
+					const colCount = Math.min(MAX_RENDER_COLS, Math.max(5, maxCols));
+					const rowCount = Math.min(MAX_RENDER_ROWS, Math.max(10, maxRows));
+					const viewHeight = fullscreen ? Math.max(320, window.innerHeight - 96) : INLINE_VIEW_HEIGHT;
 					const ss = Spreadsheet(el, {
 						mode: editable ? "edit" : "read",
 						showToolbar: false,
 						showGrid: true,
 						row: {
-							len: Math.min(200, Math.max(10, maxRows)),
+							len: rowCount,
 							height: 24
 						},
 						col: {
-							len: Math.max(5, maxCols),
+							len: colCount,
 							width: 110
 						},
-						view: { height: () => 420 }
+						view: { height: () => viewHeight }
 					});
 					const data = sheets.map((sheet) => {
 						const rows = {};
@@ -8682,9 +8720,8 @@ window.__ModuleLoader__.load({
 					ss.loadData(data);
 					if (editable) ss.on("cell-edited", (editedCell, rowIndex, colIndex) => {
 						const sheetName = sheets[0]?.sheet ?? "Sheet1";
-						const column = String.fromCharCode(65 + colIndex);
 						const text = editedCell && typeof editedCell === "object" ? String(editedCell.text ?? "") : "";
-						onCellEdited(`${sheetName}!${column}${rowIndex + 1}`, text);
+						onCellEdited(`${sheetName}!${columnName(colIndex + 1)}${rowIndex + 1}`, text);
 					});
 					ssRef.current = ss;
 					setInitError(null);
@@ -8695,22 +8732,68 @@ window.__ModuleLoader__.load({
 					ssRef.current = null;
 					el.innerHTML = "";
 				};
-			}, [sheets, editable]);
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				ref,
-				style: {
-					border: "1px solid #d0d7de",
-					borderRadius: 6,
+			}, [
+				sheets,
+				editable,
+				fullscreen,
+				viewportTick
+			]);
+			const truncationNotice = truncatedRows.current > 0 || truncatedCols.current > 0 ? `表格较大：已显示前 ${MAX_RENDER_ROWS} 行 × ${MAX_RENDER_COLS} 列，点「全屏」可看更多` : null;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				style: fullscreen ? {
+					position: "fixed",
+					top: 0,
+					left: 0,
+					right: 0,
+					bottom: 0,
+					zIndex: 9999,
+					background: "#fff",
+					padding: 12,
 					overflow: "hidden"
-				}
-			}), initError !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				style: {
-					fontSize: 11,
-					color: "#b91c1c",
-					marginTop: 6
-				},
-				children: ["网格初始化失败：", initError]
-			})] });
+				} : void 0,
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						style: {
+							display: "flex",
+							justifyContent: "flex-end",
+							marginBottom: 4
+						},
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => setFullscreen((value) => !value),
+							style: {
+								fontSize: 11,
+								cursor: "pointer"
+							},
+							children: fullscreen ? "退出全屏（Esc）" : "全屏"
+						})
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						ref,
+						style: fullscreen ? { overflow: "hidden" } : {
+							border: "1px solid #d0d7de",
+							borderRadius: 6,
+							overflow: "hidden"
+						}
+					}),
+					truncationNotice !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						style: {
+							fontSize: 11,
+							color: "#92400e",
+							marginTop: 6
+						},
+						children: truncationNotice
+					}),
+					initError !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						style: {
+							fontSize: 11,
+							color: "#b91c1c",
+							marginTop: 6
+						},
+						children: ["网格初始化失败：", initError]
+					})
+				]
+			});
 		}
 		/** M3: render repair diffs (old → new) from excel_autofix / excel_task results. */
 		function DiffFromResult(result) {
@@ -8995,7 +9078,7 @@ window.__ModuleLoader__.load({
 						fontSize: 12,
 						overflow: "auto",
 						whiteSpace: "pre-wrap",
-						maxHeight: 480
+						maxHeight: 720
 					},
 					children: value.markdown
 				});
@@ -9026,7 +9109,7 @@ window.__ModuleLoader__.load({
 						fontSize: 12,
 						overflow: "auto",
 						whiteSpace: "pre-wrap",
-						maxHeight: 480
+						maxHeight: 720
 					},
 					children: [...lines, ...counts].join("\n")
 				});
@@ -9036,7 +9119,7 @@ window.__ModuleLoader__.load({
 					fontSize: 12,
 					overflow: "auto",
 					whiteSpace: "pre-wrap",
-					maxHeight: 480
+					maxHeight: 720
 				},
 				children: text
 			});

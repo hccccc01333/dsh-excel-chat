@@ -87,6 +87,24 @@ function cellText(value: unknown, formula?: string): string {
   return String(value)
 }
 
+/** 1-based column index → letters ("A", "Z", "AA"), matching Excel addressing. */
+function columnName(index: number): string {
+  let name = ''
+  let value = index
+  while (value > 0) {
+    const remainder = (value - 1) % 26
+    name = `${String.fromCharCode(65 + remainder)}${name}`
+    value = Math.floor((value - remainder - 1) / 26)
+  }
+  return name
+}
+
+/** Inline viewport height; the fullscreen overlay uses most of the window. */
+const INLINE_VIEW_HEIGHT = 560
+/** Display caps: bigger sheets get a truncation notice instead of silent loss. */
+const MAX_RENDER_ROWS = 2000
+const MAX_RENDER_COLS = 100
+
 /** Real spreadsheet grid (Excel-like) for excel_read / excel_preview results. */
 function SpreadsheetView({
   sheets,
@@ -100,6 +118,23 @@ function SpreadsheetView({
   const ref = useRef<HTMLDivElement | null>(null)
   const ssRef = useRef<{ destroy: () => void } | null>(null)
   const [initError, setInitError] = useState<string | null>(null)
+  const [fullscreen, setFullscreen] = useState(false)
+  const [viewportTick, setViewportTick] = useState(0)
+  const truncatedRows = useRef(0)
+  const truncatedCols = useRef(0)
+  useEffect(() => {
+    if (!fullscreen) return
+    const onResize = (): void => setViewportTick((tick) => tick + 1)
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setFullscreen(false)
+    }
+    window.addEventListener('resize', onResize)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [fullscreen])
   useEffect(() => {
     const el = ref.current
     if (!el) return
@@ -117,15 +152,18 @@ function SpreadsheetView({
         })
         return cols.length > 0 ? Math.max(...cols) : 1
       }))
-      const colCount = Math.max(5, maxCols)
-      const rowCount = Math.min(200, Math.max(10, maxRows))
+      truncatedRows.current = Math.max(0, maxRows - MAX_RENDER_ROWS)
+      truncatedCols.current = Math.max(0, maxCols - MAX_RENDER_COLS)
+      const colCount = Math.min(MAX_RENDER_COLS, Math.max(5, maxCols))
+      const rowCount = Math.min(MAX_RENDER_ROWS, Math.max(10, maxRows))
+      const viewHeight = fullscreen ? Math.max(320, window.innerHeight - 96) : INLINE_VIEW_HEIGHT
       const ss = Spreadsheet(el, {
         mode: editable ? 'edit' : 'read',
         showToolbar: false,
         showGrid: true,
         row: { len: rowCount, height: 24 },
         col: { len: colCount, width: 110 },
-        view: { height: () => 420 },
+        view: { height: () => viewHeight },
       })
       const data = sheets.map((sheet) => {
         const rows: Record<number, { cells: Record<number, { text: string }> }> = {}
@@ -145,11 +183,10 @@ function SpreadsheetView({
       if (editable) {
         ss.on('cell-edited', (editedCell, rowIndex: number, colIndex: number) => {
           const sheetName = sheets[0]?.sheet ?? 'Sheet1'
-          const column = String.fromCharCode(65 + colIndex)
           const text = editedCell && typeof editedCell === 'object'
             ? String((editedCell as { text?: unknown }).text ?? '')
             : ''
-          onCellEdited(`${sheetName}!${column}${rowIndex + 1}`, text)
+          onCellEdited(`${sheetName}!${columnName(colIndex + 1)}${rowIndex + 1}`, text)
         })
       }
       ssRef.current = ss
@@ -161,10 +198,44 @@ function SpreadsheetView({
       ssRef.current = null
       el.innerHTML = ''
     }
-  }, [sheets, editable])
+  }, [sheets, editable, fullscreen, viewportTick])
+  const truncationNotice = truncatedRows.current > 0 || truncatedCols.current > 0
+    ? `表格较大：已显示前 ${MAX_RENDER_ROWS} 行 × ${MAX_RENDER_COLS} 列，点「全屏」可看更多`
+    : null
   return (
-    <div>
-      <div ref={ref} style={{ border: '1px solid #d0d7de', borderRadius: 6, overflow: 'hidden' }} />
+    <div
+      style={fullscreen
+        ? {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 9999,
+            background: '#fff',
+            padding: 12,
+            overflow: 'hidden',
+          }
+        : undefined}
+    >
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+        <button
+          type="button"
+          onClick={() => setFullscreen((value) => !value)}
+          style={{ fontSize: 11, cursor: 'pointer' }}
+        >
+          {fullscreen ? '退出全屏（Esc）' : '全屏'}
+        </button>
+      </div>
+      <div
+        ref={ref}
+        style={fullscreen
+          ? { overflow: 'hidden' }
+          : { border: '1px solid #d0d7de', borderRadius: 6, overflow: 'hidden' }}
+      />
+      {truncationNotice !== null && (
+        <div style={{ fontSize: 11, color: '#92400e', marginTop: 6 }}>{truncationNotice}</div>
+      )}
       {initError !== null && (
         <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 6 }}>网格初始化失败：{initError}</div>
       )}
@@ -384,7 +455,7 @@ export function ExcelToolView(props: ToolCallViewProps): ReactNode {
       )
     }
     if (typeof value.markdown === 'string') {
-      return <pre style={{ fontSize: 12, overflow: 'auto', whiteSpace: 'pre-wrap', maxHeight: 480 }}>{value.markdown}</pre>
+      return <pre style={{ fontSize: 12, overflow: 'auto', whiteSpace: 'pre-wrap', maxHeight: 720 }}>{value.markdown}</pre>
     }
   }
   if (DIFF_TOOLS.has(toolName) && parsed !== null && typeof parsed === 'object') {
@@ -408,10 +479,10 @@ export function ExcelToolView(props: ToolCallViewProps): ReactNode {
       .filter((key) => record[key] && typeof record[key] === 'object')
       .map((key) => `${key}: ${JSON.stringify(record[key])}`)
     if (lines.length > 0 || counts.length > 0) {
-      return <pre style={{ fontSize: 12, overflow: 'auto', whiteSpace: 'pre-wrap', maxHeight: 480 }}>{[...lines, ...counts].join('\n')}</pre>
+      return <pre style={{ fontSize: 12, overflow: 'auto', whiteSpace: 'pre-wrap', maxHeight: 720 }}>{[...lines, ...counts].join('\n')}</pre>
     }
   }
-  return <pre style={{ fontSize: 12, overflow: 'auto', whiteSpace: 'pre-wrap', maxHeight: 480 }}>{text}</pre>
+  return <pre style={{ fontSize: 12, overflow: 'auto', whiteSpace: 'pre-wrap', maxHeight: 720 }}>{text}</pre>
 }
 
 /** Client plugin body: register the excel_* toolviews into the details column. */
