@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.38.0 — 2026-09-07（本地版本，未发布）
+## v0.38.0 — 2026-09-07
 
 - **Verifier 2.0：规划器机器可查断言**（goal 模式验证合取的第 2 层确定性
   防线，继 v0.37.0 清零 Verification 误判后进一步压 Argument/Planning 类
