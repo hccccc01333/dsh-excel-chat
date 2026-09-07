@@ -41,11 +41,10 @@ export function annotateWorkbookXml(data, annotations, sheetFileOf) {
             throw new Error(`sheet not found for comments: ${sheetName}`);
         commentFileIndex += 1;
         const commentsFile = `xl/comments${commentFileIndex}.xml`;
-        const author = comments[0].author;
-        files[commentsFile] = strToU8(commentsXml(author, comments));
+        files[commentsFile] = strToU8(commentsXml(comments));
         contentTypes = addOverride(contentTypes, `/${commentsFile}`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml');
         if (!/<Default Extension="vml"/.test(contentTypes)) {
-            contentTypes = contentTypes.replace(/(<Types[^>]*>)/, '$1<Default Extension="vml" ContentType="application/vnd.openxmlformats-officedocument.vml"/>');
+            contentTypes = contentTypes.replace(/(<Types[^>]*>)/, '$1<Default Extension="vml" ContentType="application/vnd.openxmlformats-officedocument.vmlDrawing"/>');
         }
         vmlFileIndex += 1;
         const vmlFile = `xl/drawings/vmlDrawing${vmlFileIndex}.vml`;
@@ -61,10 +60,19 @@ export function annotateWorkbookXml(data, annotations, sheetFileOf) {
     files['[Content_Types].xml'] = strToU8(contentTypes);
     return Buffer.from(zipSync(files));
 }
-function commentsXml(author, comments) {
-    const items = comments.map((comment) => `<comment ref="${escapeXml(comment.ref)}" authorId="0"><text><r><t xml:space="preserve">${escapeXml(comment.text)}</t></r></text></comment>`).join('');
+function commentsXml(comments) {
+    const authors = [];
+    const authorId = new Map();
+    for (const comment of comments) {
+        if (!authorId.has(comment.author)) {
+            authorId.set(comment.author, authors.length);
+            authors.push(comment.author);
+        }
+    }
+    const authorsXml = authors.map((author) => `<author>${escapeXml(author)}</author>`).join('');
+    const items = comments.map((comment) => `<comment ref="${escapeXml(comment.ref)}" authorId="${authorId.get(comment.author)}"><text><r><t xml:space="preserve">${escapeXml(comment.text)}</t></r></text></comment>`).join('');
     return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><authors><author>${escapeXml(author)}</author></authors><commentList>${items}</commentList></comments>`;
+<comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><authors>${authorsXml}</authors><commentList>${items}</commentList></comments>`;
 }
 function commentVml(comments) {
     const shapes = comments.map((comment, index) => {
@@ -168,10 +176,11 @@ function sparklineRows(group) {
     }
     const out = [];
     for (let offset = 0; offset <= dataRows; offset++) {
-        const row = data.startRow + offset;
+        const dataRow = data.startRow + offset;
+        const locationRow = location.startRow + offset;
         out.push({
-            data: `${dataSheet}!${columnName(data.startCol + 1)}${row}:${columnName(data.endCol + 1)}${row}`,
-            location: `${columnName(location.startCol + 1)}${row}`,
+            data: `${dataSheet}!${columnName(data.startCol + 1)}${dataRow}:${columnName(data.endCol + 1)}${dataRow}`,
+            location: `${columnName(location.startCol + 1)}${locationRow}`,
         });
     }
     return out;

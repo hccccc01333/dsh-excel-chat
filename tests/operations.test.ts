@@ -192,6 +192,19 @@ test('renameSheet updates references across the workbook', async () => {
   assert.ok(Object.keys(cells).some((id) => id.startsWith('Data!')))
 })
 
+test('renameSheet does not corrupt a sheet whose name starts with the old name', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('A')
+    const aa = workbook.addWorksheet('AA')
+    aa.getCell('B1').value = 5
+    const other = workbook.addWorksheet('Other')
+    other.getCell('C1').value = { formula: 'AA!B1+A!B1' }
+  })
+  const cells = await readAfter(path, [{ op: 'renameSheet', oldName: 'A', newName: 'Z' }])
+  // "AA!B1" must survive; only the standalone "A!B1" ref is renamed to "Z!B1".
+  assert.equal(cells['Other!C1'], '=AA!B1+Z!B1')
+})
+
 test('addSheet and deleteSheet change the workbook sheet set', async () => {
   const path = await makeWorkbook(formulaFixture())
   const addedPath = join(join(path, '..'), 'added.xlsx')
@@ -1236,6 +1249,21 @@ test('clearRange contents keeps styles while formats keeps values', async () => 
   assert.equal(sheet.getCell('B1').font?.bold, true)
 })
 
+test('copyRange onto an overlapping range copies the original values (no read-after-write corruption)', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('S')
+    sheet.getCell('A1').value = 1
+    sheet.getCell('A2').value = 2
+    sheet.getCell('A3').value = 3
+  })
+  // Copy A1:A3 down onto A3:A5: A3 is both source (3) and dest (1). Without a
+  // source snapshot the dest reads the already-overwritten A3.
+  const cells = await readAfter(path, [{ op: 'copyRange', source: 'S!A1:A3', target: 'S!A3' }])
+  assert.equal(cells['S!A3'], '1')
+  assert.equal(cells['S!A4'], '2')
+  assert.equal(cells['S!A5'], '3')
+})
+
 test('joinSheets copies multiple lookup columns back by exact key match', async () => {
   const path = await makeWorkbook((workbook) => {
     const orders = workbook.addWorksheet('订单')
@@ -1314,6 +1342,35 @@ test('crosstab builds a live two-dimension summary with totals', async () => {
   assert.match(String(output.getCell('D5').formula ?? ''), /SUM\(/)
 })
 
+test('crosstab count ignores the metric column to keep criteria pairs even', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('数据')
+    sheet.getCell('A1').value = '地区'
+    sheet.getCell('B1').value = '季度'
+    sheet.getCell('C1').value = '金额'
+    const rows: Array<[string, string, number]> = [['华东', 'Q1', 100], ['华东', 'Q2', 120], ['华北', 'Q1', 80]]
+    rows.forEach(([a, b, c], i) => {
+      sheet.getCell(`A${2 + i}`).value = a
+      sheet.getCell(`B${2 + i}`).value = b
+      sheet.getCell(`C${2 + i}`).value = c
+    })
+  })
+  const outPath = join(join(path, '..'), 'crosstab-count.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'crosstab',
+    source: '数据!A1:C4',
+    rowColumn: 'A',
+    columnColumn: 'B',
+    metric: { column: 'C', function: 'count' },
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const output = workbook.getWorksheet('数据-交叉表')!
+  // COUNTIFS must reference only the two criteria ranges (no leading sum range).
+  assert.match(String(output.getCell('B2').formula ?? ''), /^COUNTIFS\(/)
+  assert.doesNotMatch(String(output.getCell('B2').formula ?? ''), /C\$?:?C.*COUNTIFS/)
+})
+
 test('setHyperlink writes external and internal links that survive saving', async () => {
   const path = await makeWorkbook((workbook) => {
     const sheet = workbook.addWorksheet('Sheet1')
@@ -1332,8 +1389,7 @@ test('setHyperlink writes external and internal links that survive saving', asyn
   assert.equal(external.text, '官网')
   assert.equal(external.hyperlink, 'https://example.com')
   const internal = sheet.getCell('B1').value as any
-  assert.equal(internal.text, '跳转明细')
-  assert.equal(internal.hyperlink, '#明细!A1')
+  assert.equal(internal.formula, 'HYPERLINK("#\'明细\'!A1","跳转明细")')
 })
 
 test('printTitles repeats header rows on every printed page', async () => {
@@ -1612,9 +1668,31 @@ test('addSparklines injects an x14 extension Excel preserves in the file', async
   execSync(`unzip -o -q "${outPath}" "xl/worksheets/*" -d "${dir}"`)
   const xml = await readFile(join(dir, 'xl/worksheets/sheet1.xml'), 'utf8')
   assert.match(xml, /sparklineGroups/)
-  assert.match(xml, /订单!B2:E2/)
+  assert.match(xml, /'订单'!B2:E2/)
   assert.match(xml, /G2/)
   assert.match(xml, /type="column"/)
+})
+
+test('addSparklines puts each sparkline at its location row, not the data row', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('订单')
+    sheet.getCell('B2').value = 1
+    sheet.getCell('B3').value = 2
+  })
+  const outPath = join(join(path, '..'), 'spark-offset.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'addSparklines',
+    dataRange: '订单!B2:B3',
+    locationRange: '订单!G5:G6',
+  }], outPath)
+  const { execSync } = await import('node:child_process')
+  const { mkdtempSync } = await import('node:fs')
+  const dir = mkdtempSync(join(tmpdir(), 'vera-spark-off-'))
+  execSync(`unzip -o -q "${outPath}" "xl/worksheets/*" -d "${dir}"`)
+  const xml = await readFile(join(dir, 'xl/worksheets/sheet1.xml'), 'utf8')
+  // sqref must follow the location rows (G5/G6), not the data rows (G2/G3).
+  assert.match(xml, /<xm:sqref>G5<\/xm:sqref>/)
+  assert.match(xml, /<xm:sqref>G6<\/xm:sqref>/)
 })
 test('addSparklines rejects mismatched row counts', async () => {
   const path = await makeWorkbook((workbook) => {

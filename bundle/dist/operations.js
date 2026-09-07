@@ -151,6 +151,21 @@ function cellContentOf(cell) {
         return '';
     return typeof value === 'object' ? JSON.stringify(value) : String(value);
 }
+/**
+ * Qualify a sheet name for embedding inside an Excel formula string. Names
+ * that are not a plain identifier (spaces, punctuation, leading digits, CJK
+ * beyond letters) must be single-quoted with internal quotes doubled, or the
+ * generated reference breaks and Excel repairs/drops it.
+ */
+export function qualifySheetName(name) {
+    if (/^[A-Za-z_][A-Za-z0-9_.]*$/.test(name))
+        return name;
+    return `'${name.replaceAll("'", "''")}'`;
+}
+/** Build an absolute A1 column range for embedding in a formula: Sheet!$C$2:$C$9. */
+function absoluteColumnRef(sheetName, colLetter, fromRow, toRow) {
+    return `${qualifySheetName(sheetName)}!$${colLetter}$${fromRow}:$${colLetter}$${toRow}`;
+}
 /** Delete rows with the same reference-shift semantics as the deleteRows op. */
 function deleteRowsFromSheet(workbook, sheetName, start, count, warnings, opIndex) {
     const sheet = findSheet(workbook, sheetName);
@@ -799,15 +814,20 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             }
             case 'addSparklines': {
                 const dataBang = operation.dataRange.lastIndexOf('!');
-                if (dataBang < 0)
-                    throw new Error(`addSparklines dataRange requires a sheet: ${operation.dataRange}`);
-                const sheetName = operation.dataRange.slice(0, dataBang);
-                if (!findSheet(workbook, sheetName))
-                    throw new Error(`sheet not found: ${sheetName}`);
-                const groups = annotations.sparklines.get(sheetName) ?? [];
+                const locBang = operation.locationRange.lastIndexOf('!');
+                if (dataBang < 0 || locBang < 0)
+                    throw new Error('addSparklines dataRange and locationRange must be sheet-qualified');
+                const sparkSheet = findSheet(workbook, operation.dataRange.slice(0, dataBang));
+                if (!sparkSheet)
+                    throw new Error(`sheet not found: ${operation.dataRange.slice(0, dataBang)}`);
+                const qualified = (range, bang) => `${qualifySheetName(sparkSheet.name)}!${range.slice(bang + 1)}`;
+                if (operation.locationRange.slice(0, locBang).replace(/^'|'$/g, '') !== sparkSheet.name) {
+                    throw new Error('sparkline dataRange and locationRange must be on the same sheet');
+                }
+                const groups = annotations.sparklines.get(sparkSheet.name) ?? [];
                 groups.push({
-                    dataRange: operation.dataRange,
-                    locationRange: operation.locationRange,
+                    dataRange: qualified(operation.dataRange, dataBang),
+                    locationRange: qualified(operation.locationRange, locBang),
                     type: operation.type ?? 'line',
                     color: normalizeColor(operation.color ?? '375623'),
                     negativeColor: normalizeColor(operation.negativeColor ?? 'D00000'),
@@ -815,7 +835,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                     highColor: normalizeColor(operation.highColor ?? 'FF7C00'),
                     lowColor: normalizeColor(operation.lowColor ?? 'D00000'),
                 });
-                annotations.sparklines.set(sheetName, groups);
+                annotations.sparklines.set(sparkSheet.name, groups);
                 break;
             }
             case 'addSheet': {
@@ -1620,7 +1640,7 @@ function applyAggregateReport(workbook, options) {
     const sourceSheet = parsed.sheet.name;
     const firstData = parsed.startRow + 1;
     const lastData = parsed.endRow;
-    const groupRange = `${sourceSheet}!$${numberToColumn(groupCol)}$${firstData}:$${numberToColumn(groupCol)}$${lastData}`;
+    const groupRange = absoluteColumnRef(sourceSheet, numberToColumn(groupCol), firstData, lastData);
     const groupValues = [];
     const seen = new Set();
     for (let row = firstData; row <= lastData; row++) {
@@ -1660,7 +1680,7 @@ function applyAggregateReport(workbook, options) {
         groupCell.value = groupValues[index];
         options.metrics.forEach((metric, metricIndex) => {
             const metricCol = columnToNumber(metric.column);
-            const metricRange = `${sourceSheet}!$${numberToColumn(metricCol)}$${firstData}:$${numberToColumn(metricCol)}$${lastData}`;
+            const metricRange = absoluteColumnRef(sourceSheet, numberToColumn(metricCol), firstData, lastData);
             const fn = REPORT_FUNCTIONS[metric.function];
             const criteria = `A${row}`;
             output.getCell(`${numberToColumn(2 + metricIndex)}${row}`).value = {
@@ -1815,56 +1835,70 @@ function copyRange(workbook, sourceRange, targetCell, move, valuesOnly = false, 
         throw new Error(`sheet not found: ${targetSheetName}`);
     const targetCol = columnToNumber(match[1]);
     const targetRow = Number(match[2]);
+    // Snapshot the source block before writing: copying onto an overlapping
+    // range (down/right) would otherwise read cells that earlier writes already
+    // replaced, corrupting the result.
+    const snapshot = [];
     for (let row = parsed.startRow; row <= parsed.endRow; row++) {
         for (let col = parsed.startCol; col <= parsed.endCol; col++) {
             const source = parsed.sheet.getCell(`${numberToColumn(col)}${row}`);
-            const destCol = targetCol + (col - parsed.startCol);
-            const destRow = targetRow + (row - parsed.startRow);
-            const dest = targetSheet.getCell(`${numberToColumn(destCol)}${destRow}`);
-            if (valuesOnly) {
-                // Paste-special: values only. Formulas contribute their last cached
-                // result; empty cells clear the destination.
-                if (source.formula) {
-                    const result = source.result;
-                    if (result === undefined || result === null) {
-                        // No cached value (common for freshly written formulas): fall back
-                        // to copying the shifted formula so nothing is lost.
-                        dest.value = {
-                            formula: shiftFormulaReferences(cellContentOf(source), parsed.sheet.name, null, {
-                                rowDelta: destRow - row,
-                                colDelta: destCol - col,
-                            }).slice(1),
-                        };
-                        warnings?.push({ op: opIndex, message: 'copyRange valuesOnly：部分公式无缓存结果，已按公式复制' });
-                    }
-                    else {
-                        dest.value = result;
-                    }
+            snapshot.push({ row, col, formula: source.formula, result: source.formula ? source.result : undefined, value: source.value, content: cellContentOf(source) });
+        }
+    }
+    for (const { row, col, formula, result, value, content } of snapshot) {
+        const destCol = targetCol + (col - parsed.startCol);
+        const destRow = targetRow + (row - parsed.startRow);
+        const dest = targetSheet.getCell(`${numberToColumn(destCol)}${destRow}`);
+        if (valuesOnly) {
+            // Paste-special: values only. Formulas contribute their last cached
+            // result; empty cells clear the destination.
+            if (formula) {
+                if (result === undefined || result === null) {
+                    // No cached value (common for freshly written formulas): fall back
+                    // to copying the shifted formula so nothing is lost.
+                    dest.value = {
+                        formula: shiftFormulaReferences(content, parsed.sheet.name, null, {
+                            rowDelta: destRow - row,
+                            colDelta: destCol - col,
+                        }).slice(1),
+                    };
+                    warnings?.push({ op: opIndex, message: 'copyRange valuesOnly：部分公式无缓存结果，已按公式复制' });
                 }
                 else {
-                    dest.value = source.value;
+                    dest.value = result;
                 }
-                continue;
             }
-            const content = cellContentOf(source);
-            if (!content) {
-                dest.value = null;
-                continue;
+            else {
+                dest.value = value;
             }
-            dest.value = content.startsWith('=')
-                ? {
-                    formula: shiftFormulaReferences(content, parsed.sheet.name, null, {
-                        rowDelta: destRow - row,
-                        colDelta: destCol - col,
-                    }).slice(1),
-                }
-                : toCellValue(content);
+            continue;
         }
+        if (!content) {
+            dest.value = null;
+            continue;
+        }
+        dest.value = content.startsWith('=')
+            ? {
+                formula: shiftFormulaReferences(content, parsed.sheet.name, null, {
+                    rowDelta: destRow - row,
+                    colDelta: destCol - col,
+                }).slice(1),
+            }
+            : toCellValue(content);
     }
     if (move) {
         for (let row = parsed.startRow; row <= parsed.endRow; row++) {
             for (let col = parsed.startCol; col <= parsed.endCol; col++) {
-                parsed.sheet.getCell(`${numberToColumn(col)}${row}`).value = null;
+                // Clear the source only for cells that the destination did not also
+                // write into (fully non-overlapping copies); overlapping in-place moves
+                // keep the copied block intact.
+                const cleared = targetCol + (col - parsed.startCol);
+                const clearedRow = targetRow + (row - parsed.startRow);
+                const outsideDest = cleared < parsed.startCol || cleared > parsed.endCol ||
+                    clearedRow < parsed.startRow || clearedRow > parsed.endRow ||
+                    targetSheet.name !== parsed.sheet.name;
+                if (outsideDest)
+                    parsed.sheet.getCell(`${numberToColumn(col)}${row}`).value = null;
             }
         }
     }
@@ -2102,8 +2136,11 @@ function duplicateSheet(workbook, name, newName) {
 function renameSheetReferences(workbook, oldName, newName) {
     const oldQuoted = `'${oldName.replace(/'/g, "''")}'!`;
     const newQuoted = `'${newName.replace(/'/g, "''")}'!`;
-    const oldBare = `${oldName}!`;
     const newBare = `${newName}!`;
+    // Bare references need token boundaries so renaming "A" does not corrupt
+    // "AA!" (oldBare is a substring of "AA!"). Match only when the name is not
+    // preceded by an identifier char / quote / $ and is followed by a cell ref.
+    const bareRef = new RegExp(`(?<![A-Za-z0-9_$'])${escapeRegExp(oldName)}!(?=[A-Za-z$])`, 'g');
     workbook.eachSheet((sheet) => {
         sheet.eachRow({ includeEmpty: false }, (row) => {
             row.eachCell({ includeEmpty: false }, (cell) => {
@@ -2111,12 +2148,15 @@ function renameSheetReferences(workbook, oldName, newName) {
                     return;
                 const formula = cell.formula
                     .replaceAll(oldQuoted, newQuoted)
-                    .replaceAll(oldBare, newBare);
+                    .replace(bareRef, () => newBare);
                 if (formula !== cell.formula)
                     cell.value = { formula };
             });
         });
     });
+}
+function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 function applyMerge(workbook, range, unmerge) {
     const bang = range.lastIndexOf('!');
@@ -2165,6 +2205,21 @@ function transposeRange(workbook, sourceRange, targetCell) {
         for (let col = parsed.startCol; col <= parsed.endCol; col++) {
             const source = parsed.sheet.getCell(`${numberToColumn(col)}${row}`);
             snapshot.push({ row, col, content: cellContentOf(source), raw: source.value });
+        }
+    }
+    // Transposing onto the source footprint: clear the source block first so a
+    // non-square source (e.g. 2x4 -> 4x2) does not leave stale cells behind.
+    if (target.sheet.name === parsed.sheet.name) {
+        const destLastRow = target.row + (parsed.endCol - parsed.startCol);
+        const destLastCol = target.col + (parsed.endRow - parsed.startRow);
+        const overlaps = target.row <= parsed.endRow && destLastRow >= parsed.startRow &&
+            target.col <= parsed.endCol && destLastCol >= parsed.startCol;
+        if (overlaps) {
+            for (let row = parsed.startRow; row <= parsed.endRow; row++) {
+                for (let col = parsed.startCol; col <= parsed.endCol; col++) {
+                    parsed.sheet.getCell(`${numberToColumn(col)}${row}`).value = null;
+                }
+            }
         }
     }
     for (const { row, col, content, raw } of snapshot) {
@@ -2265,15 +2320,17 @@ function applyCrosstab(workbook, options, warnings, opIndex) {
     const rowCol = columnToNumber(options.rowColumn);
     const colCol = columnToNumber(options.columnColumn);
     const firstData = parsed.startRow + 1;
+    // Keep the raw cell value so the output header/label cells match the source
+    // criteria (dates as serials, numbers as numbers); text is only for dedup.
     const collectKeys = (col) => {
         const keys = [];
         const seen = new Set();
         for (let row = firstData; row <= parsed.endRow; row++) {
             const raw = parsed.sheet.getCell(`${numberToColumn(col)}${row}`).value;
-            const key = raw === null || raw === undefined ? '' : String(raw);
-            if (!seen.has(key)) {
-                seen.add(key);
-                keys.push(key);
+            const text = raw === null || raw === undefined ? '' : String(raw);
+            if (!seen.has(text)) {
+                seen.add(text);
+                keys.push({ raw, text });
             }
         }
         return keys;
@@ -2282,10 +2339,14 @@ function applyCrosstab(workbook, options, warnings, opIndex) {
     const colKeys = collectKeys(colCol);
     if (!rowKeys.length || !colKeys.length)
         throw new Error('crosstab source has no data rows');
-    const sheetRange = (col) => `${parsed.sheet.name}!$${numberToColumn(col)}$${firstData}:$${numberToColumn(col)}$${parsed.endRow}`;
+    const sheetRange = (col) => absoluteColumnRef(parsed.sheet.name, numberToColumn(col), firstData, parsed.endRow);
     const rowRange = sheetRange(rowCol);
     const colRange = sheetRange(colCol);
-    const metricRange = options.metric.column ? sheetRange(columnToNumber(options.metric.column)) : null;
+    // SUMIFS/AVERAGEIFS/MAXIFS/MINIFS take a leading sum/average range; the
+    // *IFS count form takes only criteria pairs, so metric.range must be dropped
+    // there or the argument list becomes invalid (odd count of range/criteria).
+    const usesMetric = options.metric.function !== 'count' && options.metric.function !== 'counta';
+    const metricRange = usesMetric ? sheetRange(columnToNumber(options.metric.column)) : null;
     const fn = CROSSTAB_FUNCTIONS[options.metric.function];
     const outputSheetName = options.outputSheet ?? `${parsed.sheet.name}-交叉表`;
     let output = findSheet(workbook, outputSheetName);
@@ -2298,12 +2359,12 @@ function applyCrosstab(workbook, options, warnings, opIndex) {
     corner.font = { bold: true };
     colKeys.forEach((key, i) => {
         const cell = output.getCell(`${numberToColumn(2 + i)}1`);
-        cell.value = key;
+        cell.value = key.raw === undefined || key.raw === null ? '' : key.raw;
         cell.font = { bold: true };
     });
     rowKeys.forEach((rowKey, rowIndex) => {
         const outRow = 2 + rowIndex;
-        output.getCell(`A${outRow}`).value = rowKey;
+        output.getCell(`A${outRow}`).value = rowKey.raw === undefined || rowKey.raw === null ? '' : rowKey.raw;
         colKeys.forEach((_colKey, colIndex) => {
             const columnLetter = numberToColumn(2 + colIndex);
             // Criteria point at output-sheet cells, so keys never need quoting.
@@ -2349,11 +2410,25 @@ function setHyperlink(workbook, options) {
         return;
     }
     if (options.location) {
-        const location = options.location.startsWith('#') ? options.location : `#${options.location}`;
-        cell.value = { text: text ?? location.slice(1), hyperlink: location };
+        // ExcelJS mishandles internal links (writes both a "#..." location AND an
+        // External relationship), so use a HYPERLINK() formula, which Excel always
+        // navigates correctly. The location's sheet name is quoted if needed.
+        const loc = internalLinkLocation(options.location);
+        const label = text ?? options.location.replace(/^#/, '');
+        cell.value = { formula: `HYPERLINK("${loc}","${label.replaceAll('"', '""')}")` };
         return;
     }
     throw new Error('setHyperlink requires url (external) or location (internal, e.g. "Sheet2!A1")');
+}
+/** Turn "Sheet2!A1" / "#明细!B2" into the HYPERLINK target "#'Sheet 2'!A1". */
+function internalLinkLocation(location) {
+    const bare = location.startsWith('#') ? location.slice(1) : location;
+    const bang = bare.lastIndexOf('!');
+    if (bang < 0)
+        return `#${bare}`; // a defined name
+    const sheet = bare.slice(0, bang).replaceAll(/^'|'$/g, '');
+    const ref = bare.slice(bang + 1);
+    return `#${qualifySheetName(sheet)}!${ref}`;
 }
 /** Clone font/fill/border/alignment/number format from one cell onto every cell in the target range. */
 function copyStyle(workbook, sourceId, targetRange) {
@@ -2401,7 +2476,7 @@ function uniqueValues(workbook, options) {
     for (let row = firstDataRow; row <= parsed.endRow; row++) {
         const cell = parsed.sheet.getCell(`${numberToColumn(parsed.startCol)}${row}`);
         const raw = cell.formula ? cell.result : cell.value;
-        const key = raw === null || raw === undefined ? '' : String(raw);
+        const key = uniqueValueKey(cell, raw);
         if (seen.has(key))
             continue;
         seen.add(key);
@@ -2412,11 +2487,23 @@ function uniqueValues(workbook, options) {
         target.sheet.getCell(`${numberToColumn(target.col)}${outRow}`).value = value === null || value === undefined ? '' : value;
         outRow++;
     }
-    if (options.includeHeader) {
-        const header = parsed.sheet.getCell(`${numberToColumn(parsed.startCol)}${parsed.startRow}`).value;
-        target.sheet.getCell(`${numberToColumn(target.col)}${target.row}`).value = header;
-    }
     return ordered.length;
+}
+/**
+ * Dedup key that does not collapse distinct types: number 1, text "1" and
+ * boolean TRUE get separate keys; a formula with no cached result keys on its
+ * formula text instead of collapsing every such cell to "".
+ */
+function uniqueValueKey(cell, raw) {
+    if (cell.formula && (raw === undefined || raw === null))
+        return `=f:${cell.formula}`;
+    if (raw === null || raw === undefined)
+        return '∅';
+    if (raw instanceof Date)
+        return `date:${raw.getTime()}`;
+    if (typeof raw === 'object')
+        return `obj:${JSON.stringify(raw)}`;
+    return `${typeof raw}:${String(raw)}`;
 }
 /** Patch every existing sheet view without dropping frozen panes or other flags. */
 function applySheetView(sheet, patch) {
@@ -2453,7 +2540,7 @@ function applyRankColumn(workbook, options) {
         throw new Error(`rankColumn metric column outside range: ${options.metricColumn}`);
     }
     const firstData = options.skipHeader === false ? parsed.startRow : parsed.startRow + 1;
-    const metricRange = `${parsed.sheet.name}!$${numberToColumn(metricCol)}$${firstData}:$${numberToColumn(metricCol)}$${parsed.endRow}`;
+    const metricRange = absoluteColumnRef(parsed.sheet.name, numberToColumn(metricCol), firstData, parsed.endRow);
     for (let row = firstData; row <= parsed.endRow; row++) {
         parsed.sheet.getCell(`${options.outputColumn}${row}`).value = {
             formula: `RANK(${numberToColumn(metricCol)}${row},${metricRange},${options.descending === false ? 1 : 0})`,

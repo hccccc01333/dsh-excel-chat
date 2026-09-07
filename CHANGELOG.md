@@ -23,9 +23,28 @@
     第 27 列起生成非法引用，改为 Excel 进制的列名换算）。
 - 主动审计修复（自检发现的数据/性能问题）：
   - `transpose` 就地转置（target 落在 source 上/与其重叠）读到被覆盖的单元格
-    导致数据损坏——改为先快照整个源区域再写出；补 self-transpose 回归测试；
+    导致数据损坏——改为先快照整个源区域再写出；非方阵就地转置先清源块避免
+    残留；补 self-transpose 回归测试；
+  - `copyRange`（含 valuesOnly）复制到与其重叠的目标区同样损坏——改为快照源块；
+    补重叠 copy 回归测试；
   - `hideRows` / `groupRows(collapse)` 传巨大 to/end（如 200000）会物化海量
     空行致文件暴涨——钳制到已用行范围并给出 warning；补钳制回归测试；
+  - `freezeFormulas` / `copyRange valuesOnly` 对无缓存结果的公式（插件刚写出的
+    文件常见）不再抹成空：freezeFormulas 跳过、copyRange 回退为复制公式；
+  - 手写进公式的表名统一 Excel 引号限定（`qualifySheetName`）：含空格/中文/
+    特殊字符的表名不再让 RANK/SUMIFS/COUNTIFS/aggregateReport 公式失效；
+  - `renameSheet` 改裸表名用词边界正则，不再把 `AA!` 误伤成 `ZA!`（重命名
+    "A"→"Z"）；补回归测试；
+  - `uniqueValues` 去重键类型感知：数字 1 / 文本 "1" / 布尔不再混为一类，
+    无缓存结果的公式按其文本区分而非全部塌成空值；
+  - `crosstab`：count/counta 不再把 metric 区域塞进 COUNTIFS（奇数个参数会致
+    每格 #VALUE!）；行/列 key 用原始值写回，日期/数字维度可正确匹配；
+  - `setHyperlink` 内部跳转改用 `HYPERLINK("#'表'!A1","文本")` 公式（ExcelJS 对
+    `#` 内部链接会同时写 location 与 External rel 致跳转失效）；
+  - `addSparklines` 以解析后的真实表名归档并按行对齐到 location 行（原按数据
+    行），带引号/改名的表不再在保存期崩溃；
+  - 批注 VML 的 [Content_Types] 类型修正为 `...vmlDrawing`；多作者批注不再全部
+    归到首个作者（补 authors 列表 + 每注 authorId 映射）。
   - 面板截断提示由 ref 改为 state（首帧渲染读不到 ref 的时序问题）。
 - 测试规模 262 → 268（agent 合取 4 用例 + sanitizeAssertions 2 用例 +
   提示词/透传断言）。

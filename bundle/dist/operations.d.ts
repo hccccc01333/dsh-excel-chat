@@ -532,6 +532,13 @@ export declare function shiftFormulaReferences(formula: string, baseSheet: strin
     colDeletedStart?: number;
     colDeletedEnd?: number;
 }): string;
+/**
+ * Qualify a sheet name for embedding inside an Excel formula string. Names
+ * that are not a plain identifier (spaces, punctuation, leading digits, CJK
+ * beyond letters) must be single-quoted with internal quotes doubled, or the
+ * generated reference breaks and Excel repairs/drops it.
+ */
+export declare function qualifySheetName(name: string): string;
 export declare function applyOperationsToWorkbook(inputPath: string, operations: ExcelOperation[], outputPath: string): Promise<ApplyOperationsResult>;
 export declare function operateWorkbookFile(path: string, operations: ExcelOperation[], outputPath: string): Promise<OperateResult>;
 //# sourceMappingURL=operations.d.ts.map
