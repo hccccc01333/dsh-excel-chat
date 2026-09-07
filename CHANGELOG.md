@@ -21,6 +21,12 @@
     按钮退出，窗口缩放自动重建网格）；
   - 修复 AA+ 宽表编辑列名错位（原 `String.fromCharCode(65 + colIndex)` 在
     第 27 列起生成非法引用，改为 Excel 进制的列名换算）。
+- 主动审计修复（自检发现的数据/性能问题）：
+  - `transpose` 就地转置（target 落在 source 上/与其重叠）读到被覆盖的单元格
+    导致数据损坏——改为先快照整个源区域再写出；补 self-transpose 回归测试；
+  - `hideRows` / `groupRows(collapse)` 传巨大 to/end（如 200000）会物化海量
+    空行致文件暴涨——钳制到已用行范围并给出 warning；补钳制回归测试；
+  - 面板截断提示由 ref 改为 state（首帧渲染读不到 ref 的时序问题）。
 - 测试规模 262 → 268（agent 合取 4 用例 + sanitizeAssertions 2 用例 +
   提示词/透传断言）。
 

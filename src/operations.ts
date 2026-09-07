@@ -895,7 +895,14 @@ export async function applyOperationsToWorkbook(
         if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
         if (operation.from < 1 || operation.to < operation.from) throw new Error(`invalid hideRows: from=${operation.from} to=${operation.to}`)
         const hidden = operation.hidden ?? true
-        for (let row = operation.from; row <= operation.to; row++) {
+        // Materializing a hidden empty row needs a height, so clamping to the
+        // used range keeps huge "hide to the bottom" requests from bloating
+        // the file with thousands of synthetic rows.
+        const to = hidden ? Math.min(operation.to, sheet.rowCount) : operation.to
+        if (hidden && to < operation.to) {
+          warnings.push({ op: index, message: `hideRows clamped to the used range (row ${to})` })
+        }
+        for (let row = operation.from; row <= to; row++) {
           const target = sheet.getRow(row)
           target.hidden = hidden
           // ExcelJS drops empty rows on save unless they carry a height, so an
@@ -919,10 +926,14 @@ export async function applyOperationsToWorkbook(
       case 'groupRows': {
         const sheet = findSheet(workbook, operation.sheet)
         if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
-        const { start, end } = operation
         const level = operation.level ?? 1
-        if (start < 1 || end < start) throw new Error(`invalid groupRows: start=${start} end=${end}`)
-        for (let row = start; row <= end; row++) {
+        if (operation.start < 1 || operation.end < operation.start) throw new Error(`invalid groupRows: start=${operation.start} end=${operation.end}`)
+        // Same clamp as hideRows: collapsed groups materialize empty rows.
+        const end = level > 0 ? Math.min(operation.end, Math.max(sheet.rowCount, operation.start)) : operation.end
+        if (level > 0 && end < operation.end) {
+          warnings.push({ op: index, message: `groupRows clamped to the used range (row ${end})` })
+        }
+        for (let row = operation.start; row <= end; row++) {
           const target = sheet.getRow(row)
           target.outlineLevel = level
           if (operation.collapse) {
@@ -1007,8 +1018,13 @@ export async function applyOperationsToWorkbook(
         break
       }
       case 'freezeFormulas': {
-        const frozen = freezeFormulas(workbook, operation.range)
-        warnings.push({ op: index, message: `freezeFormulas converted ${frozen} formula(s) to their cached values` })
+        const { frozen, skipped } = freezeFormulas(workbook, operation.range)
+        warnings.push({
+          op: index,
+          message: skipped > 0
+            ? `freezeFormulas 转换 ${frozen} 个公式，跳过 ${skipped} 个无缓存结果的（先在 Excel 中打开计算后可再转）`
+            : `freezeFormulas converted ${frozen} formula(s) to their cached values`,
+        })
         break
       }
       case 'uniqueValues': {
@@ -1158,7 +1174,7 @@ export async function applyOperationsToWorkbook(
         break
       }
       case 'copyRange': {
-        copyRange(workbook, operation.source, operation.target, operation.move ?? false, operation.valuesOnly ?? false)
+        copyRange(workbook, operation.source, operation.target, operation.move ?? false, operation.valuesOnly ?? false, warnings, index)
         break
       }
       case 'fillSeries': {
@@ -2170,7 +2186,7 @@ function parseTargetCell(
   return { sheet, col: columnToNumber(match[1]!), row: Number(match[2]!) }
 }
 
-function copyRange(workbook: ExcelJS.Workbook, sourceRange: string, targetCell: string, move: boolean, valuesOnly = false): void {
+function copyRange(workbook: ExcelJS.Workbook, sourceRange: string, targetCell: string, move: boolean, valuesOnly = false, warnings?: { push(w: OperationWarning): void }, opIndex = 0): void {
   const parsed = parseRange(workbook, sourceRange)
   const bang = targetCell.lastIndexOf('!')
   const targetSheetName = bang >= 0 ? targetCell.slice(0, bang) : parsed.sheet.name
@@ -2191,7 +2207,24 @@ function copyRange(workbook: ExcelJS.Workbook, sourceRange: string, targetCell: 
       if (valuesOnly) {
         // Paste-special: values only. Formulas contribute their last cached
         // result; empty cells clear the destination.
-        dest.value = source.formula ? (source.result ?? null) : source.value
+        if (source.formula) {
+          const result = source.result
+          if (result === undefined || result === null) {
+            // No cached value (common for freshly written formulas): fall back
+            // to copying the shifted formula so nothing is lost.
+            dest.value = {
+              formula: shiftFormulaReferences(cellContentOf(source), parsed.sheet.name, null, {
+                rowDelta: destRow - row,
+                colDelta: destCol - col,
+              }).slice(1),
+            }
+            warnings?.push({ op: opIndex, message: 'copyRange valuesOnly：部分公式无缓存结果，已按公式复制' })
+          } else {
+            dest.value = result
+          }
+        } else {
+          dest.value = source.value
+        }
         continue
       }
       const content = cellContentOf(source)
@@ -2503,22 +2536,27 @@ function displayWidth(text: string): number {
 function transposeRange(workbook: ExcelJS.Workbook, sourceRange: string, targetCell: string): void {
   const parsed = parseRange(workbook, sourceRange)
   const target = parseTargetCell(workbook, targetCell, parsed.sheet.name)
+  // Snapshot the whole source block first: transposing onto the source (or an
+  // overlapping area) must not read cells that earlier writes already replaced.
+  const snapshot: Array<{ row: number; col: number; content: string; raw: ExcelJS.CellValue }> = []
   for (let row = parsed.startRow; row <= parsed.endRow; row++) {
     for (let col = parsed.startCol; col <= parsed.endCol; col++) {
       const source = parsed.sheet.getCell(`${numberToColumn(col)}${row}`)
-      // (row,col) maps to (targetRow + colOffset, targetCol + rowOffset).
-      const destRow = target.row + (col - parsed.startCol)
-      const destCol = target.col + (row - parsed.startRow)
-      const dest = target.sheet.getCell(`${numberToColumn(destCol)}${destRow}`)
-      const content = cellContentOf(source)
-      if (!content) continue
-      dest.value = content.startsWith('=')
-        ? toCellValue(shiftFormulaReferences(content, parsed.sheet.name, null, {
-            rowDelta: destRow - row,
-            colDelta: destCol - col,
-          }))
-        : source.value
+      snapshot.push({ row, col, content: cellContentOf(source), raw: source.value })
     }
+  }
+  for (const { row, col, content, raw } of snapshot) {
+    // (row,col) maps to (targetRow + colOffset, targetCol + rowOffset).
+    const destRow = target.row + (col - parsed.startCol)
+    const destCol = target.col + (row - parsed.startRow)
+    const dest = target.sheet.getCell(`${numberToColumn(destCol)}${destRow}`)
+    if (!content) continue
+    dest.value = content.startsWith('=')
+      ? toCellValue(shiftFormulaReferences(content, parsed.sheet.name, null, {
+          rowDelta: destRow - row,
+          colDelta: destCol - col,
+        }))
+      : raw
   }
 }
 
@@ -2730,19 +2768,27 @@ function copyStyle(workbook: ExcelJS.Workbook, sourceId: string, targetRange: st
 }
 
 /** Replace formulas with their cached results ("paste values" in place). */
-function freezeFormulas(workbook: ExcelJS.Workbook, range: string): number {
+function freezeFormulas(workbook: ExcelJS.Workbook, range: string): { frozen: number; skipped: number } {
   const parsed = parseRange(workbook, range)
   let frozen = 0
+  let skipped = 0
   for (let row = parsed.startRow; row <= parsed.endRow; row++) {
     for (let col = parsed.startCol; col <= parsed.endCol; col++) {
       const cell = parsed.sheet.getCell(`${numberToColumn(col)}${row}`)
       if (!cell.formula) continue
+      // Plugin-written formulas often carry no cached result (never opened in
+      // Excel). Freezing those to "null" would erase them, so leave them as
+      // formulas and skip.
       const result = cell.result
-      cell.value = result === undefined || result === null ? null : result
+      if (result === undefined || result === null) {
+        skipped++
+        continue
+      }
+      cell.value = result
       frozen++
     }
   }
-  return frozen
+  return { frozen, skipped }
 }
 
 /** Write the distinct values of a source column into a target column, first-seen order. */

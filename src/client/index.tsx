@@ -120,8 +120,7 @@ function SpreadsheetView({
   const [initError, setInitError] = useState<string | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [viewportTick, setViewportTick] = useState(0)
-  const truncatedRows = useRef(0)
-  const truncatedCols = useRef(0)
+  const [truncated, setTruncated] = useState(false)
   useEffect(() => {
     if (!fullscreen) return
     const onResize = (): void => setViewportTick((tick) => tick + 1)
@@ -152,8 +151,9 @@ function SpreadsheetView({
         })
         return cols.length > 0 ? Math.max(...cols) : 1
       }))
-      truncatedRows.current = Math.max(0, maxRows - MAX_RENDER_ROWS)
-      truncatedCols.current = Math.max(0, maxCols - MAX_RENDER_COLS)
+      const overflowRows = Math.max(0, maxRows - MAX_RENDER_ROWS)
+      const overflowCols = Math.max(0, maxCols - MAX_RENDER_COLS)
+      setTruncated(overflowRows > 0 || overflowCols > 0)
       const colCount = Math.min(MAX_RENDER_COLS, Math.max(5, maxCols))
       const rowCount = Math.min(MAX_RENDER_ROWS, Math.max(10, maxRows))
       const viewHeight = fullscreen ? Math.max(320, window.innerHeight - 96) : INLINE_VIEW_HEIGHT
@@ -199,7 +199,7 @@ function SpreadsheetView({
       el.innerHTML = ''
     }
   }, [sheets, editable, fullscreen, viewportTick])
-  const truncationNotice = truncatedRows.current > 0 || truncatedCols.current > 0
+  const truncationNotice = truncated
     ? `表格较大：已显示前 ${MAX_RENDER_ROWS} 行 × ${MAX_RENDER_COLS} 列，点「全屏」可看更多`
     : null
   return (

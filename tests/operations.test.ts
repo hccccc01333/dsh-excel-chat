@@ -1629,3 +1629,54 @@ test('addSparklines rejects mismatched row counts', async () => {
     /must match locationRange rows/,
   )
 })
+
+test('transpose onto itself transposes correctly (no read-after-write corruption)', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('S')
+    sheet.getCell('A1').value = 'a'
+    sheet.getCell('A2').value = 'b'
+    sheet.getCell('B1').value = 'c'
+    sheet.getCell('B2').value = 'd'
+  })
+  const cells = await readAfter(path, [{ op: 'transpose', source: 'S!A1:B2', target: 'S!A1' }])
+  assert.equal(cells['S!A1'], 'a')
+  assert.equal(cells['S!A2'], 'c')
+  assert.equal(cells['S!B1'], 'b')
+  assert.equal(cells['S!B2'], 'd')
+})
+
+test('hideRows clamps a huge range to the used rows instead of bloating the file', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('S')
+    sheet.getCell('A1').value = 'x'
+  })
+  const outPath = join(join(path, '..'), 'clamped.xlsx')
+  const result = await applyOperationsToWorkbook(path, [
+    { op: 'hideRows', sheet: 'S', from: 2, to: 500000 },
+  ], outPath)
+  assert.ok(result.warnings.some((w) => /clamped/.test(w.message)), 'expected a clamp warning')
+  // The used range is a single row; hiding "to the bottom" is a no-op and must
+  // not materialize half a million empty rows (which would bloat the file).
+  assert.ok((await readFile(outPath)).length < 20000, 'file should stay small')
+})
+
+test('freezeFormulas leaves uncached formulas intact instead of erasing them', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('S')
+    // A formula with no cached result — exactly what excel_operate writes.
+    sheet.getCell('A1').value = { formula: '2+3' }
+  })
+  const cells = await readAfter(path, [{ op: 'freezeFormulas', range: 'S!A1:A1' }])
+  assert.equal(cells['S!A1'], '=2+3', 'uncached formula must survive, not become empty')
+})
+
+test('copyRange valuesOnly falls back to the formula when there is no cached result', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('S')
+    sheet.getCell('A1').value = { formula: '2+3' }
+  })
+  const cells = await readAfter(path, [{
+    op: 'copyRange', source: 'S!A1:A1', target: 'S!B1', valuesOnly: true,
+  }])
+  assert.equal(cells['S!B1'], '=2+3', 'valuesOnly must not blank an uncached formula')
+})

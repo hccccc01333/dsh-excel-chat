@@ -8651,8 +8651,7 @@ window.__ModuleLoader__.load({
 			const [initError, setInitError] = (0, react.useState)(null);
 			const [fullscreen, setFullscreen] = (0, react.useState)(false);
 			const [viewportTick, setViewportTick] = (0, react.useState)(0);
-			const truncatedRows = (0, react.useRef)(0);
-			const truncatedCols = (0, react.useRef)(0);
+			const [truncated, setTruncated] = (0, react.useState)(false);
 			(0, react.useEffect)(() => {
 				if (!fullscreen) return;
 				const onResize = () => setViewportTick((tick) => tick + 1);
@@ -8681,8 +8680,9 @@ window.__ModuleLoader__.load({
 						});
 						return cols.length > 0 ? Math.max(...cols) : 1;
 					}));
-					truncatedRows.current = Math.max(0, maxRows - MAX_RENDER_ROWS);
-					truncatedCols.current = Math.max(0, maxCols - MAX_RENDER_COLS);
+					const overflowRows = Math.max(0, maxRows - MAX_RENDER_ROWS);
+					const overflowCols = Math.max(0, maxCols - MAX_RENDER_COLS);
+					setTruncated(overflowRows > 0 || overflowCols > 0);
 					const colCount = Math.min(MAX_RENDER_COLS, Math.max(5, maxCols));
 					const rowCount = Math.min(MAX_RENDER_ROWS, Math.max(10, maxRows));
 					const viewHeight = fullscreen ? Math.max(320, window.innerHeight - 96) : INLINE_VIEW_HEIGHT;
@@ -8738,7 +8738,7 @@ window.__ModuleLoader__.load({
 				fullscreen,
 				viewportTick
 			]);
-			const truncationNotice = truncatedRows.current > 0 || truncatedCols.current > 0 ? `表格较大：已显示前 ${MAX_RENDER_ROWS} 行 × ${MAX_RENDER_COLS} 列，点「全屏」可看更多` : null;
+			const truncationNotice = truncated ? `表格较大：已显示前 ${MAX_RENDER_ROWS} 行 × ${MAX_RENDER_COLS} 列，点「全屏」可看更多` : null;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				style: fullscreen ? {
 					position: "fixed",
