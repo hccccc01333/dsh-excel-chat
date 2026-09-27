@@ -1,0 +1,46 @@
+# Run the test suite on every branch push and pull request.
+#
+# publish.yml runs the same suite, but only when a v* tag is pushed — this
+# workflow guards day-to-day commits so a regression cannot sit on master
+# unnoticed until the next release.
+name: Test
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  test:
+    name: Test, type check and pack
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install (immutable)
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc -p bundle/tsconfig.json --noEmit
+
+      - name: Test
+        run: node --test tests/*.test.ts
+
+      - name: Pack (dry run)
+        run: |
+          cd bundle
+          npm pack --dry-run
