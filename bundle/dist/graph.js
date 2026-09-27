@@ -1,5 +1,43 @@
 import { canonicalCellId, columnToNumber, numberToColumn, parseCellId, parseFormula, } from './formula.js';
 const MAX_ENUMERATE_CELLS = 10_000;
+/**
+ * Walk the graph from `cell`, breadth-first, in one direction:
+ * `precedents` = the cells it reads, `dependents` = the cells that read it.
+ *
+ * This is Excel's Trace Precedents / Trace Dependents expressed as *data*. The
+ * arrows Excel draws are UI state and never stored in the .xlsx, so reproducing
+ * the feature has to mean returning the chain rather than the drawing.
+ */
+export function traceDependencies(graph, cell, direction, depth = 1) {
+    // Edges run from a formula cell to the cells it *reads*, so `successors` are a
+    // cell's precedents and `predecessors` are its dependents — the opposite of
+    // what the two names suggest at a glance.
+    const adjacency = direction === 'precedents' ? graph.successors : graph.predecessors;
+    const parsed = parseCellId(cell);
+    const origin = canonicalCellId(parsed.sheet, parsed.column, parsed.row);
+    const seen = new Set([origin]);
+    const reached = [];
+    let frontier = [origin];
+    let truncated = false;
+    for (let level = 1; level <= depth && frontier.length > 0; level++) {
+        const next = [];
+        for (const node of frontier) {
+            for (const neighbour of adjacency[node] ?? []) {
+                if (seen.has(neighbour))
+                    continue;
+                seen.add(neighbour);
+                reached.push({ cell: neighbour, depth: level });
+                next.push(neighbour);
+            }
+        }
+        // More links exist past the requested depth — flag it so the returned count
+        // is never mistaken for the whole chain.
+        if (level === depth && next.some((node) => (adjacency[node] ?? []).length > 0))
+            truncated = true;
+        frontier = next;
+    }
+    return { reached, truncated };
+}
 export function buildDependencyGraph(formulas) {
     const successors = new Map();
     const edgeKeys = new Set();

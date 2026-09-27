@@ -65,6 +65,7 @@ const REQUIRED_STRINGS = {
     clearPageBreaks: ['sheet'],
     addComment: ['cell', 'text'],
     addSparklines: ['dataRange', 'locationRange'],
+    insertImage: ['cell'],
 };
 const REQUIRED_ARRAYS = {
     sortRange: ['keys'],

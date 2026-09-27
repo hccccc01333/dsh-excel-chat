@@ -1,6 +1,6 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 export function emptyAnnotations() {
-    return { comments: new Map(), sparklines: new Map() };
+    return { comments: new Map(), sparklines: new Map(), showFormulas: new Set() };
 }
 function escapeXml(text) {
     return text
@@ -10,12 +10,36 @@ function escapeXml(text) {
         .replaceAll('"', '&quot;');
 }
 /**
+ * A sheet's own `<sheetView>` decides whether formulas or their results are
+ * shown. exceljs' SheetViewXform renders a fixed attribute list that omits
+ * showFormulas, so assigning `view.showFormulas` is silently dropped — the
+ * attribute has to be injected into the saved XML instead.
+ */
+function withShowFormulas(sheetXml) {
+    const existing = /<sheetView\b[^>]*?\/?>/.exec(sheetXml);
+    if (existing) {
+        if (/showFormulas=/.test(existing[0]))
+            return sheetXml;
+        const patched = existing[0].replace(/\/?>$/, (tail) => ` showFormulas="1"${tail}`);
+        return sheetXml.slice(0, existing.index) + patched + sheetXml.slice(existing.index + existing[0].length);
+    }
+    // exceljs only emits <sheetViews> when the sheet already has view settings, so
+    // for a plain sheet the whole block has to be inserted — in schema order,
+    // which puts sheetViews right after dimension.
+    const block = '<sheetViews><sheetView workbookViewId="0" showFormulas="1"/></sheetViews>';
+    const anchor = /<dimension\b[^>]*?\/?>/.exec(sheetXml) ?? /<worksheet\b[^>]*?>/.exec(sheetXml);
+    if (!anchor)
+        return sheetXml;
+    const at = anchor.index + anchor[0].length;
+    return sheetXml.slice(0, at) + block + sheetXml.slice(at);
+}
+/**
  * Rewrite the saved xlsx zip: inject comments parts, VML shapes, sparkline
  * extensions, and the worksheet plumbing (legacyDrawing + rels + content
  * types) they require.
  */
 export function annotateWorkbookXml(data, annotations, sheetFileOf) {
-    if (annotations.comments.size === 0 && annotations.sparklines.size === 0)
+    if (annotations.comments.size === 0 && annotations.sparklines.size === 0 && annotations.showFormulas.size === 0)
         return data;
     const files = unzipSync(data);
     // ExcelJS names sheets xl/worksheets/sheetN.xml in id order; map sheet
@@ -56,6 +80,12 @@ export function annotateWorkbookXml(data, annotations, sheetFileOf) {
         if (!sheetFile)
             throw new Error(`sheet not found for sparklines: ${sheetName}`);
         files[sheetFile] = strToU8(addSparklineExt(strFromU8(files[sheetFile] ?? new Uint8Array(0)), groups));
+    }
+    for (const sheetName of annotations.showFormulas) {
+        const sheetFile = sheetFileOf.get(sheetName);
+        if (!sheetFile)
+            throw new Error(`sheet not found for showFormulas: ${sheetName}`);
+        files[sheetFile] = strToU8(withShowFormulas(strFromU8(files[sheetFile] ?? new Uint8Array(0))));
     }
     files['[Content_Types].xml'] = strToU8(contentTypes);
     return Buffer.from(zipSync(files));

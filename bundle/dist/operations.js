@@ -480,6 +480,12 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
                     throw new Error(`sheet not found: ${operation.sheet}`);
+                if (operation.widths && operation.delimiter !== undefined) {
+                    throw new Error('splitColumn takes either delimiter or widths, not both');
+                }
+                if (!operation.widths && operation.delimiter === undefined) {
+                    throw new Error('splitColumn requires delimiter or widths');
+                }
                 const columnNumber = columnToNumber(operation.column);
                 const endRow = operation.endRow ?? sheet.rowCount;
                 const partsByRow = new Map();
@@ -488,7 +494,9 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                     const text = cellContentOf(sheet.getCell(`${operation.column}${row}`));
                     if (!text)
                         continue;
-                    const parts = text.split(operation.delimiter).map((part) => part.trim());
+                    const parts = operation.widths
+                        ? splitByWidth(text, operation.widths)
+                        : text.split(operation.delimiter).map((part) => part.trim());
                     maxParts = Math.max(maxParts, parts.length);
                     partsByRow.set(row, parts);
                 }
@@ -502,7 +510,10 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                         sheet.getCell(`${numberToColumn(columnNumber + i)}${row}`).value = parts[i] ?? '';
                     }
                 }
-                warnings.push({ op: index, message: `splitColumn split ${partsByRow.size} row(s) into up to ${maxParts} columns` });
+                const mode = operation.widths
+                    ? `fixed width ${operation.widths.join('/')}`
+                    : `delimiter "${operation.delimiter}"`;
+                warnings.push({ op: index, message: `splitColumn split ${partsByRow.size} row(s) into up to ${maxParts} columns (${mode})` });
                 break;
             }
             case 'highlightRows': {
@@ -752,6 +763,24 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 });
                 break;
             }
+            case 'showFormulas': {
+                const sheet = findSheet(workbook, operation.sheet);
+                if (!sheet)
+                    throw new Error(`sheet not found: ${operation.sheet}`);
+                // Recorded as an annotation rather than set on the view: exceljs drops
+                // showFormulas when it renders <sheetView>, so xml-postprocess injects it.
+                if (operation.show === false)
+                    annotations.showFormulas.delete(sheet.name);
+                else
+                    annotations.showFormulas.add(sheet.name);
+                warnings.push({
+                    op: index,
+                    message: operation.show === false
+                        ? `showFormulas off for ${sheet.name}`
+                        : `showFormulas on for ${sheet.name} (the file opens showing formulas)`,
+                });
+                break;
+            }
             case 'headerFooter': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
@@ -856,6 +885,10 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                     lowColor: normalizeColor(operation.lowColor ?? 'D00000'),
                 });
                 annotations.sparklines.set(sparkSheet.name, groups);
+                break;
+            }
+            case 'insertImage': {
+                await insertImageIntoSheet(workbook, operation);
                 break;
             }
             case 'addSheet': {
@@ -1047,7 +1080,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
         }
     }
     const buffer = await workbook.xlsx.writeBuffer();
-    if (annotations.comments.size > 0 || annotations.sparklines.size > 0) {
+    if (annotations.comments.size > 0 || annotations.sparklines.size > 0 || annotations.showFormulas.size > 0) {
         // ExcelJS cannot write comments or sparklines; inject the XML parts now.
         const sheetFileOf = new Map();
         workbook.eachSheet((sheet) => {
@@ -1210,9 +1243,17 @@ function markDeletedColumnRefs(workbook, editedSheet, start, end) {
 }
 function sortRange(workbook, range, keys, headerRows) {
     const parsed = parseRange(workbook, range);
+    for (const key of keys) {
+        if ((key.by === 'fill' || key.by === 'font') && key.color === undefined) {
+            throw new Error(`sortRange key with by: "${key.by}" requires color`);
+        }
+    }
     const keyColumns = keys.map((key) => ({
         column: columnToNumber(key.column),
         direction: key.direction ?? 'asc',
+        by: key.by ?? 'value',
+        color: key.color === undefined ? undefined : normalizeColor(key.color),
+        customList: key.customList,
     }));
     for (const key of keyColumns) {
         if (key.column < parsed.startCol || key.column > parsed.endCol) {
@@ -1225,24 +1266,61 @@ function sortRange(workbook, range, keys, headerRows) {
     const rows = [];
     for (let row = parsed.startRow + headerRows; row <= parsed.endRow; row++) {
         const cells = {};
+        const styles = {};
         const keyValues = [];
         for (let col = parsed.startCol; col <= parsed.endCol; col++) {
             const letter = numberToColumn(col);
             const cell = parsed.sheet.getCell(`${letter}${row}`);
             cells[letter] = cell.value;
-            if (keyColumns.some((key) => key.column === col))
-                keyValues.push(cell.value);
+            // Carry formatting with the row, the way Excel does — without this a
+            // sort by fill colour would move the values out from under the colours.
+            styles[letter] = cell.style;
+            const key = keyColumns.find((candidate) => candidate.column === col);
+            if (key)
+                keyValues.push(sortKeyOf(cell, key));
         }
-        rows.push({ cells, keys: keyValues });
+        rows.push({ cells, styles, keys: keyValues });
     }
     rows.sort((a, b) => compareSortRows(a.keys, b.keys, keyColumns.map((key) => key.direction)));
     for (let index = 0; index < rows.length; index++) {
         const targetRow = parsed.startRow + headerRows + index;
         for (let col = parsed.startCol; col <= parsed.endCol; col++) {
             const letter = numberToColumn(col);
-            parsed.sheet.getCell(`${letter}${targetRow}`).value = rows[index].cells[letter] ?? null;
+            const target = parsed.sheet.getCell(`${letter}${targetRow}`);
+            target.value = rows[index].cells[letter] ?? null;
+            target.style = (rows[index].styles[letter] ?? {});
         }
     }
+}
+/**
+ * Reduce a cell to whatever its sort key should compare on.
+ *
+ * Colour keys collapse to a 0/1 group — cells carrying the requested colour sort
+ * first, everything else follows — which is what Excel's "move the selected
+ * colour to the top" does. Custom lists become the value's position in the list,
+ * with unlisted values pushed past the end so they trail the listed ones. Both
+ * therefore ride the existing value comparator with no special cases in it.
+ */
+function sortKeyOf(cell, key) {
+    if (key.by === 'fill' || key.by === 'font') {
+        const cellColor = key.by === 'fill' ? fillColorOf(cell) : fontColorOf(cell);
+        return cellColor !== null && cellColor === key.color ? 0 : 1;
+    }
+    if (key.customList !== undefined) {
+        const index = key.customList.indexOf(String(cell.value ?? ''));
+        return index >= 0 ? index : key.customList.length;
+    }
+    return cell.value;
+}
+function fillColorOf(cell) {
+    const fill = cell.style?.fill;
+    if (fill?.type !== 'pattern')
+        return null;
+    return typeof fill.fgColor?.argb === 'string' ? fill.fgColor.argb.toUpperCase() : null;
+}
+function fontColorOf(cell) {
+    const argb = cell.font?.color?.argb;
+    return typeof argb === 'string' ? argb.toUpperCase() : null;
 }
 function compareSortRows(a, b, directions) {
     for (let index = 0; index < a.length; index++) {
@@ -2421,6 +2499,124 @@ function applyCrosstab(workbook, options, warnings, opIndex) {
         op: opIndex,
         message: `crosstab built ${rowKeys.length}x${colKeys.length} grid on ${outputSheetName} with live ${fn} formulas`,
     });
+}
+/** Formats exceljs can embed, and the size ceiling that keeps memory sane. */
+const IMAGE_EXTENSIONS = new Set(['png', 'jpeg', 'jpg', 'gif']);
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+/**
+ * Embed an image anchored at a cell. Cross-platform: exceljs writes the media
+ * part and the drawing XML itself, so no Excel installation is involved. Because
+ * we mutate the loaded workbook (rather than rebuilding it), images that were
+ * already in the file survive — verified by reading the media parts back.
+ */
+async function insertImageIntoSheet(workbook, options) {
+    const parsed = parseCellId(options.cell);
+    const sheet = findSheet(workbook, parsed.sheet);
+    if (!sheet)
+        throw new Error(`sheet not found: ${parsed.sheet}`);
+    if (options.file && options.base64)
+        throw new Error('insertImage takes either file or base64, not both');
+    if (!options.file && !options.base64)
+        throw new Error('insertImage requires file or base64');
+    const { buffer, extension } = await readImageSource(options);
+    if (buffer.byteLength > MAX_IMAGE_BYTES) {
+        throw new Error(`insertImage refuses images over ${MAX_IMAGE_BYTES / 1024 / 1024}MB (got ${Math.round(buffer.byteLength / 1024 / 1024)}MB)`);
+    }
+    // exceljs ships an older Buffer typing that Node 22's generic Buffer no longer
+    // satisfies; the bytes are identical, so narrow it at the boundary.
+    const imageId = workbook.addImage({ buffer, extension });
+    // exceljs requires `ext` both in its types and at render time — omitting it
+    // throws while writing the drawing XML. So when the caller gives no size we
+    // read the intrinsic one from the image header rather than guessing.
+    const ext = options.width !== undefined || options.height !== undefined
+        // Both sides default to 100px when only one is given, so a missing value
+        // never silently distorts the aspect ratio.
+        ? { width: options.width ?? 100, height: options.height ?? 100 }
+        : readImageSize(buffer);
+    if (!ext) {
+        throw new Error('insertImage could not read the image size; pass width and height explicitly');
+    }
+    sheet.addImage(imageId, {
+        tl: { col: columnToNumber(parsed.column) - 1, row: parsed.row - 1 },
+        ext,
+    });
+}
+/** Resolve image bytes plus exceljs's extension token, from a path or base64. */
+async function readImageSource(options) {
+    if (options.file) {
+        // Check the extension first so a typo'd format fails fast, before touching disk.
+        const extension = toImageExtension(options.file);
+        // readFile yields Buffer<ArrayBufferLike> while exceljs types want the narrower
+        // Buffer. Identical bytes, so a cast beats copying up to 20MB for nothing.
+        return { buffer: await readFile(options.file), extension };
+    }
+    const raw = options.base64;
+    const dataUri = /^data:image\/([a-z0-9]+);base64,(.*)$/is.exec(raw);
+    if (dataUri) {
+        return {
+            buffer: Buffer.from(dataUri[2].replace(/\s+/g, ''), 'base64'),
+            extension: toImageExtension(dataUri[1]),
+        };
+    }
+    // Bare base64 carries no format hint; PNG is the safe default (and the caller
+    // can pass a data URI whenever the payload is actually jpeg/gif).
+    return { buffer: Buffer.from(raw.replace(/\s+/g, ''), 'base64'), extension: 'png' };
+}
+function toImageExtension(hint) {
+    const extension = (/\.([a-z0-9]+)$/i.exec(hint)?.[1] ?? hint).toLowerCase();
+    if (!IMAGE_EXTENSIONS.has(extension)) {
+        throw new Error(`insertImage supports png/jpeg/gif, got "${extension}"`);
+    }
+    return extension === 'jpg' ? 'jpeg' : extension;
+}
+/**
+ * Intrinsic pixel size from the image header. PNG and GIF keep it at a fixed
+ * offset; JPEG needs a walk to the first SOF segment. Returns null for anything
+ * unrecognised, so the caller asks for an explicit size instead of guessing.
+ */
+function readImageSize(buffer) {
+    // PNG: IHDR chunk holds big-endian u32 width/height at offsets 16 and 20.
+    if (buffer.length >= 24 && buffer.readUInt32BE(0) === 0x89504e47) {
+        return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+    }
+    // GIF: logical screen descriptor, little-endian u16 at offsets 6 and 8.
+    if (buffer.length >= 10 && buffer.toString('latin1', 0, 3) === 'GIF') {
+        return { width: buffer.readUInt16LE(6), height: buffer.readUInt16LE(8) };
+    }
+    // JPEG: walk marker segments to the frame header (SOF0-SOF15, minus DHT/JPG/DAC).
+    if (buffer.length >= 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+        let offset = 2;
+        while (offset + 9 <= buffer.length) {
+            if (buffer[offset] !== 0xff) {
+                offset++;
+                continue;
+            }
+            const marker = buffer[offset + 1];
+            if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+                return { width: buffer.readUInt16BE(offset + 7), height: buffer.readUInt16BE(offset + 5) };
+            }
+            const segmentLength = buffer.readUInt16BE(offset + 2);
+            if (segmentLength < 2)
+                break;
+            offset += 2 + segmentLength;
+        }
+    }
+    return null;
+}
+/**
+ * Fixed-width split: take `widths[i]` characters per output column. Anything
+ * past the last width becomes a trailing column rather than being dropped.
+ */
+function splitByWidth(text, widths) {
+    const parts = [];
+    let offset = 0;
+    for (const width of widths) {
+        parts.push(text.slice(offset, offset + width).trim());
+        offset += width;
+    }
+    if (offset < text.length)
+        parts.push(text.slice(offset).trim());
+    return parts;
 }
 function setHyperlink(workbook, options) {
     const cell = resolveCell(workbook, options.cell);

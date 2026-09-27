@@ -30,6 +30,8 @@ export interface SparklineGroupSpec {
 export interface WorkbookAnnotations {
     comments: Map<string, CommentSpec[]>;
     sparklines: Map<string, SparklineGroupSpec[]>;
+    /** Sheets whose saved view should show formulas instead of their results. */
+    showFormulas: Set<string>;
 }
 export declare function emptyAnnotations(): WorkbookAnnotations;
 /**

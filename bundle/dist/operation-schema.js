@@ -83,6 +83,9 @@ export const excelOperationSchema = {
                     properties: {
                         column: text('Column letter inside the range, e.g. "B".', true),
                         direction: { type: 'string', enum: ['asc', 'desc'], description: 'Sort direction (default asc).' },
+                        by: { type: 'string', enum: ['value', 'fill', 'font'], description: 'Sort on the cell value (default), its fill colour, or its font colour. Colour keys require "color".' },
+                        color: text('With by:fill|font — cells carrying this 6-digit hex colour sort first, everything else follows.'),
+                        customList: { type: 'array', items: { type: 'string' }, description: 'Explicit order for text, e.g. ["高","中","低"]; values outside the list sort after the listed ones.' },
                     },
                 },
             },
@@ -429,7 +432,8 @@ export const excelOperationSchema = {
         opSchema('splitColumn', {
             sheet: text('Sheet name.', true),
             column: text('Source column letter, e.g. "A".', true),
-            delimiter: text('Delimiter to split on, e.g. "-" or " ".', true),
+            delimiter: text('Delimiter to split on, e.g. "-" or " " — mutually exclusive with widths.'),
+            widths: { type: 'array', items: { type: 'number' }, description: 'Fixed-width split: character count per output column, e.g. [3, 5, 4] — mutually exclusive with delimiter.' },
             startRow: num('First data row (1-based).', true),
             endRow: num('Last data row (default: last used row).'),
         }),
@@ -562,6 +566,10 @@ export const excelOperationSchema = {
             sheet: text('Sheet name.', true),
             visible: { type: 'boolean', required: true, description: 'true to show gridlines, false to hide them.' },
         }),
+        opSchema('showFormulas', {
+            sheet: text('Sheet name.', true),
+            show: { type: 'boolean', description: 'true (default) makes the saved view display formulas instead of results; false switches back.' },
+        }),
         opSchema('headerFooter', {
             sheet: text('Sheet name.', true),
             oddHeader: text('Header text with &-codes, e.g. "&L公司&C报表&R日期" (L/C/R = left/center/right sections).'),
@@ -614,6 +622,13 @@ export const excelOperationSchema = {
             markers: bool('Show markers with high/low highlighting.'),
             highColor: text('Color for the highest point (default orange FF7C00).'),
             lowColor: text('Color for the lowest point (default red D00000).'),
+        }),
+        opSchema('insertImage', {
+            cell: text('Anchor cell for the image top-left corner, e.g. "Sheet1!B2".', true),
+            file: text('Path to a png/jpeg/gif file. Pass this or base64, not both.'),
+            base64: text('Base64 payload, optionally prefixed with "data:image/png;base64,". Pass this or file, not both.'),
+            width: num('Rendered width in pixels; omit both width and height to keep the image\'s own size.'),
+            height: num('Rendered height in pixels.'),
         }),
     ],
 };

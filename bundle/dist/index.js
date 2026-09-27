@@ -1,6 +1,7 @@
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { readFile } from 'node:fs/promises';
 import { runAgentTask } from './agent.js';
+import { EXCEL_ERROR_VALUES, findErrorCells } from './audit.js';
 import { createLlmRepairAdvisor } from './advisor.js';
 import { autofixWorkbookFile } from './autofix.js';
 import { validateCharts } from './chart-validator.js';
@@ -8,6 +9,7 @@ import { createChartWithExcel, exportChartsWithExcel, exportWorkbookToPdf, modif
 import { readChartInfos } from './charts.js';
 import { compileFormula } from './compiler.js';
 import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.js';
+import { buildDependencyGraph, traceDependencies } from './graph.js';
 import { runDoctorChecks } from './doctor.js';
 import { buildWorkbookInsight } from './insight.js';
 import { writeWorkbookHealthReport } from './health-report.js';
@@ -214,7 +216,7 @@ export function apply(ctx) {
     })), 'tool:excel_undo');
     ctx.effect(() => ctx.tools.register(defineTool({
         name: 'excel_operate',
-        description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill, fillSeries, insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel), copyRange (move:true moves, valuesOnly:true pastes cached results), transpose (paste transposed with formula shifting), copyStyle (format painter: clone font/fill/border/alignment/number format onto a range), freezeFormulas (convert formulas to their cached values), sortRange, report (one-shot report template: sort + subtotals + dynamic SUMIFS summary + filter + header style + freeze + number format), preset (role templates: ops 运营 = report + data bars; product 产品 = report + color scale; data 数分 = report + color scale + filtered copy), subtotal (group summaries), aggregateReport (dynamic pivot-style summary with live SUMIFS formulas), crosstab (two-dimension pivot grid with live SUMIFS/COUNTIFS formulas plus totals), filterToRange (advanced filter), joinSheets (exact-match two-table lookup: copy one or more columns from a lookup table back into the source by key, like VLOOKUP without formulas), fuzzyMatch (two-table fuzzy match by similarity and write the matched value back, e.g. reconcile names), uniqueValues (extract distinct values of a column), rankColumn (live RANK formula column), style, dataValidation, conditionalFormatting, autoFilter, addTable, importCsv / exportCsv (RFC 4180 with formula-injection guard), setColumnWidth / setRowHeight / autoFitColumnWidths (content-based fit, CJK aware) / freezePanes / unfreezePanes, hideRows / hideColumns, groupRows / groupColumns (outline levels, optional collapse), setZoom, showGridLines, addComment (cell comments, rendered by Excel), addSparklines (per-row trend sparklines), headerFooter (&-code page headers/footers), findReplace, protectSheet / unprotectSheet, mailMerge (expand {Placeholder} templates per data row), pageSetup, rowPageBreaks / clearPageBreaks (manual print breaks), printTitles (repeat header rows/columns on every printed page), definedName, setHyperlink (external URL or internal location link), addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor / moveSheet (reorder tabs), setWorkbookProperties (author/title/keywords + recalcOnOpen), unmergeAll, clear (cells) / clearRange (contents / formats / all), merge / unmerge, dedupeRows (remove duplicate rows by key columns, keep first/last), fillMissing (fill blanks with a value / forward from above / from the left), removeEmptyRows / removeEmptyColumns, trimText (strip whitespace), changeCase (upper / lower / proper), normalizeText (fullwidth-to-halfwidth + whitespace cleanup), splitColumn (text to columns by delimiter), highlightRows (highlight whole rows matching criteria, e.g. find and highlight a customer). The operations array is a strict union on "op": choose the matching object shape. Example: {"operations":[{"op":"set","cells":{"Sheet1!A1":"100"}},{"op":"style","range":"Sheet1!A1:C1","style":{"bold":true}}]}. Writes <path>.edited.xlsx (or outPath) and returns the post-operation validation result.',
+        description: 'Apply Excel editing operations to an .xlsx file and re-validate formulas afterwards. Operations: set (typed values/formulas), fill, fillSeries, insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel), copyRange (move:true moves, valuesOnly:true pastes cached results), transpose (paste transposed with formula shifting), copyStyle (format painter: clone font/fill/border/alignment/number format onto a range), freezeFormulas (convert formulas to their cached values), sortRange, report (one-shot report template: sort + subtotals + dynamic SUMIFS summary + filter + header style + freeze + number format), preset (role templates: ops 运营 = report + data bars; product 产品 = report + color scale; data 数分 = report + color scale + filtered copy), subtotal (group summaries), aggregateReport (dynamic pivot-style summary with live SUMIFS formulas), crosstab (two-dimension pivot grid with live SUMIFS/COUNTIFS formulas plus totals), filterToRange (advanced filter), joinSheets (exact-match two-table lookup: copy one or more columns from a lookup table back into the source by key, like VLOOKUP without formulas), fuzzyMatch (two-table fuzzy match by similarity and write the matched value back, e.g. reconcile names), uniqueValues (extract distinct values of a column), rankColumn (live RANK formula column), style, dataValidation, conditionalFormatting, autoFilter, addTable, importCsv / exportCsv (RFC 4180 with formula-injection guard), setColumnWidth / setRowHeight / autoFitColumnWidths (content-based fit, CJK aware) / freezePanes / unfreezePanes, hideRows / hideColumns, groupRows / groupColumns (outline levels, optional collapse), setZoom, showGridLines, showFormulas (saved view displays formulas instead of results), addComment (cell comments, rendered by Excel), addSparklines (per-row trend sparklines), insertImage (embed a png/jpeg/gif at a cell; cross-platform, no Excel needed), headerFooter (&-code page headers/footers), findReplace, protectSheet / unprotectSheet, mailMerge (expand {Placeholder} templates per data row), pageSetup, rowPageBreaks / clearPageBreaks (manual print breaks), printTitles (repeat header rows/columns on every printed page), definedName, setHyperlink (external URL or internal location link), addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor / moveSheet (reorder tabs), setWorkbookProperties (author/title/keywords + recalcOnOpen), unmergeAll, clear (cells) / clearRange (contents / formats / all), merge / unmerge, dedupeRows (remove duplicate rows by key columns, keep first/last), fillMissing (fill blanks with a value / forward from above / from the left), removeEmptyRows / removeEmptyColumns, trimText (strip whitespace), changeCase (upper / lower / proper), normalizeText (fullwidth-to-halfwidth + whitespace cleanup), splitColumn (text to columns by delimiter), highlightRows (highlight whole rows matching criteria, e.g. find and highlight a customer). The operations array is a strict union on "op": choose the matching object shape. Example: {"operations":[{"op":"set","cells":{"Sheet1!A1":"100"}},{"op":"style","range":"Sheet1!A1:C1","style":{"bold":true}}]}. Writes <path>.edited.xlsx (or outPath) and returns the post-operation validation result.',
         parameters: {
             path: {
                 type: 'string',
@@ -1011,4 +1013,92 @@ export function apply(ctx) {
             return validate(normalized);
         },
     })), 'tool:excel_validate_formulas');
+    ctx.effect(() => ctx.tools.register(defineTool({
+        name: 'excel_trace',
+        description: 'Trace a cell\'s formula dependencies: precedents (cells it reads) or dependents (cells that read it), breadth-first up to `depth` levels. The data equivalent of Excel\'s Trace Precedents / Trace Dependents — Excel draws arrows, but those are UI state and are never stored in the .xlsx, so the chain is returned as data instead. Each hit carries that cell\'s current value, and circular references found while building the graph are reported too.',
+        parameters: {
+            path: {
+                type: 'string',
+                required: true,
+                description: 'Absolute path to an .xlsx file.',
+            },
+            cell: {
+                type: 'string',
+                required: true,
+                description: 'Origin cell id, e.g. "Sheet1!D4".',
+            },
+            direction: {
+                type: 'string',
+                enum: ['precedents', 'dependents', 'both'],
+                description: 'Which way to walk (default both).',
+            },
+            depth: {
+                type: 'number',
+                description: 'How many levels to follow (default 1). Use a larger value for the whole chain.',
+            },
+        },
+        output: {
+            schema: { type: 'object', additionalProperties: true },
+            render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+        },
+        async execute(args) {
+            const direction = args.direction ?? 'both';
+            const depth = args.depth === undefined ? 1 : Number(args.depth);
+            const cells = await readWorkbookCells(await readFile(String(args.path)));
+            const formulas = Object.entries(cells)
+                .map(([id, content]) => ({ id, formula: String(content).trim() }))
+                .filter((entry) => entry.formula.startsWith('='));
+            const graph = buildDependencyGraph(formulas);
+            const cell = String(args.cell);
+            // Graph ids are canonical (upper-cased sheet and column); map them back to
+            // how the workbook actually spells them so results match what the user sees.
+            const displayById = new Map(Object.keys(cells).map((id) => [id.toUpperCase(), id]));
+            const display = (id) => displayById.get(id.toUpperCase()) ?? id;
+            const decorate = (steps) => steps.map((step) => {
+                const id = display(step.cell);
+                return { cell: id, depth: step.depth, value: cells[id] ?? null };
+            });
+            const result = {
+                cell,
+                formula: cells[cell] ?? null,
+                direction,
+                depth,
+                cycles: graph.cycles.map((cycle) => cycle.map(display)),
+            };
+            if (direction === 'precedents' || direction === 'both') {
+                const trace = traceDependencies(graph, cell, 'precedents', depth);
+                result.precedents = decorate(trace.reached);
+                result.precedentsTruncated = trace.truncated;
+            }
+            if (direction === 'dependents' || direction === 'both') {
+                const trace = traceDependencies(graph, cell, 'dependents', depth);
+                result.dependents = decorate(trace.reached);
+                result.dependentsTruncated = trace.truncated;
+            }
+            return result;
+        },
+    })), 'tool:excel_trace');
+    ctx.effect(() => ctx.tools.register(defineTool({
+        name: 'excel_find_errors',
+        description: `List every cell whose value is an Excel error (${EXCEL_ERROR_VALUES.join(', ')}), together with the formula that produced it and per-code counts. Genuine error values are told apart from text that merely looks like one, so a literal "#N/A" someone typed is not reported.`,
+        parameters: {
+            path: {
+                type: 'string',
+                required: true,
+                description: 'Absolute path to an .xlsx file.',
+            },
+            sheet: {
+                type: 'string',
+                description: 'Limit the scan to one sheet (default: all sheets).',
+            },
+        },
+        output: {
+            schema: { type: 'object', additionalProperties: true },
+            render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+        },
+        async execute(args) {
+            const scan = await findErrorCells(new Uint8Array(await readFile(String(args.path))), args.sheet === undefined ? undefined : String(args.sheet));
+            return scan;
+        },
+    })), 'tool:excel_find_errors');
 }

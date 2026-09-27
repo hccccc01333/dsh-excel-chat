@@ -118,6 +118,12 @@ export type ExcelOperation = {
     keys: Array<{
         column: string;
         direction?: 'asc' | 'desc';
+        /** Sort by cell value (default), fill colour, or font colour. */
+        by?: 'value' | 'fill' | 'font';
+        /** With `by: fill|font`: cells carrying this colour sort first (asc). */
+        color?: string;
+        /** Explicit order for text, e.g. ["高","中","低"]; unlisted values sort after. */
+        customList?: string[];
     }>;
     headerRows?: number;
 } | {
@@ -301,7 +307,10 @@ export type ExcelOperation = {
     op: 'splitColumn';
     sheet: string;
     column: string;
-    delimiter: string;
+    /** Split on this delimiter — mutually exclusive with `widths`. */
+    delimiter?: string;
+    /** Fixed-width split: character count per output column, e.g. [3, 5, 4]. */
+    widths?: number[];
     startRow: number;
     endRow?: number;
 } | {
@@ -478,6 +487,22 @@ export type ExcelOperation = {
     markers?: boolean;
     highColor?: string;
     lowColor?: string;
+} | {
+    op: 'insertImage';
+    /** Anchor cell, sheet-qualified, e.g. "Sheet1!B2". */
+    cell: string;
+    /** Image file path — pass this or `base64`, not both. */
+    file?: string;
+    /** Base64 payload, with or without a `data:image/png;base64,` prefix. */
+    base64?: string;
+    /** Rendered size in pixels. Omit both to keep the image's own size. */
+    width?: number;
+    height?: number;
+} | {
+    op: 'showFormulas';
+    sheet: string;
+    /** Default true; pass false to show results again. */
+    show?: boolean;
 };
 export interface ExcelStyle {
     bold?: boolean;
