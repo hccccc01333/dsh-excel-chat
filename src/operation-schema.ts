@@ -432,7 +432,8 @@ export const excelOperationSchema = {
     opSchema('splitColumn', {
       sheet: text('Sheet name.', true),
       column: text('Source column letter, e.g. "A".', true),
-      delimiter: text('Delimiter to split on, e.g. "-" or " ".', true),
+      delimiter: text('Delimiter to split on, e.g. "-" or " " — mutually exclusive with widths.'),
+      widths: { type: 'array', items: { type: 'number' }, description: 'Fixed-width split: character count per output column, e.g. [3, 5, 4] — mutually exclusive with delimiter.' },
       startRow: num('First data row (1-based).', true),
       endRow: num('Last data row (default: last used row).'),
     }),

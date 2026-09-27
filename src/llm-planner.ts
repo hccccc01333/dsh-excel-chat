@@ -23,7 +23,7 @@ const OPERATION_CATALOG = [
   '  sortRange（排序）、findReplace、merge/unmerge/unmergeAll、clearRange',
   '数据清洗',
   '  dedupeRows（去重）、fillMissing（补空）、removeEmptyRows/removeEmptyColumns',
-  '  trimText、changeCase（大小写）、normalizeText（全角半角）、splitColumn（分列）',
+  '  trimText、changeCase（大小写）、normalizeText（全角半角）、splitColumn（分列：按分隔符，或用 widths 按固定宽度）',
   '  highlightRows（整行条件高亮）',
   '样式与版式',
   '  style（字体/填充/边框/对齐/数字格式/删除线/旋转）',
@@ -82,7 +82,7 @@ const PARAM_REFERENCE = [
   'setHyperlink: {"op":"setHyperlink","cell":"订单!A1","url":"https://example.com","text":"官网"}',
   'merge: {"op":"merge","range":"订单!A1:B1"}',
   'highlightRows: {"op":"highlightRows","sheet":"订单","range":"订单!A1:B4","criteria":[{"column":"A","operator":"eq","value":"苹果"}]}',
-  'splitColumn: {"op":"splitColumn","sheet":"订单","column":"A","delimiter":"-","startRow":2,"endRow":4}',
+  'splitColumn: {"op":"splitColumn","sheet":"订单","column":"A","delimiter":"-","startRow":2,"endRow":4}；固定宽度分列把 delimiter 换成 widths，如 {"widths":[3,5,4]}',
   'trimText/changeCase/normalizeText: {"op":"trimText","range":"订单!A2:A4"}',
   'moveSheet: {"op":"moveSheet","name":"汇总","position":1}',
 ].join('\n')

@@ -1060,6 +1060,63 @@ test('splitColumn splits text into new columns and shifts existing columns right
   assert.equal(cells['Sheet1!C2'], '10')
 })
 
+test('splitColumn supports fixed-width splitting', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '310101199001011234'
+    sheet.getCell('A2').value = '110108198507154321'
+  })
+  const cells = await readAfter(path, [{
+    op: 'splitColumn',
+    sheet: 'Sheet1',
+    column: 'A',
+    widths: [6, 8, 4],
+    startRow: 1,
+  }])
+  assert.equal(cells['Sheet1!A1'], '310101')
+  assert.equal(cells['Sheet1!B1'], '19900101')
+  assert.equal(cells['Sheet1!C1'], '1234')
+  assert.equal(cells['Sheet1!A2'], '110108')
+  assert.equal(cells['Sheet1!B2'], '19850715')
+  assert.equal(cells['Sheet1!C2'], '4321')
+})
+
+test('splitColumn fixed width keeps overflow text as a trailing column', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'ABCDEFG'
+  })
+  const cells = await readAfter(path, [{
+    op: 'splitColumn',
+    sheet: 'Sheet1',
+    column: 'A',
+    widths: [2, 2],
+    startRow: 1,
+  }])
+  assert.equal(cells['Sheet1!A1'], 'AB')
+  assert.equal(cells['Sheet1!B1'], 'CD')
+  assert.equal(cells['Sheet1!C1'], 'EFG', 'text past the last width must not be dropped')
+})
+
+test('splitColumn rejects ambiguous or missing split modes', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const outPath = join(join(path, '..'), 'split-bad.xlsx')
+  await assert.rejects(
+    () => applyOperationsToWorkbook(path, [{
+      op: 'splitColumn', sheet: 'Sheet1', column: 'A', startRow: 1,
+    }], outPath),
+    /requires delimiter or widths/,
+  )
+  await assert.rejects(
+    () => applyOperationsToWorkbook(path, [{
+      op: 'splitColumn', sheet: 'Sheet1', column: 'A', delimiter: '-', widths: [2], startRow: 1,
+    }], outPath),
+    /not both/,
+  )
+})
+
 test('highlightRows fills whole rows that match all criteria', async () => {
   const path = await makeWorkbook((workbook) => {
     const sheet = workbook.addWorksheet('Sheet1')

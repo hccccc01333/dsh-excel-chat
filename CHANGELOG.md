@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `excel_operate` 的 `splitColumn` 支持**固定宽度分列**：用 `widths: [6, 8, 4]` 代替
+  `delimiter`（两者互斥，都不给或都给会明确报错）；超出最后一个宽度的文本作为追加列
+  保留而不丢弃。规划器参数示例与 README 已同步。测试 284 通过（新增 3 例）。
 - `excel_operate` 新增 `insertImage`：在指定单元格嵌入 png/jpeg/gif 图片。
   - 纯 XML 层实现（exceljs 负责写 `xl/media/` 与 drawing 部件），**跨平台、不依赖本机 Excel**；
   - 可指定像素宽高；省略时从图片头读取原始尺寸（PNG / GIF / JPEG），避免拉伸变形；

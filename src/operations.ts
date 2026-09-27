@@ -173,7 +173,17 @@ export type ExcelOperation =
   | { op: 'trimText'; range: string }
   | { op: 'changeCase'; range: string; case: 'upper' | 'lower' | 'proper' }
   | { op: 'normalizeText'; range: string }
-  | { op: 'splitColumn'; sheet: string; column: string; delimiter: string; startRow: number; endRow?: number }
+  | {
+      op: 'splitColumn'
+      sheet: string
+      column: string
+      /** Split on this delimiter — mutually exclusive with `widths`. */
+      delimiter?: string
+      /** Fixed-width split: character count per output column, e.g. [3, 5, 4]. */
+      widths?: number[]
+      startRow: number
+      endRow?: number
+    }
   | {
       op: 'highlightRows'
       sheet: string
@@ -863,6 +873,12 @@ export async function applyOperationsToWorkbook(
       case 'splitColumn': {
         const sheet = findSheet(workbook, operation.sheet)
         if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
+        if (operation.widths && operation.delimiter !== undefined) {
+          throw new Error('splitColumn takes either delimiter or widths, not both')
+        }
+        if (!operation.widths && operation.delimiter === undefined) {
+          throw new Error('splitColumn requires delimiter or widths')
+        }
         const columnNumber = columnToNumber(operation.column)
         const endRow = operation.endRow ?? sheet.rowCount
         const partsByRow = new Map<number, string[]>()
@@ -870,7 +886,9 @@ export async function applyOperationsToWorkbook(
         for (let row = operation.startRow; row <= endRow; row++) {
           const text = cellContentOf(sheet.getCell(`${operation.column}${row}`))
           if (!text) continue
-          const parts = text.split(operation.delimiter).map((part) => part.trim())
+          const parts = operation.widths
+            ? splitByWidth(text, operation.widths)
+            : text.split(operation.delimiter!).map((part) => part.trim())
           maxParts = Math.max(maxParts, parts.length)
           partsByRow.set(row, parts)
         }
@@ -884,7 +902,10 @@ export async function applyOperationsToWorkbook(
             sheet.getCell(`${numberToColumn(columnNumber + i)}${row}`).value = parts[i] ?? ''
           }
         }
-        warnings.push({ op: index, message: `splitColumn split ${partsByRow.size} row(s) into up to ${maxParts} columns` })
+        const mode = operation.widths
+          ? `fixed width ${operation.widths.join('/')}`
+          : `delimiter "${operation.delimiter}"`
+        warnings.push({ op: index, message: `splitColumn split ${partsByRow.size} row(s) into up to ${maxParts} columns (${mode})` })
         break
       }
       case 'highlightRows': {
@@ -2951,6 +2972,21 @@ function readImageSize(buffer: Buffer): { width: number; height: number } | null
     }
   }
   return null
+}
+
+/**
+ * Fixed-width split: take `widths[i]` characters per output column. Anything
+ * past the last width becomes a trailing column rather than being dropped.
+ */
+function splitByWidth(text: string, widths: number[]): string[] {
+  const parts: string[] = []
+  let offset = 0
+  for (const width of widths) {
+    parts.push(text.slice(offset, offset + width).trim())
+    offset += width
+  }
+  if (offset < text.length) parts.push(text.slice(offset).trim())
+  return parts
 }
 
 function setHyperlink(workbook: ExcelJS.Workbook, options: Extract<ExcelOperation, { op: 'setHyperlink' }>): void {
