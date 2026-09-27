@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, resolve as resolvePath } from 'node:path'
@@ -16,6 +17,9 @@ const EXTERNALS = [
   '@deepseek-ai/dsh-client-schema-form',
   '@deepseek-ai/dsh-client-runtime/client',
 ]
+
+/** Maps a stylesheet's hashed virtual id back to its real path on disk. */
+const cssPathById = new Map<string, string>()
 
 /**
  * Browser client bundle for dsh-excel-chat: emits a closure-factory artifact
@@ -49,11 +53,18 @@ export default {
     resolveId(source: string, importer: string | undefined) {
       if (!/\.css$/.test(source) || importer === undefined) return null
       const absolute = resolveBare(source, importer)
-      return absolute === null ? null : `\0css:${absolute}.mjs`
+      if (absolute === null) return null
+      // The virtual id must NOT embed the absolute path. Rolldown writes the
+      // module id into a `//#region` comment, which leaked the build machine's
+      // local path (e.g. D:\vera\node_modules\...) into the shipped bundle.
+      // Hash it instead, and keep the real path in cssPathById for `load`.
+      const id = `\0css:${createHash('sha1').update(absolute).digest('hex').slice(0, 12)}.mjs`
+      cssPathById.set(id, absolute)
+      return id
     },
     async load(id: string) {
-      if (!id.startsWith('\0css:')) return null
-      const file = id.slice(5).replace(/\.mjs$/, '')
+      const file = cssPathById.get(id)
+      if (!file) return null
       const text = await readFile(file, 'utf8')
       return `export default ${JSON.stringify(text)}`
     },
