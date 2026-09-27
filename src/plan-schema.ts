@@ -71,6 +71,7 @@ const REQUIRED_STRINGS: Record<string, string[]> = {
   clearPageBreaks: ['sheet'],
   addComment: ['cell', 'text'],
   addSparklines: ['dataRange', 'locationRange'],
+  insertImage: ['cell'],
 }
 
 const REQUIRED_ARRAYS: Record<string, string[]> = {

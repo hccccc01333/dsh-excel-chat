@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { unzipSync } from 'fflate'
 import {
   applyOperationsToWorkbook,
   operateWorkbookFile,
@@ -1810,4 +1811,68 @@ test('copyRange valuesOnly falls back to the formula when there is no cached res
     op: 'copyRange', source: 'S!A1:A1', target: 'S!B1', valuesOnly: true,
   }])
   assert.equal(cells['S!B1'], '=2+3', 'valuesOnly must not blank an uncached formula')
+})
+
+// 1x1 PNG — the smallest valid payload, enough to prove the media part lands.
+const TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
+async function workbookParts(path: string): Promise<string[]> {
+  return Object.keys(unzipSync(new Uint8Array(await readFile(path)))).sort()
+}
+
+test('insertImage embeds an image and the result stays loadable', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const outPath = join(join(path, '..'), 'with-image.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'insertImage',
+    cell: 'Sheet1!B2',
+    base64: `data:image/png;base64,${TINY_PNG}`,
+    width: 120,
+    height: 80,
+  }], outPath)
+  const parts = await workbookParts(outPath)
+  assert.ok(parts.some((part) => /^xl\/media\/image\d+\.png$/.test(part)), `media part missing: ${parts.join(', ')}`)
+  assert.ok(parts.includes('xl/drawings/drawing1.xml'), 'drawing part missing')
+  const readBack = new ExcelJS.Workbook()
+  await readBack.xlsx.readFile(outPath)
+  assert.equal(readBack.getWorksheet('Sheet1')!.getImages().length, 1)
+})
+
+test('insertImage keeps images that were already in the workbook', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const first = join(join(path, '..'), 'img-1.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'insertImage', cell: 'Sheet1!A1', base64: TINY_PNG },
+  ], first)
+  const second = join(join(path, '..'), 'img-2.xlsx')
+  await applyOperationsToWorkbook(first, [
+    { op: 'insertImage', cell: 'Sheet1!D4', base64: TINY_PNG, width: 40, height: 40 },
+  ], second)
+  const media = (await workbookParts(second)).filter((part) => /^xl\/media\/image\d+\./.test(part))
+  assert.equal(media.length, 2, 'the pre-existing image must survive, not be replaced')
+})
+
+test('insertImage rejects a missing source, unsupported formats, and both sources at once', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const outPath = join(join(path, '..'), 'img-bad.xlsx')
+  await assert.rejects(
+    () => applyOperationsToWorkbook(path, [{ op: 'insertImage', cell: 'Sheet1!A1' }], outPath),
+    /requires file or base64/,
+  )
+  await assert.rejects(
+    () => applyOperationsToWorkbook(path, [{ op: 'insertImage', cell: 'Sheet1!A1', file: 'logo.bmp' }], outPath),
+    /supports png\/jpeg\/gif/,
+  )
+  await assert.rejects(
+    () => applyOperationsToWorkbook(path, [{
+      op: 'insertImage', cell: 'Sheet1!A1', file: 'a.png', base64: TINY_PNG,
+    }], outPath),
+    /not both/,
+  )
 })

@@ -618,5 +618,12 @@ export const excelOperationSchema = {
       highColor: text('Color for the highest point (default orange FF7C00).'),
       lowColor: text('Color for the lowest point (default red D00000).'),
     }),
+    opSchema('insertImage', {
+      cell: text('Anchor cell for the image top-left corner, e.g. "Sheet1!B2".', true),
+      file: text('Path to a png/jpeg/gif file. Pass this or base64, not both.'),
+      base64: text('Base64 payload, optionally prefixed with "data:image/png;base64,". Pass this or file, not both.'),
+      width: num('Rendered width in pixels; omit both width and height to keep the image\'s own size.'),
+      height: num('Rendered height in pixels.'),
+    }),
   ],
 } as const

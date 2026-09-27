@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased — v0.38.1
+## Unreleased
+
+- `excel_operate` 新增 `insertImage`：在指定单元格嵌入 png/jpeg/gif 图片。
+  - 纯 XML 层实现（exceljs 负责写 `xl/media/` 与 drawing 部件），**跨平台、不依赖本机 Excel**；
+  - 可指定像素宽高；省略时从图片头读取原始尺寸（PNG / GIF / JPEG），避免拉伸变形；
+  - 已有图片会保留（在加载出的工作簿上追加，而非重建）；单张上限 20MB；
+  - 不支持格式、`file`/`base64` 同时给或都不给时明确报错。
+- 同步更新：规划器操作目录与参数示例、`plan-schema` 必填字段校验、`excel_operate`
+  工具描述、README 操作清单。测试 281 通过（新增 3 例：嵌入与可读性、原有图片保留、参数校验）。
+
+## v0.38.1 — 2026-09-27
 
 - 修复 issue #4：`excel_operate` 的 `set` 传入**原生标量**（数字/布尔/日期）时
   抛 `content.trim is not a function`。工具 schema 对 `cells` 声明
