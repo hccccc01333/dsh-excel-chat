@@ -3,6 +3,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { readFile } from 'node:fs/promises'
 import { runAgentTask } from './agent.ts'
+import { EXCEL_ERROR_VALUES, findErrorCells } from './audit.ts'
 import { createLlmRepairAdvisor } from './advisor.ts'
 import { autofixWorkbookFile } from './autofix.ts'
 import { validateCharts } from './chart-validator.ts'
@@ -1125,4 +1126,30 @@ export function apply(ctx: Context) {
       return result
     },
   })), 'tool:excel_trace')
+  ctx.effect(() => ctx.tools.register(defineTool({
+    name: 'excel_find_errors',
+    description: `List every cell whose value is an Excel error (${EXCEL_ERROR_VALUES.join(', ')}), together with the formula that produced it and per-code counts. Genuine error values are told apart from text that merely looks like one, so a literal "#N/A" someone typed is not reported.`,
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      sheet: {
+        type: 'string',
+        description: 'Limit the scan to one sheet (default: all sheets).',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      const scan = await findErrorCells(
+        new Uint8Array(await readFile(String(args.path))),
+        args.sheet === undefined ? undefined : String(args.sheet),
+      )
+      return scan as unknown as JsonRecord
+    },
+  })), 'tool:excel_find_errors')
 }

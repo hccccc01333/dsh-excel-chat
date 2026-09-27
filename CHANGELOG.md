@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- 新增 `excel_find_errors` 工具：列出所有**错误值**单元格，附产生它的公式与按错误码的计数，
+  可按工作表限定；能区分「真错误值」与「文本恰好长成错误样」，后者不报以免变成噪音。
+  - ⚠️ 关键实现细节：**带公式的错误单元格 `type` 是 `Formula` 而不是 `Error`**，
+    错误藏在 `value.result` 里 —— 只判断 `type === Error` 会漏掉所有由公式产生的错误，
+    而那恰恰是最值得报的一类。改为读 value 形状，两种情况都覆盖，也不依赖类型枚举。
+  - 不复用 `readWorkbookCells`：它会把值统一字符串化，无法区分真错误和文本。
+  - 测试 294 通过（新增 `tests/audit.test.ts` 3 例）。
 - `excel_operate` 新增 `showFormulas`：让工作表保存为「显示公式」视图（`show:false` 切回）。
   - exceljs 的 `SheetViewXform` 只渲染固定属性白名单，**没有 `showFormulas`**，
     给 `view.showFormulas` 赋值会被静默丢弃；且 exceljs 仅在已有视图设置时才写
