@@ -566,6 +566,10 @@ export const excelOperationSchema = {
       sheet: text('Sheet name.', true),
       visible: { type: 'boolean', required: true, description: 'true to show gridlines, false to hide them.' },
     }),
+    opSchema('showFormulas', {
+      sheet: text('Sheet name.', true),
+      show: { type: 'boolean', description: 'true (default) makes the saved view display formulas instead of results; false switches back.' },
+    }),
     opSchema('headerFooter', {
       sheet: text('Sheet name.', true),
       oddHeader: text('Header text with &-codes, e.g. "&L公司&C报表&R日期" (L/C/R = left/center/right sections).'),

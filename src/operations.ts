@@ -303,6 +303,12 @@ export type ExcelOperation =
       width?: number
       height?: number
     }
+  | {
+      op: 'showFormulas'
+      sheet: string
+      /** Default true; pass false to show results again. */
+      show?: boolean
+    }
 
 export interface ExcelStyle {
   bold?: boolean
@@ -1131,6 +1137,21 @@ export async function applyOperationsToWorkbook(
         })
         break
       }
+      case 'showFormulas': {
+        const sheet = findSheet(workbook, operation.sheet)
+        if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
+        // Recorded as an annotation rather than set on the view: exceljs drops
+        // showFormulas when it renders <sheetView>, so xml-postprocess injects it.
+        if (operation.show === false) annotations.showFormulas.delete(sheet.name)
+        else annotations.showFormulas.add(sheet.name)
+        warnings.push({
+          op: index,
+          message: operation.show === false
+            ? `showFormulas off for ${sheet.name}`
+            : `showFormulas on for ${sheet.name} (the file opens showing formulas)`,
+        })
+        break
+      }
       case 'headerFooter': {
         const sheet = findSheet(workbook, operation.sheet)
         if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
@@ -1407,7 +1428,7 @@ export async function applyOperationsToWorkbook(
   }
 
   const buffer = await workbook.xlsx.writeBuffer()
-  if (annotations.comments.size > 0 || annotations.sparklines.size > 0) {
+  if (annotations.comments.size > 0 || annotations.sparklines.size > 0 || annotations.showFormulas.size > 0) {
     // ExcelJS cannot write comments or sparklines; inject the XML parts now.
     const sheetFileOf = new Map<string, string>()
     workbook.eachSheet((sheet) => {

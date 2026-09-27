@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `excel_operate` 新增 `showFormulas`：让工作表保存为「显示公式」视图（`show:false` 切回）。
+  - exceljs 的 `SheetViewXform` 只渲染固定属性白名单，**没有 `showFormulas`**，
+    给 `view.showFormulas` 赋值会被静默丢弃；且 exceljs 仅在已有视图设置时才写
+    `<sheetViews>`，普通工作表里根本没这个元素。
+  - 因此改由 `xml-postprocess` 在保存后注入：已有 `<sheetView>` 就补属性，
+    没有就按 schema 顺序在 `<dimension>` 之后插入整个 `<sheetViews>` 块。
+  - 修了一个连带缺陷：`annotateWorkbookXml` 的调用点自己写了一遍「有没有注解」的判断
+    （只查 comments/sparklines），新增第三类注解后必须同步，否则注入根本不触发。
+  - 测试 291 通过（新增 2 例：注入生效且公式不变、show:false 不注入）。
 - 新增 `excel_trace` 工具：追踪单元格的公式依赖链路，`direction` 可选 `precedents`（引用，
   它读了谁）/ `dependents`（从属，谁读了它）/ `both`，`depth` 控制层数（默认 1，即 Excel
   单击一次的行为），每格返回当前值与深度，并附带循环引用。

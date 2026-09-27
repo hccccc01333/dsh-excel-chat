@@ -1933,3 +1933,36 @@ test('insertImage rejects a missing source, unsupported formats, and both source
     /not both/,
   )
 })
+
+async function sheetXmlOf(path: string): Promise<string> {
+  const files = unzipSync(new Uint8Array(await readFile(path)))
+  return new TextDecoder().decode(files['xl/worksheets/sheet1.xml']!)
+}
+
+test('showFormulas makes the saved view display formulas instead of results', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 1
+    sheet.getCell('B1').value = { formula: 'A1+1' }
+  })
+  const outPath = join(join(path, '..'), 'show-formulas.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'showFormulas', sheet: 'Sheet1' }], outPath)
+  assert.match(
+    await sheetXmlOf(outPath),
+    /<sheetView[^>]*showFormulas="1"/,
+    'sheetView must carry showFormulas — exceljs drops the view property, so it is injected into the XML',
+  )
+  // Only the view changes; the formulas themselves are untouched.
+  const readBack = new ExcelJS.Workbook()
+  await readBack.xlsx.readFile(outPath)
+  assert.equal(readBack.getWorksheet('Sheet1')!.getCell('B1').formula, 'A1+1')
+})
+
+test('showFormulas with show:false leaves the flag out', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const outPath = join(join(path, '..'), 'hide-formulas.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'showFormulas', sheet: 'Sheet1', show: false }], outPath)
+  assert.doesNotMatch(await sheetXmlOf(outPath), /showFormulas=/, 'show:false must not inject the attribute')
+})
