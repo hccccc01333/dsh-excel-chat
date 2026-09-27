@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- 新增 `excel_trace` 工具：追踪单元格的公式依赖链路，`direction` 可选 `precedents`（引用，
+  它读了谁）/ `dependents`（从属，谁读了它）/ `both`，`depth` 控制层数（默认 1，即 Excel
+  单击一次的行为），每格返回当前值与深度，并附带循环引用。
+  - 这是 Excel「追踪引用/追踪从属」的**数据版**：那两个功能画的是箭头，而箭头是界面状态、
+    **不写进 xlsx**，所以只能以链路数据的形式复现，反而更适合给模型和脚本消费。
+  - 复用既有 `buildDependencyGraph`（体检内核用的同一个依赖图），新增 `traceDependencies`
+    做 BFS 遍历并处理环，`truncated` 标记提示链尾之外还有内容。
+  - 图内部的 key 是 canonical 大写形式，工具层映射回工作簿的真实写法后再返回。
+  - 测试 289 通过（新增 `tests/trace.test.ts` 5 例）。
 - `excel_operate` 的 `splitColumn` 支持**固定宽度分列**：用 `widths: [6, 8, 4]` 代替
   `delimiter`（两者互斥，都不给或都给会明确报错）；超出最后一个宽度的文本作为追加列
   保留而不丢弃。规划器参数示例与 README 已同步。测试 284 通过（新增 3 例）。

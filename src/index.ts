@@ -16,6 +16,7 @@ import {
 import { readChartInfos } from './charts.ts'
 import { compileFormula } from './compiler.ts'
 import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.ts'
+import { buildDependencyGraph, traceDependencies } from './graph.ts'
 import { runDoctorChecks } from './doctor.ts'
 import { buildWorkbookInsight } from './insight.ts'
 import { writeWorkbookHealthReport } from './health-report.ts'
@@ -1058,4 +1059,70 @@ export function apply(ctx: Context) {
       return validate(normalized) as unknown as JsonRecord
     },
   })), 'tool:excel_validate_formulas')
+  ctx.effect(() => ctx.tools.register(defineTool({
+    name: 'excel_trace',
+    description: 'Trace a cell\'s formula dependencies: precedents (cells it reads) or dependents (cells that read it), breadth-first up to `depth` levels. The data equivalent of Excel\'s Trace Precedents / Trace Dependents — Excel draws arrows, but those are UI state and are never stored in the .xlsx, so the chain is returned as data instead. Each hit carries that cell\'s current value, and circular references found while building the graph are reported too.',
+    parameters: {
+      path: {
+        type: 'string',
+        required: true,
+        description: 'Absolute path to an .xlsx file.',
+      },
+      cell: {
+        type: 'string',
+        required: true,
+        description: 'Origin cell id, e.g. "Sheet1!D4".',
+      },
+      direction: {
+        type: 'string',
+        enum: ['precedents', 'dependents', 'both'],
+        description: 'Which way to walk (default both).',
+      },
+      depth: {
+        type: 'number',
+        description: 'How many levels to follow (default 1). Use a larger value for the whole chain.',
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args) {
+      const direction = (args.direction as string | undefined) ?? 'both'
+      const depth = args.depth === undefined ? 1 : Number(args.depth)
+      const cells = await readWorkbookCells(await readFile(String(args.path)))
+      const formulas = Object.entries(cells)
+        .map(([id, content]) => ({ id, formula: String(content).trim() }))
+        .filter((entry) => entry.formula.startsWith('='))
+      const graph = buildDependencyGraph(formulas)
+      const cell = String(args.cell)
+      // Graph ids are canonical (upper-cased sheet and column); map them back to
+      // how the workbook actually spells them so results match what the user sees.
+      const displayById = new Map(Object.keys(cells).map((id) => [id.toUpperCase(), id]))
+      const display = (id: string): string => displayById.get(id.toUpperCase()) ?? id
+      const decorate = (steps: Array<{ cell: string; depth: number }>): JsonRecord[] =>
+        steps.map((step) => {
+          const id = display(step.cell)
+          return { cell: id, depth: step.depth, value: cells[id] ?? null }
+        })
+      const result: JsonRecord = {
+        cell,
+        formula: cells[cell] ?? null,
+        direction,
+        depth,
+        cycles: graph.cycles.map((cycle) => cycle.map(display)),
+      }
+      if (direction === 'precedents' || direction === 'both') {
+        const trace = traceDependencies(graph, cell, 'precedents', depth)
+        result.precedents = decorate(trace.reached)
+        result.precedentsTruncated = trace.truncated
+      }
+      if (direction === 'dependents' || direction === 'both') {
+        const trace = traceDependencies(graph, cell, 'dependents', depth)
+        result.dependents = decorate(trace.reached)
+        result.dependentsTruncated = trace.truncated
+      }
+      return result
+    },
+  })), 'tool:excel_trace')
 }
