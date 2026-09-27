@@ -76,6 +76,59 @@ test('set types numbers, dates, and booleans instead of writing text', async () 
   assert.equal(sheet.getCell('A4').value, 'abc')
 })
 
+test('set accepts typed scalars instead of throwing on content.trim', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const outPath = join(join(path, '..'), 'scalars.xlsx')
+  const when = new Date(2026, 0, 15)
+  await applyOperationsToWorkbook(path, [{
+    op: 'set',
+    cells: {
+      'Sheet1!A1': 42,
+      'Sheet1!A2': true,
+      'Sheet1!A3': false,
+      'Sheet1!A4': 'abc',
+      'Sheet1!A5': '=1+1',
+      'Sheet1!A6': when,
+      'Sheet1!A7': 3.5,
+    },
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('A1').value, 42)
+  assert.equal(sheet.getCell('A2').value, true)
+  assert.equal(sheet.getCell('A3').value, false)
+  assert.equal(sheet.getCell('A4').value, 'abc')
+  assert.deepEqual(sheet.getCell('A5').value, { formula: '1+1' })
+  assert.ok(sheet.getCell('A6').value instanceof Date)
+  assert.equal(sheet.getCell('A7').value, 3.5)
+})
+
+test('set clears a cell for null and keeps the workbook readable for unusable scalars', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'old'
+    sheet.getCell('B1').value = { formula: '1+1' }
+  })
+  const outPath = join(join(path, '..'), 'degraded.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'set',
+    cells: {
+      'Sheet1!A1': null,
+      'Sheet1!B1': null,
+      'Sheet1!A2': Number.NaN,
+      'Sheet1!A3': { nested: 'object' } as unknown as string,
+    },
+  }], outPath)
+  const cells = await readWorkbookCells(await readFile(outPath))
+  assert.equal(cells['Sheet1!A1'], undefined)
+  assert.equal(cells['Sheet1!B1'], undefined)
+  assert.equal(cells['Sheet1!A2'], 'NaN')
+  assert.equal(cells['Sheet1!A3'], '[object Object]')
+})
+
 test('fill down copies a formula and shifts relative rows, keeping absolute rows', async () => {
   const path = await makeWorkbook((workbook) => {
     const sheet = workbook.addWorksheet('Sheet1')

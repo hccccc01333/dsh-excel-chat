@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased — v0.38.1
+
+- 修复 issue #4：`excel_operate` 的 `set` 传入**原生标量**（数字/布尔/日期）时
+  抛 `content.trim is not a function`。工具 schema 对 `cells` 声明
+  `additionalProperties: true` 并在描述里承诺「numbers/dates/booleans are
+  typed」，但 `writeContent` 无条件调用 `.trim()`，标量在类型推断前就崩了；
+  走 planner 的路径因为 `sanitizePlan` 会 `String()` 化而幸免，只有直接调用
+  该工具的路径（含遍历数值列的调用者）会踩到。
+  - `writeContent` 对非字符串内容直接赋值，保留标量类型；字符串仍走
+    trim + 类型推断；
+  - `set` 的 `cells` 类型由 `Record<string, string>` 放宽为
+    `Record<string, CellContent>`（新增导出 `CellContent = string | number |
+    boolean | Date | null`），与 schema 契约对齐，避免调用方在 TS 层被误导；
+  - 边界降级而非抛错：`null` 清空单元格；`NaN`/`Infinity` 降级为文本（Excel
+    无法表示，直接写入会让工作簿打不开）；其他对象类型降为文本；
+  - 回归测试 2 例：类型标量写入（含公式、日期、小数）与 null 清空 /
+    非常规标量降级后文件仍可读；已确认回退该修复时这 2 例会失败。
+- 测试 278 通过（`node --test tests/*.test.ts`），`tsc -p bundle/tsconfig.json`
+  类型检查通过。
+
 ## v0.38.0 — 2026-09-07
 
 - **Verifier 2.0：规划器机器可查断言**（goal 模式验证合取的第 2 层确定性

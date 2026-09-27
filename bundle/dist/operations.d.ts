@@ -1,8 +1,13 @@
 import ExcelJS from 'exceljs';
 import { type ValidationResult } from './validator.ts';
+/**
+ * Content accepted by `set`. Typed scalars keep their Excel type as-is; strings
+ * are inferred (`"=A1+1"` -> formula, `"100"` -> number, `"true"` -> boolean).
+ */
+export type CellContent = string | number | boolean | Date | null;
 export type ExcelOperation = {
     op: 'set';
-    cells: Record<string, string>;
+    cells: Record<string, CellContent>;
 } | {
     op: 'fill';
     source: string;

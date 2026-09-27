@@ -19,8 +19,28 @@ function resolveCell(workbook, id) {
     return sheet.getCell(`${parsed.column}${parsed.row}`);
 }
 function writeContent(cell, content) {
+    // Direct callers (excel_operate "set") may pass typed scalars: the tool schema
+    // documents numbers/dates/booleans as first-class content. Only strings carry
+    // text to trim and infer, so assign scalars as-is instead of calling .trim().
+    if (typeof content !== 'string') {
+        cell.value = toScalarValue(content);
+        return;
+    }
     const trimmed = content.trim();
     cell.value = toCellValue(trimmed);
+}
+/**
+ * Keep typed scalars intact. Non-finite numbers degrade to text because Excel
+ * cannot represent NaN/Infinity and the resulting workbook would not open.
+ */
+function toScalarValue(content) {
+    if (content === null || content === undefined)
+        return null;
+    if (typeof content === 'number')
+        return Number.isFinite(content) ? content : String(content);
+    if (typeof content === 'boolean' || content instanceof Date)
+        return content;
+    return String(content);
 }
 /**
  * Convert user-provided text into an Excel value: formulas stay formulas,

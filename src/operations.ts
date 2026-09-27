@@ -14,8 +14,14 @@ import { diffCellMaps, writePatchLog, type PatchLog } from './diff.ts'
 import { annotateWorkbookXml, emptyAnnotations, type CommentSpec, type SparklineGroupSpec, type WorkbookAnnotations } from './xml-postprocess.ts'
 import { readFile, writeFile } from 'node:fs/promises'
 
+/**
+ * Content accepted by `set`. Typed scalars keep their Excel type as-is; strings
+ * are inferred (`"=A1+1"` -> formula, `"100"` -> number, `"true"` -> boolean).
+ */
+export type CellContent = string | number | boolean | Date | null
+
 export type ExcelOperation =
-  | { op: 'set'; cells: Record<string, string> }
+  | { op: 'set'; cells: Record<string, CellContent> }
   | { op: 'fill'; source: string; target: string }
   | { op: 'insertRows'; sheet: string; row: number; count: number }
   | { op: 'deleteRows'; sheet: string; row: number; count: number }
@@ -337,9 +343,27 @@ function resolveCell(workbook: ExcelJS.Workbook, id: string): ExcelJS.Cell {
   return sheet.getCell(`${parsed.column}${parsed.row}`)
 }
 
-function writeContent(cell: ExcelJS.Cell, content: string): void {
+function writeContent(cell: ExcelJS.Cell, content: unknown): void {
+  // Direct callers (excel_operate "set") may pass typed scalars: the tool schema
+  // documents numbers/dates/booleans as first-class content. Only strings carry
+  // text to trim and infer, so assign scalars as-is instead of calling .trim().
+  if (typeof content !== 'string') {
+    cell.value = toScalarValue(content)
+    return
+  }
   const trimmed = content.trim()
   cell.value = toCellValue(trimmed)
+}
+
+/**
+ * Keep typed scalars intact. Non-finite numbers degrade to text because Excel
+ * cannot represent NaN/Infinity and the resulting workbook would not open.
+ */
+function toScalarValue(content: unknown): ExcelJS.CellValue {
+  if (content === null || content === undefined) return null
+  if (typeof content === 'number') return Number.isFinite(content) ? content : String(content)
+  if (typeof content === 'boolean' || content instanceof Date) return content
+  return String(content)
 }
 
 /**
