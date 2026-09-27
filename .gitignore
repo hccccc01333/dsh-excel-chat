@@ -5,3 +5,5 @@ fixtures/
 .DS_Store
 .demo-recorder/
 benchmarks/
+.workbuddy/
+cordis.yml

@@ -246,14 +246,16 @@ node --import tsx tests/invoke-repair.ts
 
 ```sh
 # 方式一：从仓库目录启动，patch 指向本目录
-pnpm dsh web --patch D:/vera/cordis.yml
+# （把 /path/to/dsh-excel-chat 换成你实际 clone 下来的路径）
+pnpm dsh web --patch /path/to/dsh-excel-chat/cordis.yml
 
-# 方式二：安装官方 CLI 后从本目录启动（依赖树较大，机器空闲时再装）
+# 方式二：安装官方 CLI 后从本地启动（依赖树较大，机器空闲时再装）
 npm install --save-dev @deepseek-ai/dsh@0.1.0-rc.6
-npx dsh web --patch D:/vera/cordis.yml
+npx dsh web --patch /path/to/dsh-excel-chat/cordis.yml
 ```
 
-Windows 上 `cordis.yml` 的入口路径必须是 `file:///D:/vera/src/index.ts` 形式的 URL。
+Windows 上 `cordis.yml` 的入口路径必须是 URL 形式（如
+`file:///d:/projects/dsh-excel-chat/src/index.ts`），不能用相对路径。
 
 ## Example
 

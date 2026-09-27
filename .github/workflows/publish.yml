@@ -1,4 +1,4 @@
-# Publish dsh-excel-vera-plugin to npm and attach the tarball to a GitHub Release.
+# Publish dsh-excel-chat to npm and attach the tarball to a GitHub Release.
 #
 # One-time setup (repo owner):
 #   1. npm account → Access Tokens → generate an "Automation" token
@@ -7,7 +7,7 @@
 #      New repository secret: NPM_TOKEN = the token from step 1.
 #
 # Trigger a release:
-#   git tag v0.12.0 && git push origin v0.12.0
+#   git tag vX.Y.Z && git push origin vX.Y.Z
 # or run the workflow manually with "publish" checked (from a v* tag).
 
 name: Publish to npm
