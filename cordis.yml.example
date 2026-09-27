@@ -1,0 +1,10 @@
+# dsh-excel-chat 本地开发挂载配置（模板）。
+#
+# 用法：复制为本目录下的 cordis.yml，再把下面的路径改成你实际 clone 的位置：
+#   cp cordis.yml.example cordis.yml
+#
+# 从 npm 或 bundle 安装的用户不需要这个文件——那种情况下由
+# bundle/cordis.patch.yml 按包名引用，不含任何本地路径。
+- insert:
+    - id: vera-formula-validator
+      name: 'file:///PATH/TO/dsh-excel-chat/src/index.ts'

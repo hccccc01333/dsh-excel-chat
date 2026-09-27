@@ -242,9 +242,13 @@ node --import tsx tests/invoke-workbook.ts
 node --import tsx tests/invoke-repair.ts
 ```
 
-挂进 Web UI（可选，两种方式）：
+挂进 Web UI（可选，两种方式）：仓库里只带模板 `cordis.yml.example`，
+先复制成 `cordis.yml` 并填上你的路径。
 
 ```sh
+# 复制模板，再把里面的 PATH/TO/... 换成你的实际路径
+cp cordis.yml.example cordis.yml
+
 # 方式一：从仓库目录启动，patch 指向本目录
 # （把 /path/to/dsh-excel-chat 换成你实际 clone 下来的路径）
 pnpm dsh web --patch /path/to/dsh-excel-chat/cordis.yml
