@@ -57,7 +57,7 @@ const PARAM_REFERENCE = [
   'fillMissing: {"op":"fillMissing","range":"订单!A2:B4","mode":"value|forward|left","value":0}',
   'dedupeRows: {"op":"dedupeRows","sheet":"订单","columns":["A"],"keep":"first|last"}',
   'style: {"op":"style","range":"订单!A1:B1","style":{"bold":true,"fill":"FFFF00","numberFormat":"#,##0.00"}}',
-  'sortRange: {"op":"sortRange","range":"订单!A1:B4","keys":[{"column":"B","direction":"asc|desc"}],"headerRows":1}',
+  'sortRange: {"op":"sortRange","range":"订单!A1:B4","keys":[{"column":"B","direction":"asc|desc"}],"headerRows":1}（可多键；按颜色用 {"column":"C","by":"fill","color":"FFFF00"}，按自定义序列用 {"column":"A","customList":["高","中","低"]}）',
   'copyRange: {"op":"copyRange","source":"订单!A2:B3","target":"订单!D2","valuesOnly":false}',
   'fill: {"op":"fill","source":"订单!D2","target":"订单!D2:D11"}',
   'fillSeries: {"op":"fillSeries","start":"订单!A2","target":"订单!A2:A11","step":1}',

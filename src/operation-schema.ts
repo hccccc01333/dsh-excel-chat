@@ -86,6 +86,9 @@ export const excelOperationSchema = {
           properties: {
             column: text('Column letter inside the range, e.g. "B".', true),
             direction: { type: 'string', enum: ['asc', 'desc'], description: 'Sort direction (default asc).' },
+            by: { type: 'string', enum: ['value', 'fill', 'font'], description: 'Sort on the cell value (default), its fill colour, or its font colour. Colour keys require "color".' },
+            color: text('With by:fill|font — cells carrying this 6-digit hex colour sort first, everything else follows.'),
+            customList: { type: 'array', items: { type: 'string' }, description: 'Explicit order for text, e.g. ["高","中","低"]; values outside the list sort after the listed ones.' },
           },
         },
       },

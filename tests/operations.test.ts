@@ -1966,3 +1966,62 @@ test('showFormulas with show:false leaves the flag out', async () => {
   await applyOperationsToWorkbook(path, [{ op: 'showFormulas', sheet: 'Sheet1', show: false }], outPath)
   assert.doesNotMatch(await sheetXmlOf(outPath), /showFormulas=/, 'show:false must not inject the attribute')
 })
+
+test('sortRange honours a custom list order', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    for (const [index, level] of ['低', '高', '中', '未知'].entries()) {
+      sheet.getCell(`A${index + 1}`).value = level
+      sheet.getCell(`B${index + 1}`).value = index + 1
+    }
+  })
+  const cells = await readAfter(path, [{
+    op: 'sortRange',
+    range: 'Sheet1!A1:B4',
+    keys: [{ column: 'A', customList: ['高', '中', '低'] }],
+  }])
+  assert.equal(cells['Sheet1!A1'], '高')
+  assert.equal(cells['Sheet1!A2'], '中')
+  assert.equal(cells['Sheet1!A3'], '低')
+  assert.equal(cells['Sheet1!A4'], '未知', 'values outside the list must sort after the listed ones')
+  assert.equal(cells['Sheet1!B1'], '2', 'the whole row travels with its key')
+})
+
+test('sortRange by fill colour moves the matching rows to the top, formatting included', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'plain'
+    sheet.getCell('A2').value = 'flagged'
+    sheet.getCell('A3').value = 'plain2'
+    sheet.getCell('A2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } }
+  })
+  const outPath = join(join(path, '..'), 'sort-fill.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'sortRange',
+    range: 'Sheet1!A1:A3',
+    keys: [{ column: 'A', by: 'fill', color: 'FF0000' }],
+  }], outPath)
+  const readBack = new ExcelJS.Workbook()
+  await readBack.xlsx.readFile(outPath)
+  const sheet = readBack.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('A1').value, 'flagged', 'the coloured row sorts first')
+  const fill = sheet.getCell('A1').fill as { fgColor?: { argb?: string } }
+  assert.equal(
+    fill?.fgColor?.argb,
+    'FFFF0000',
+    'the fill has to travel with its row, or sorting by colour would be meaningless',
+  )
+})
+
+test('sortRange rejects a colour key without a colour', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const outPath = join(join(path, '..'), 'sort-bad.xlsx')
+  await assert.rejects(
+    () => applyOperationsToWorkbook(path, [{
+      op: 'sortRange', range: 'Sheet1!A1:A2', keys: [{ column: 'A', by: 'fill' }],
+    }], outPath),
+    /requires color/,
+  )
+})
