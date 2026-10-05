@@ -2,6 +2,10 @@
 
 ## v0.39.0 — 2026-10-05
 
+- 文档补齐：`excel_operate` 的 **CSV 导入/导出**此前在 README 与使用指南里完全没提
+  （v0.28.0 就实现了），已补；`bundle/README.md`（npm 页面显示的那份）只列了 12/25
+  个工具，连 `excel_task`（goal 闭环）和 `excel_autofix` 都不在，已补全为 25 个并按
+  用途分组，与根 README 对齐。
 - 规划器操作目录补齐 **10 个此前对模型不可见的操作**：`clear`、`definedName`、
   `importCsv`/`exportCsv`、`mailMerge`、`setZoom`/`showGridLines`/`showFormulas`、
   `protectSheet`/`unprotectSheet`。它们早已实现（邮件合并、工作表保护、命名区域
