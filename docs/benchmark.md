@@ -20,13 +20,17 @@ node --test tests/file-benchmark.test.ts     # 语料回归守护（100/100）
 node --test tests/invoke-llm-benchmark.ts    # 真实 LLM 规划基准
 ```
 
-LLM 基准支持双供应商（OpenAI 兼容端点）：
+LLM 基准走的是 OpenAI 兼容的 `/chat/completions`，**任何兼容端点都能接**，不限于下面两家。
+端点与模型都可用环境变量覆盖（`DEEPSEEK_BASE_URL` / `BAI_BASE_URL`）：
 
 ```sh
 # DeepSeek（默认）
 DEEPSEEK_API_KEY=sk-... node --test tests/invoke-llm-benchmark.ts
 # BAI（api.b.ai，glm-5.3-flash / qwen3.8-flash）
 LLM_PROVIDER=bai BAI_MODEL=glm-5.3-flash node --test tests/invoke-llm-benchmark.ts
+# 任意 OpenAI 兼容端点——本地 Ollama 示例，零 API 成本、数据不出网
+DEEPSEEK_API_KEY=ollama DEEPSEEK_BASE_URL=http://localhost:11434/v1 \
+  DEEPSEEK_MODEL=qwen2.5:14b node --test tests/invoke-llm-benchmark.ts
 ```
 
 可选环境变量：`LLM_BENCH_SAMPLE`/`LLM_BENCH_OFFSET`（切片）、

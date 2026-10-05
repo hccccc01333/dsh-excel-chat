@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- 文档同步：`docs/usage.md` 的工具表补上遗漏的 `excel_trace`、`excel_find_errors`、
+  `excel_validate_charts_visual`、`excel_export_pdf`（此前只有 README 有），
+  `excel_operate` 操作清单补插入图片 / 显示公式视图 / 按颜色与自定义序列排序 /
+  固定宽度分列，平台说明补 PDF 导出与视觉评审；`docs/benchmark.md` 说明 LLM 基准
+  走标准 `/chat/completions`，任何 OpenAI 兼容端点都能接（含本地 Ollama，
+  数据不出网）。
 - 测试不再依赖外部 `unzip`：`tests/operations.test.ts` 里 4 个断言原始 XML 的
   用例原先用 `execSync('unzip -o ...')` 解包 xlsx。`unzip` 在 Windows 上默认
   不存在，受限环境（无 `cmd.exe` spawn 权限的沙箱）也不允许起 shell，这些用例

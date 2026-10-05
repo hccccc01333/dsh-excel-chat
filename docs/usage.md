@@ -51,18 +51,22 @@ agent 会自动调用工具完成，并把结果文件路径告诉你。
 | `excel_preview` | 表格预览：Markdown 表格（对话内展示）+ HTML 预览文件 |
 | `excel_task` | 多步编排（steps 模式，逐步体检/修复）+ Agent 闭环（goal 模式：LLM 规划→执行→验证→重规划） |
 | `excel_explain_formula` | 公式白话解释：函数、引用区域、跨表引用、运算 |
+| `excel_trace` | 公式依赖链路追踪：引用（它读了谁）/ 从属（谁读了它），可指定层数；每格附带当前值与深度，并报告循环引用 |
+| `excel_find_errors` | 列出所有**错误值**单元格（`#DIV/0!` / `#N/A` / `#NAME?` / `#REF!` / `#VALUE!` 等），附产生它的公式与按错误码计数；区分真错误值与「长得像错误的文本」，可按工作表限定 |
 | `excel_validate_formulas` | 静默公式错误检测：列 pattern、结构不匹配、硬编码、空行、循环引用、`#REF!` 等错误值 |
 | `excel_compile_formula` | 语义 Formula IR（binary/ratio/aggregate/function）→ 确定性公式 |
 | `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复，输出修复副本并复验 |
 | `excel_autofix` | 一键自愈：体检 → 确定性修复（可选 LLM）→ 复检 → 人话汇报；修复副本自动附带隐藏健康报告表 |
 | `excel_health_report` | 把公式体检报告写进工作簿本身（隐藏「_dsh_体检报告」表：健康分 + 异常清单），报告跟着文件走 |
-| `excel_operate` | 30+ 种精细化操作：写值、填充/序列、行列增删、复制/移动、排序、分类汇总、动态透视报表、高级筛选、样式（字号/边框）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、命名区域、冻结窗格、查找替换、工作表保护、邮件合并、工作表管理、合并、数据清洗（去重/填缺失/删空行空列/去空格/大小写/全角半角/分列）、整行条件高亮、两表模糊匹配；自动写审计日志 |
+| `excel_operate` | 30+ 种精细化操作：写值、填充/序列、行列增删、复制/移动、排序（含按颜色/自定义序列）、分类汇总、动态透视报表、高级筛选、样式（字号/边框）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、插入图片、显示公式视图、页面设置、命名区域、冻结窗格、查找替换、工作表保护、邮件合并、工作表管理、合并、数据清洗（去重/填缺失/删空行空列/去空格/大小写/全角半角/分列（分隔符或固定宽度））、整行条件高亮、两表模糊匹配；自动写审计日志 |
 | `excel_undo` | 按审计日志回滚一次 `excel_operate` 编辑 |
 | `excel_diff_workbook` | 两个 workbook 的单元格级差异 |
 | `excel_validate_charts` | 图表结构校验 |
+| `excel_validate_charts_visual` | Excel 导出 PNG + 视觉 LLM 评审（Windows + Excel） |
 | `excel_create_chart` / `excel_modify_chart` | 创建/修改图表（类型/标题/图例/坐标轴），Windows + Excel |
 | `excel_create_pivot` | 原生数据透视表（多行/列字段、筛选器 + 值字段），Windows + Excel |
 | `excel_export_charts` | 导出图表 PNG，Windows + Excel |
+| `excel_export_pdf` | 用本机 Excel 把工作簿或单个工作表导出为 PDF（Windows，只读打开不动源文件） |
 
 ## 4. 典型场景
 
@@ -190,7 +194,8 @@ Windows + Excel 环境可用；图表创建后可继续用 `excel_modify_chart` 
 ## 5. 平台与限制
 
 - 公式校验、修复、读写、样式、汇总、合并、邮件合并等跨平台（macOS / Linux / Windows）。
-- 图表创建/改参、原生透视表、图表导出依赖 Windows + 本机安装 Microsoft Excel。
+- 图表创建/改参、原生透视表、图表导出、视觉评审、PDF 导出依赖 Windows + 本机安装
+  Microsoft Excel；插入图片走纯 XML 层实现，跨平台。
 - `excel_undo` 是内容级撤销：单元格值/公式/样式会恢复；插入/删除的行列结构不会
   消失（内容会还原）。如果文件在编辑后被再次修改，回滚会拒绝执行而不是覆盖。
 - 删除行列时，引用被删单元格的公式会变成 `#REF!`（与 Excel 行为一致），验证器
