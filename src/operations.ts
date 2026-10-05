@@ -2987,13 +2987,8 @@ async function insertImageIntoSheet(
   // satisfies; the bytes are identical, so narrow it at the boundary.
   const imageId = workbook.addImage({ buffer, extension } as unknown as Parameters<ExcelJS.Workbook['addImage']>[0])
   // exceljs requires `ext` both in its types and at render time — omitting it
-  // throws while writing the drawing XML. So when the caller gives no size we
-  // read the intrinsic one from the image header rather than guessing.
-  const ext = options.width !== undefined || options.height !== undefined
-    // Both sides default to 100px when only one is given, so a missing value
-    // never silently distorts the aspect ratio.
-    ? { width: options.width ?? 100, height: options.height ?? 100 }
-    : readImageSize(buffer)
+  // throws while writing the drawing XML.
+  const ext = resolveImageExtent(options, buffer)
   if (!ext) {
     throw new Error('insertImage could not read the image size; pass width and height explicitly')
   }
@@ -3040,6 +3035,35 @@ function toImageExtension(hint: string): 'png' | 'jpeg' | 'gif' {
  * offset; JPEG needs a walk to the first SOF segment. Returns null for anything
  * unrecognised, so the caller asks for an explicit size instead of guessing.
  */
+/**
+ * The rendered size for an embedded image.
+ *
+ * Both sides given → use them as-is. Neither → the image's own pixel size. Just
+ * one → scale the other from the intrinsic size, so asking for `width: 300` on a
+ * 100×200 image renders 300×600 rather than squashing it to 300×100. Returns
+ * null only when the caller gave a single side and the header is unreadable.
+ */
+function resolveImageExtent(
+  options: { width?: number; height?: number },
+  buffer: Buffer,
+): { width: number; height: number } | null {
+  const { width, height } = options
+  if (width !== undefined && height !== undefined) return { width, height }
+  const intrinsic = readImageSize(buffer)
+  if (width === undefined && height === undefined) return intrinsic
+  if (!intrinsic) return null
+  if (width !== undefined) {
+    return { width, height: scaleDimension(width, intrinsic.height, intrinsic.width) }
+  }
+  return { width: scaleDimension(height!, intrinsic.width, intrinsic.height), height: height! }
+}
+
+/** Proportional counterpart to a given dimension, never rounding down to zero. */
+function scaleDimension(given: number, numerator: number, denominator: number): number {
+  if (denominator <= 0) return given
+  return Math.max(1, Math.round((given * numerator) / denominator))
+}
+
 function readImageSize(buffer: Buffer): { width: number; height: number } | null {
   // PNG: IHDR chunk holds big-endian u32 width/height at offsets 16 and 20.
   if (buffer.length >= 24 && buffer.readUInt32BE(0) === 0x89504e47) {

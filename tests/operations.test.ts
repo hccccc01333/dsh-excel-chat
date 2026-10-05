@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { crc32 } from 'node:zlib'
 import { strFromU8, unzipSync } from 'fflate'
 import {
   applyOperationsToWorkbook,
@@ -1865,6 +1866,16 @@ test('copyRange valuesOnly falls back to the formula when there is no cached res
 // 1x1 PNG — the smallest valid payload, enough to prove the media part lands.
 const TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
+// TINY_PNG's bytes with the IHDR dimensions rewritten, so the header reports a
+// non-square size. The IHDR CRC is recomputed to keep the fixture well formed.
+function pngWithSize(width: number, height: number): Buffer {
+  const bytes = Buffer.from(TINY_PNG, 'base64')
+  bytes.writeUInt32BE(width, 16)
+  bytes.writeUInt32BE(height, 20)
+  bytes.writeUInt32BE(crc32(bytes.subarray(12, 29)) >>> 0, 29)
+  return bytes
+}
+
 async function workbookParts(path: string): Promise<string[]> {
   return Object.keys(unzipSync(new Uint8Array(await readFile(path)))).sort()
 }
@@ -1924,6 +1935,46 @@ test('insertImage rejects a missing source, unsupported formats, and both source
     }], outPath),
     /not both/,
   )
+})
+
+test('insertImage scales the missing side from the image aspect ratio', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const outPath = join(join(path, '..'), 'img-aspect.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'insertImage',
+    cell: 'Sheet1!A1',
+    base64: `data:image/png;base64,${pngWithSize(100, 200).toString('base64')}`,
+    width: 300,
+  }], outPath)
+  const readBack = new ExcelJS.Workbook()
+  await readBack.xlsx.readFile(outPath)
+  const image = readBack.getWorksheet('Sheet1')!.getImages()[0]!
+  assert.equal(image.range.ext!.width, 300)
+  assert.equal(
+    image.range.ext!.height,
+    600,
+    'height must follow the intrinsic 100x200 ratio, not collapse to a default',
+  )
+})
+
+test('insertImage scales the width when only the height is given', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const outPath = join(join(path, '..'), 'img-aspect-h.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'insertImage',
+    cell: 'Sheet1!A1',
+    base64: `data:image/png;base64,${pngWithSize(200, 100).toString('base64')}`,
+    height: 50,
+  }], outPath)
+  const readBack = new ExcelJS.Workbook()
+  await readBack.xlsx.readFile(outPath)
+  const image = readBack.getWorksheet('Sheet1')!.getImages()[0]!
+  assert.equal(image.range.ext!.height, 50)
+  assert.equal(image.range.ext!.width, 100)
 })
 
 async function sheetXmlOf(path: string): Promise<string> {

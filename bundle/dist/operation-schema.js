@@ -627,8 +627,8 @@ export const excelOperationSchema = {
             cell: text('Anchor cell for the image top-left corner, e.g. "Sheet1!B2".', true),
             file: text('Path to a png/jpeg/gif file. Pass this or base64, not both.'),
             base64: text('Base64 payload, optionally prefixed with "data:image/png;base64,". Pass this or file, not both.'),
-            width: num('Rendered width in pixels; omit both width and height to keep the image\'s own size.'),
-            height: num('Rendered height in pixels.'),
+            width: num('Rendered width in pixels. Give just one of width/height and the other is scaled from the image\'s own ratio; omit both to keep the image\'s own size.'),
+            height: num('Rendered height in pixels. Give just one of width/height and the other is scaled from the image\'s own ratio.'),
         }),
     ],
 };

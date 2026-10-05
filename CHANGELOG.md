@@ -2,6 +2,12 @@
 
 ## v0.39.0 — 2026-10-05
 
+- `excel_operate` 的 `insertImage` 只给单边尺寸时**按原图比例推出另一边**。原先是把
+  缺失的一边直接设成 100px，代码注释还声称这样「不会悄悄拉伸比例」——实际恰恰相反：
+  给一张 100×200 的图传 `width: 300`，会渲染成 300×100 的变形图。改为从图片头读出
+  原始尺寸后按比例换算（比例读不出来且只给了一边时才报错）。工具 schema 的尺寸说明
+  同步更新。测试 299 通过（新增 2 例：只给宽、只给高）。
+
 - 文档同步：`docs/usage.md` 的工具表补上遗漏的 `excel_trace`、`excel_find_errors`、
   `excel_validate_charts_visual`、`excel_export_pdf`（此前只有 README 有），
   `excel_operate` 操作清单补插入图片 / 显示公式视图 / 按颜色与自定义序列排序 /
