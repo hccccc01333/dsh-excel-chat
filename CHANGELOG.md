@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 测试不再依赖外部 `unzip`：`tests/operations.test.ts` 里 4 个断言原始 XML 的
+  用例原先用 `execSync('unzip -o ...')` 解包 xlsx。`unzip` 在 Windows 上默认
+  不存在，受限环境（无 `cmd.exe` spawn 权限的沙箱）也不允许起 shell，这些用例
+  在作者机器之外必挂。改为用已在依赖里的 `fflate` 直接读 zip 条目（新增
+  `readZipEntry` helper），测试自足、跨平台。测试 297 通过。
 - `excel_operate` 的 `sortRange` 支持**高级排序模式**：
   - `by: 'fill' | 'font'` + `color`：把带指定颜色的行排到最前（缺 `color` 会明确报错）；
   - `customList: ["高","中","低"]`：自定义序列排序，列表外的值排在后面。

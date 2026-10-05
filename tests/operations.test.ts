@@ -4,7 +4,7 @@ import ExcelJS from 'exceljs'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { unzipSync } from 'fflate'
+import { strFromU8, unzipSync } from 'fflate'
 import {
   applyOperationsToWorkbook,
   operateWorkbookFile,
@@ -27,6 +27,15 @@ async function readAfter(path: string, operations: ExcelOperation[], outName = '
   const outPath = join(join(path, '..'), outName)
   await applyOperationsToWorkbook(path, operations, outPath)
   return readWorkbookCells(await readFile(outPath))
+}
+
+// Read one entry out of an .xlsx (a zip) without shelling out to `unzip`, which
+// is absent on a stock Windows box and unavailable in sandboxed runners.
+async function readZipEntry(filePath: string, entry: string): Promise<string> {
+  const files = unzipSync(await readFile(filePath))
+  const data = files[entry]
+  assert.ok(data, `zip entry not found: ${entry}`)
+  return strFromU8(data)
 }
 
 function formulaFixture(): (workbook: ExcelJS.Workbook) => void {
@@ -1685,11 +1694,7 @@ test('setWorkbookProperties stores metadata and recalc flag', async () => {
   assert.equal(workbook.keywords, '报表,月度')
   // fullCalcOnLoad is written to workbook.xml but exceljs does not parse it
   // back; assert through the raw XML instead.
-  const { execSync } = await import('node:child_process')
-  const { mkdtempSync } = await import('node:fs')
-  const dir = mkdtempSync(join(tmpdir(), 'vera-props-'))
-  execSync(`unzip -o -q "${outPath}" xl/workbook.xml -d "${dir}"`)
-  const xml = await readFile(join(dir, 'xl/workbook.xml'), 'utf8')
+  const xml = await readZipEntry(outPath, 'xl/workbook.xml')
   assert.match(xml, /fullCalcOnLoad="1"/)
 })
 
@@ -1722,16 +1727,11 @@ test('rowPageBreaks writes manual breaks and clearPageBreaks removes them', asyn
   const outPath = join(join(path, '..'), 'breaks.xlsx')
   await applyOperationsToWorkbook(path, [{ op: 'rowPageBreaks', sheet: 'Sheet1', rows: [3] }], outPath)
   // ExcelJS writes but does not read back rowBreaks; assert through the XML.
-  const { execSync } = await import('node:child_process')
-  const { mkdtempSync } = await import('node:fs')
-  const dir = mkdtempSync(join(tmpdir(), 'vera-breaks-'))
-  execSync(`unzip -o -q "${outPath}" "xl/worksheets/*" -d "${dir}"`)
-  const xml = await readFile(join(dir, 'xl/worksheets/sheet1.xml'), 'utf8')
+  const xml = await readZipEntry(outPath, 'xl/worksheets/sheet1.xml')
   assert.match(xml, /<brk id="2" max="16383" min="0" man="true"\/>/)
-  await applyOperationsToWorkbook(outPath, [{ op: 'clearPageBreaks', sheet: 'Sheet1' }], join(join(path, '..'), 'nobreaks.xlsx'))
-  const dir2 = mkdtempSync(join(tmpdir(), 'vera-breaks2-'))
-  execSync(`unzip -o -q "${join(join(path, '..'), 'nobreaks.xlsx')}" "xl/worksheets/*" -d "${dir2}"`)
-  const xml2 = await readFile(join(dir2, 'xl/worksheets/sheet1.xml'), 'utf8')
+  const noBreaksPath = join(join(path, '..'), 'nobreaks.xlsx')
+  await applyOperationsToWorkbook(outPath, [{ op: 'clearPageBreaks', sheet: 'Sheet1' }], noBreaksPath)
+  const xml2 = await readZipEntry(noBreaksPath, 'xl/worksheets/sheet1.xml')
   assert.doesNotMatch(xml2, /rowBreaks/)
 })
 
@@ -1773,11 +1773,7 @@ test('addSparklines injects an x14 extension Excel preserves in the file', async
     locationRange: '订单!G2:G3',
     type: 'column',
   }], outPath)
-  const { execSync } = await import('node:child_process')
-  const { mkdtempSync } = await import('node:fs')
-  const dir = mkdtempSync(join(tmpdir(), 'vera-spark-'))
-  execSync(`unzip -o -q "${outPath}" "xl/worksheets/*" -d "${dir}"`)
-  const xml = await readFile(join(dir, 'xl/worksheets/sheet1.xml'), 'utf8')
+  const xml = await readZipEntry(outPath, 'xl/worksheets/sheet1.xml')
   assert.match(xml, /sparklineGroups/)
   assert.match(xml, /'订单'!B2:E2/)
   assert.match(xml, /G2/)
@@ -1796,11 +1792,7 @@ test('addSparklines puts each sparkline at its location row, not the data row', 
     dataRange: '订单!B2:B3',
     locationRange: '订单!G5:G6',
   }], outPath)
-  const { execSync } = await import('node:child_process')
-  const { mkdtempSync } = await import('node:fs')
-  const dir = mkdtempSync(join(tmpdir(), 'vera-spark-off-'))
-  execSync(`unzip -o -q "${outPath}" "xl/worksheets/*" -d "${dir}"`)
-  const xml = await readFile(join(dir, 'xl/worksheets/sheet1.xml'), 'utf8')
+  const xml = await readZipEntry(outPath, 'xl/worksheets/sheet1.xml')
   // sqref must follow the location rows (G5/G6), not the data rows (G2/G3).
   assert.match(xml, /<xm:sqref>G5<\/xm:sqref>/)
   assert.match(xml, /<xm:sqref>G6<\/xm:sqref>/)
