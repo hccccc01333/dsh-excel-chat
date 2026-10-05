@@ -6,4 +6,5 @@ fixtures/
 .demo-recorder/
 benchmarks/
 .workbuddy/
+.workbuddy-ai/
 cordis.yml
