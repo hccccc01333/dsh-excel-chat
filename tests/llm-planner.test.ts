@@ -1,6 +1,34 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createLlmPlanner } from '../src/llm-planner.ts'
+import { excelOperationSchema } from '../src/operation-schema.ts'
+
+test('planner catalog covers every excel_operate operation', async () => {
+  let captured = ''
+  const planner = createLlmPlanner(async (prompt) => {
+    captured = prompt
+    return JSON.stringify({ steps: [{ name: 's', operations: [] }] })
+  })
+  await planner.plan({
+    goal: '随便做点什么',
+    path: 'D:/sales.xlsx',
+    round: 1,
+    sheetNames: ['订单'],
+    profileSummary: '',
+    validationSummary: '',
+  })
+  // Derived from the schema, so adding an operation without teaching the
+  // planner about it fails here instead of silently becoming unreachable.
+  const operations: string[] = excelOperationSchema.oneOf.map(
+    (entry: any) => entry.properties.op.enum[0],
+  )
+  const missing = operations.filter((op) => !new RegExp(`\\b${op}\\b`).test(captured))
+  assert.deepEqual(
+    missing,
+    [],
+    `in the schema but absent from the planner catalog, so the model can never plan them: ${missing.join(', ')}`,
+  )
+})
 
 test('verifier prompt requires evidence-based checklist', async () => {
   let captured = ''

@@ -20,7 +20,7 @@ const OPERATION_CATALOG = [
   '  copyRange（move:true 移动；valuesOnly:true 只粘贴值）',
   '  transpose（转置粘贴）、copyStyle（格式刷）、freezeFormulas（公式转值）',
   '  insertRows/deleteRows/insertColumns/deleteColumns（引用联动）',
-  '  sortRange（排序）、findReplace、merge/unmerge/unmergeAll、clearRange',
+  '  sortRange（排序）、findReplace、merge/unmerge/unmergeAll、clearRange、clear（清空指定单元格）',
   '数据清洗',
   '  dedupeRows（去重）、fillMissing（补空）、removeEmptyRows/removeEmptyColumns',
   '  trimText、changeCase（大小写）、normalizeText（全角半角）、splitColumn（分列：按分隔符，或用 widths 按固定宽度）',
@@ -30,6 +30,7 @@ const OPERATION_CATALOG = [
   '  dataValidation、conditionalFormatting（数据条/色阶/图标集/重复值）',
   '  autoFilter、addTable、setColumnWidth、setRowHeight、autoFitColumnWidths（自适应列宽）',
   '  freezePanes/unfreezePanes、hideRows/hideColumns、groupRows/groupColumns（分组折叠）',
+  '  setZoom（缩放 10-400%）、showGridLines（网格线开关）、showFormulas（保存为显示公式的视图，show:false 切回）',
   '打印与页面',
   '  pageSetup（打印区域/方向/缩放/页边距/水平垂直居中）',
   '  printTitles（每页重复标题行/列）、headerFooter（页眉页脚 &-code）',
@@ -40,6 +41,11 @@ const OPERATION_CATALOG = [
   '超链接与工作簿',
   '  setHyperlink（外部 URL/站内跳转）、addSheet/renameSheet/deleteSheet/duplicateSheet/hideSheet/setTabColor/moveSheet',
   '  setWorkbookProperties（作者/标题/关键词/打开时重算）',
+  '  protectSheet/unprotectSheet（工作表保护，可设密码与细化权限）',
+  '  definedName（命名区域，如 SalesRange = 订单!$A$1:$D$50）',
+  '导入导出与批量输出',
+  '  importCsv（把 CSV 导入工作表）、exportCsv（把工作表/区域导出为 CSV，默认加公式注入防护）',
+  '  mailMerge（邮件合并：模板里的 {占位符} 按数据行批量展开到输出表）',
 ].join('\n')
 
 const PARAM_REFERENCE = [
@@ -85,6 +91,15 @@ const PARAM_REFERENCE = [
   'splitColumn: {"op":"splitColumn","sheet":"订单","column":"A","delimiter":"-","startRow":2,"endRow":4}；固定宽度分列把 delimiter 换成 widths，如 {"widths":[3,5,4]}',
   'trimText/changeCase/normalizeText: {"op":"trimText","range":"订单!A2:A4"}',
   'moveSheet: {"op":"moveSheet","name":"汇总","position":1}',
+  'clear: {"op":"clear","cells":["订单!A1","订单!B2"]}',
+  'definedName: {"op":"definedName","name":"SalesRange","ref":"订单!$A$1:$D$50"}',
+  'importCsv: {"op":"importCsv","file":"D:/data/in.csv","sheet":"导入","delimiter":","}',
+  'exportCsv: {"op":"exportCsv","file":"D:/data/out.csv","sheet":"订单","range":"A1:F7"}',
+  'mailMerge: {"op":"mailMerge","template":"通知模板!A1:B1","data":"订单!A1:C10","outputSheet":"发货通知"}',
+  'setZoom: {"op":"setZoom","sheet":"订单","zoom":150}',
+  'showGridLines: {"op":"showGridLines","sheet":"订单","visible":false}',
+  'showFormulas: {"op":"showFormulas","sheet":"订单","show":true}',
+  'protectSheet: {"op":"protectSheet","sheet":"订单","password":"1234"}（取消保护用 unprotectSheet 带同样的 password）',
 ].join('\n')
 
 const FEW_SHOT = [
