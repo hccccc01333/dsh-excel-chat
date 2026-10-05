@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.39.0 — 2026-10-05
 
 - 文档同步：`docs/usage.md` 的工具表补上遗漏的 `excel_trace`、`excel_find_errors`、
   `excel_validate_charts_visual`、`excel_export_pdf`（此前只有 README 有），
