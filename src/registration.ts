@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
 
 /** One registration that threw, kept so `apply` can summarise them at the end. */
@@ -54,6 +55,36 @@ export function registrationSummary(report: RegistrationReport): string {
   }
   const failed = report.failures.map((failure) => failure.label).join(', ')
   return `[dsh-excel-chat] PARTIAL: ${report.registered.length} tools registered, ${report.failures.length} failed -> ${failed}`
+}
+
+/**
+ * Write the registration outcome to `DSH_EXCEL_CHAT_STATUS`, when that is set.
+ *
+ * The host owns `apply()`, so when a host never brings the plugin up there is no
+ * channel left to ask — no tools, no error, nothing in the log. A status file
+ * settles the one question that separates the two failure modes: a file means
+ * `apply` ran, and names every tool it managed to register; no file means the
+ * row never mounted at all. Off unless the variable is set, so a normal load
+ * touches no disk.
+ */
+export function writeStatusReport(
+  report: RegistrationReport,
+  target: string | undefined = process.env.DSH_EXCEL_CHAT_STATUS,
+): void {
+  if (target === undefined || target === '') return
+  try {
+    writeFileSync(target, JSON.stringify({
+      applied: true,
+      tools: report.registered,
+      failures: report.failures.map((failure) => ({
+        label: failure.label,
+        detail: failure.detail.split('\n')[0],
+      })),
+      at: new Date().toISOString(),
+    }, undefined, 2) + '\n')
+  } catch {
+    // Diagnostics must never be the reason a plugin fails to load.
+  }
 }
 
 /**

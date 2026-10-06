@@ -33,7 +33,7 @@ import { validate } from './validator.js';
 import { visionTextFromContext } from './vision.js';
 import { readWorkbookCells, validateWorkbookFile } from './workbook.js';
 import { createVisionCritic } from './chart-visual.js';
-import { announce, describeError, guardedContext, registrationSummary } from './registration.js';
+import { announce, describeError, guardedContext, registrationSummary, writeStatusReport } from './registration.js';
 export const name = 'dsh-excel-chat';
 export const inject = ['tools', 'systemPrompt'];
 export function apply(host) {
@@ -50,6 +50,7 @@ export function apply(host) {
         throw error;
     }
     announce(host, report.failures.length === 0 ? 'info' : 'error', registrationSummary(report));
+    writeStatusReport(report);
 }
 /**
  * Every registration the plugin makes.

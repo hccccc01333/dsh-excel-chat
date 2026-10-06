@@ -22,6 +22,17 @@ export declare function announce(host: unknown, level: LogLevel, line: string): 
 /** One line describing what actually came up, so a partial load is never silent. */
 export declare function registrationSummary(report: RegistrationReport): string;
 /**
+ * Write the registration outcome to `DSH_EXCEL_CHAT_STATUS`, when that is set.
+ *
+ * The host owns `apply()`, so when a host never brings the plugin up there is no
+ * channel left to ask — no tools, no error, nothing in the log. A status file
+ * settles the one question that separates the two failure modes: a file means
+ * `apply` ran, and names every tool it managed to register; no file means the
+ * row never mounted at all. Off unless the variable is set, so a normal load
+ * touches no disk.
+ */
+export declare function writeStatusReport(report: RegistrationReport, target?: string | undefined): void;
+/**
  * Wrap a host context so that one failing registration cannot take the rest of
  * the plugin down with it.
  *

@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
 import { apply } from '../src/index.ts'
-import { guardedContext, registrationSummary } from '../src/registration.ts'
+import { guardedContext, registrationSummary, writeStatusReport } from '../src/registration.ts'
 
 /**
  * A host stub that behaves like the real one where it matters: `effect` runs its
@@ -113,6 +116,55 @@ test('registrationSummary distinguishes a full load from a partial one', () => {
   })
   assert.match(partial, /PARTIAL/)
   assert.match(partial, /1 tools registered, 1 failed -> tool:b/)
+})
+
+test('the status file is opt-in and records what actually registered', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vera-status-'))
+  const target = join(dir, 'status.json')
+
+  // Unset: a normal load must not touch the disk.
+  writeStatusReport({ registered: ['a'], failures: [] }, '')
+  assert.throws(() => readFileSync(target, 'utf8'))
+
+  writeStatusReport({
+    registered: ['excel_a', 'excel_b'],
+    failures: [{ label: 'tool:excel_c', detail: 'first line\nsecond line' }],
+  }, target)
+
+  const written = JSON.parse(readFileSync(target, 'utf8'))
+  assert.equal(written.applied, true)
+  assert.deepEqual(written.tools, ['excel_a', 'excel_b'])
+  assert.equal(written.failures.length, 1)
+  assert.equal(written.failures[0].label, 'tool:excel_c')
+  assert.equal(written.failures[0].detail, 'first line', 'the stack is trimmed to one line')
+})
+
+test('an unwritable status path never breaks loading', () => {
+  assert.doesNotThrow(() =>
+    writeStatusReport({ registered: [], failures: [] }, join(tmpdir(), 'no-such-dir-vera', 'status.json')),
+  )
+})
+
+test('apply writes the status file when the variable points somewhere', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vera-apply-status-'))
+  const target = join(dir, 'status.json')
+  const { host } = fakeHost()
+
+  const previous = process.env.DSH_EXCEL_CHAT_STATUS
+  process.env.DSH_EXCEL_CHAT_STATUS = target
+  try {
+    captureConsoleError(() => {
+      apply(host as never)
+    })
+  } finally {
+    if (previous === undefined) delete process.env.DSH_EXCEL_CHAT_STATUS
+    else process.env.DSH_EXCEL_CHAT_STATUS = previous
+  }
+
+  const written = JSON.parse(readFileSync(target, 'utf8'))
+  assert.equal(written.applied, true)
+  assert.equal(written.tools.length, 25, 'every tool is listed in the status file')
+  assert.deepEqual(written.failures, [])
 })
 
 test('apply still brings up every other tool when the host rejects one', () => {

@@ -42,7 +42,7 @@ import { validate } from './validator.ts'
 import { visionTextFromContext } from './vision.ts'
 import { readWorkbookCells, validateWorkbookFile } from './workbook.ts'
 import { createVisionCritic } from './chart-visual.ts'
-import { announce, describeError, guardedContext, registrationSummary } from './registration.ts'
+import { announce, describeError, guardedContext, registrationSummary, writeStatusReport } from './registration.ts'
 
 type JsonRecord = Record<string, any>
 
@@ -62,6 +62,7 @@ export function apply(host: Context) {
     throw error
   }
   announce(host, report.failures.length === 0 ? 'info' : 'error', registrationSummary(report))
+  writeStatusReport(report)
 }
 
 /**

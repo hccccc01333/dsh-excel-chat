@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.39.5 — 2026-10-06
+
+- **`dsh-excel-chat-doctor` 增加两项自检**，用来诊断 #5 这类「宿主拒绝加载插件」：
+  - `tool-registration`：用一个记录型假宿主跑一遍真实 `apply()`，报出注册了几个工具，
+    以及每个失败注册的带标签错误。宿主不加载插件时，这是唯一还能拿到答案的通道。
+  - `kernel-api`：打印插件解析到的 `@deepseek-ai/dsh-tools` 版本，并与每个 profile
+    解析到的版本对比。peer 区间没覆盖运行内核时，包管理器会给插件再装一份，
+    插件与宿主用的就不是同一份工具 API——这条把它从静默变成可见。
+    （在开发机上立刻抓到一处真实不一致：工作区 `0.1.0-rc.6` vs profile `0.1.0-rc.5`。）
+- **新增 `DSH_EXCEL_CHAT_STATUS` 环境变量**：设置后，`apply()` 结束会把注册结果写到
+  该路径（`{ applied, tools, failures, at }`）。这直接回答了 #5 最核心的那个未知——
+  **「`apply` 从没被调用」与「`apply` 调了但注册失败」是两种完全不同的故障**：
+  有文件说明 apply 跑过，并列出它成功注册的每个工具；没有文件说明行根本没挂载。
+  不设置该变量时完全不碰磁盘。
+- 读宿主源码（`D:\Projects\deepseek-harness`）确认了一件事并记入排查依据：
+  **loader 不会静默吞错**——`entry.ts` 把错误包装成
+  `failed to import/apply loader entry <id> (<name>)` 后重抛，`boot()` 也会抛
+  `plugin tree failed to load`。所以「日志里什么都没有」与「apply 抛异常」不相容。
+- 测试 308 通过（新增 3 例）。
+
 ## v0.39.4 — 2026-10-06
 
 > 发布过程绕了一段路，记录在此。直接 `npm publish` 连续失败，**每个版本号都是
