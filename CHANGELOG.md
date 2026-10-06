@@ -1,6 +1,22 @@
 # Changelog
 
-## v0.39.1 — 2026-10-06
+## v0.39.3 — 2026-10-06
+
+> **本版本尚未发布到 npm。** 0.39.1 / 0.39.2 / 0.39.3 三次尝试都被 registry 以
+> `409 Cannot publish over previously staged version` 拒绝（每个版本号都是**首次**
+> PUT 就报此错，`npm stage list` 又显示没有任何 staged 版本，registry 也无故障）。
+> 原因是账号上的 `~/.npmrc` 用的是 **bypass-2FA 的 granular access token**
+> （`npm_KDjf…`，2026-08-14 创建），而 npm 正在把这类 token 的发布能力收缩为
+> **只能 staged publish、需维护者用 2FA 批准**——见 npm changelog
+> *Restricting npm bypass-2FA granular access tokens*（2026-07-31）：
+> "2FA-bypass tokens will also lose direct publish … staging a publish, which a
+> maintainer approves with 2FA."
+>
+> 0.39.0 能在几小时前发出，是因为该账号当时还没被切到这个新行为。
+> **换任何版本号都无效**（0.39.3 是全新号，同样首次 PUT 即 409），必须换发布通道：
+> 走 `.github/workflows/publish.yml` 的 trusted publishing（OIDC），或用
+> `npm login`（web 认证）后在带 2FA 的交互会话里 `npm publish`。
+> 代码内容与 0.39.1 完全一致，仅版本号不同。
 
 - **注册路径不再静默失败**（回应 #5：0.39.0 在 DSH 0.2.0-rc.2 上所有 `excel_*`
   工具消失）。此前每个工具都是
