@@ -1,6 +1,6 @@
 {
   "name": "dsh-excel-chat",
-  "version": "0.39.0",
+  "version": "0.39.1",
   "description": "Talk to Excel in DeepSeek Harness: create/edit spreadsheets, formulas, styles, filters, and tables by conversation; auto-verifies formulas after every edit, repairs silent errors, and validates charts.",
   "license": "MIT",
   "type": "module",
@@ -61,10 +61,10 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-attachment": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-system-prompt": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6"
+    "@deepseek-ai/dsh-attachment": "^0.1.0-rc.6 || ^0.2.0-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.1.0-rc.6 || ^0.2.0-rc.1",
+    "@deepseek-ai/dsh-system-prompt": "^0.1.0-rc.6 || ^0.2.0-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6 || ^0.2.0-rc.1"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

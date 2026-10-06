@@ -42,14 +42,35 @@ import { validate } from './validator.ts'
 import { visionTextFromContext } from './vision.ts'
 import { readWorkbookCells, validateWorkbookFile } from './workbook.ts'
 import { createVisionCritic } from './chart-visual.ts'
+import { announce, describeError, guardedContext, registrationSummary } from './registration.ts'
 
 type JsonRecord = Record<string, any>
 
 export const name = 'dsh-excel-chat'
 export const inject = ['tools', 'systemPrompt']
 
-export function apply(ctx: Context) {
-  console.log('[dsh-excel-chat] plugin loaded')
+export function apply(host: Context) {
+  const { ctx, report } = guardedContext(host)
+  announce(host, 'info', '[dsh-excel-chat] plugin loaded')
+  try {
+    registerAll(ctx)
+  } catch (error) {
+    // Individual registrations are isolated inside `guardedContext`; reaching
+    // here means something outside them broke, which would otherwise look
+    // exactly like the plugin never loading.
+    announce(host, 'error', `[dsh-excel-chat] apply aborted: ${describeError(error)}`)
+    throw error
+  }
+  announce(host, report.failures.length === 0 ? 'info' : 'error', registrationSummary(report))
+}
+
+/**
+ * Every registration the plugin makes.
+ *
+ * Kept out of `apply` so that `apply` can report a failure of the registration
+ * path itself, separately from a failure of one individual tool.
+ */
+function registerAll(ctx: Context) {
   const commands = ctx.get('commands') as {
     register(definition: {
       name: string

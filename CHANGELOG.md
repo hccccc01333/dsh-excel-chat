@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.39.1 — 2026-10-06
+
+- **注册路径不再静默失败**（回应 #5：0.39.0 在 DSH 0.2.0-rc.2 上所有 `excel_*`
+  工具消失）。此前每个工具都是
+  `ctx.effect(() => ctx.tools.register(defineTool({...})), 'tool:xxx')`，而 cordis
+  对 `effect` 回调里的抛错**不做隔离**：`composeError` → `handleError` 原样重抛，
+  错误冒出 `ctx.effect()`、冒出 `apply()`，插件随之失败并**回滚它注册过的全部
+  effect**。因此任何一个工具在宿主侧被拒绝，都会把其余 24 个一起带走，用户看到
+  的正是「插件像没加载过」——没有工具，也没有任何报错。现在每个注册各自隔离：
+  失败的那一个被跳过、其余照常注册，并打出带标签的
+  `tool:xxx failed to register: <stack>`。
+- 加载过程**留下可查的记录**：`plugin loaded` 与结束时的
+  `ready: N tools registered` 同时写宿主 logger 与 console；有失败时打
+  `PARTIAL: N tools registered, M failed -> <标签>`。不再存在「看起来一切正常」
+  和「什么都没有」这两种无法区分的状态。
+- 整个注册路径外包了一层 try/catch：非 effect 路径的失败也会带标签记录后再抛。
+- `peerDependencies` 的 `@deepseek-ai/dsh-*` 由 `^0.1.0-rc.6` 放宽为
+  `^0.1.0-rc.6 || ^0.2.0-rc.1`。原区间**不覆盖当前 DSH Desktop 2.0.17 内核的
+  0.2.0-rc.2**，会让包管理器为插件再装一份 0.1.x 的 `dsh-tools`。已逐个核对
+  0.2.0-rc.2 与 0.1.0-rc.6 的 `defineTool`、`parameterSchemaSpecToJsonSchema`、
+  `valueSchemaSpecToJsonSchema`、`assertSupportedJsonSchema` 完全一致，且 25 个
+  工具的 schema 在 rc.2 下全部通过注册校验（`register()` 会调
+  `assertSupportedJsonSchema(output.schema)`）。
+- 新增 `tests/registration.test.ts`（5 例）：一个注册失败不影响后续注册、
+  抛错不会逃出 `ctx.effect`、失败同时上报 logger 与 console、摘要区分完整与
+  部分加载，以及**用真实 `apply()` 验证宿主拒绝一个工具时其余 24 个仍然起来**。
+  测试 305 通过。
+
 ## v0.39.0 — 2026-10-05
 
 - 文档补齐：`excel_operate` 的 **CSV 导入/导出**此前在 README 与使用指南里完全没提
