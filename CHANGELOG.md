@@ -2,23 +2,59 @@
 
 ## v0.39.5 — 2026-10-06
 
-- **`dsh-excel-chat-doctor` 增加两项自检**，用来诊断 #5 这类「宿主拒绝加载插件」：
-  - `tool-registration`：用一个记录型假宿主跑一遍真实 `apply()`，报出注册了几个工具，
-    以及每个失败注册的带标签错误。宿主不加载插件时，这是唯一还能拿到答案的通道。
-  - `kernel-api`：打印插件解析到的 `@deepseek-ai/dsh-tools` 版本，并与每个 profile
-    解析到的版本对比。peer 区间没覆盖运行内核时，包管理器会给插件再装一份，
-    插件与宿主用的就不是同一份工具 API——这条把它从静默变成可见。
-    （在开发机上立刻抓到一处真实不一致：工作区 `0.1.0-rc.6` vs profile `0.1.0-rc.5`。）
-- **新增 `DSH_EXCEL_CHAT_STATUS` 环境变量**：设置后，`apply()` 结束会把注册结果写到
-  该路径（`{ applied, tools, failures, at }`）。这直接回答了 #5 最核心的那个未知——
-  **「`apply` 从没被调用」与「`apply` 调了但注册失败」是两种完全不同的故障**：
-  有文件说明 apply 跑过，并列出它成功注册的每个工具；没有文件说明行根本没挂载。
-  不设置该变量时完全不碰磁盘。
-- 读宿主源码（`D:\Projects\deepseek-harness`）确认了一件事并记入排查依据：
-  **loader 不会静默吞错**——`entry.ts` 把错误包装成
-  `failed to import/apply loader entry <id> (<name>)` 后重抛，`boot()` 也会抛
-  `plugin tree failed to load`。所以「日志里什么都没有」与「apply 抛异常」不相容。
-- 测试 308 通过（新增 3 例）。
+### 找到并修复了 #5 的根因：dsh 0.2.0 会**静默跳过** peer 不匹配的 bundle
+
+`@deepseek-ai/dsh-app-boot@0.2.0-rc.2` 的 `loadProfileDirectory` 里，每个 bundle 都要过
+一次兼容性检查：
+
+```js
+const issue = evaluatePluginCompatibility(bundleManifest, exemptions);
+if (issue !== undefined && !issue.exempted) throw new Error(pluginCompatibilityWarning(issue));
+...
+} catch (error) {
+    skippedBundles.push({ packageName, reason: String(error) });   // ← 吞掉，什么都不打印
+}
+```
+
+`evaluatePluginCompatibility` 会把本包 `peerDependencies` 里所有
+`@deepseek-ai/dsh` / `@deepseek-ai/dsh-*` 与**运行时 dsh 版本**
+（`getDshRuntimeVersion()`，即 app-boot 自己的版本）做
+`semver.satisfies(runtime, range, { includePrerelease: true })` 比对。
+**不匹配 → bundle 被丢进 `skippedBundles` → patch layer 不应用 → 行不挂载 →
+没有任何工具、也没有任何报错。** 文档原文：*"nothing is printed"*。
+
+**为什么 A/B 看起来那么干净**：豁免是按 `name@version` **精确匹配**存的
+（profile 的兼容性文件）。报告者当年为 `dsh-excel-chat@0.38.1` 授过豁免，
+所以 0.38.1 照常加载；0.39.0 是**新版本号**，没有豁免 → 被静默跳过。
+`0.38.1` 和 `0.39.0` 的 peer 区间**完全相同**（都是 `^0.1.0-rc.6`），
+所以这从来不是「0.39.0 引入了 bug」，而是「0.39.0 没被豁免」。
+
+实测判定（复刻宿主的检查逻辑，runtime = 0.2.0-rc.2）：
+
+| 版本 | peer 区间 | 结果 |
+| --- | --- | --- |
+| 0.38.1 / 0.39.0 | `^0.1.0-rc.6` | **不兼容 → 静默跳过**（0.38.1 靠豁免才活着） |
+| 0.39.4 | `^0.1.0-rc.6 \|\| ^0.2.0-rc.1` | 兼容 |
+| **0.39.5** | **`>=0.1.0-rc.5 <0.3.0`** | 兼容，且覆盖 0.1.x / 0.2.x 全线 |
+
+- **`peerDependencies` 的 `@deepseek-ai/dsh-*` 改为 `>=0.1.0-rc.5 <0.3.0`**，
+  覆盖 0.1.0-rc.5 … 0.2.1-alpha.1（含预发布），同时不冒充支持尚未验证的 0.3.x。
+- **新增回归测试 `tests/compatibility.test.ts`**：复刻宿主的检查规则，
+  对已知内核矩阵断言区间必须通过，并**反向断言 `^0.1.0-rc.6` 会被拒绝**——
+  确保这个测试不会空过。
+- **`dsh-excel-chat-doctor` 增加 `bundle-compatibility` 检查**：直接调用宿主导出的
+  `evaluatePluginCompatibility` / `getDshRuntimeVersion` / `readProfileCompatibility`，
+  提前告诉你「dsh 会不会静默跳过本插件」，而不是等装完发现工具没了。
+  内核早于 0.2.0 时该检查不存在，会明确说明而不是误报。
+
+### 其余诊断增强（同版本）
+
+- `dsh-excel-chat-doctor` 增加 `tool-registration` 自检：用记录型假宿主跑一遍真实
+  `apply()`，报出注册了几个工具与每个失败注册的带标签错误。
+- 新增 `DSH_EXCEL_CHAT_STATUS` 环境变量：设置后 `apply()` 结束时把注册结果写到该路径
+  （`{ applied, tools, failures, at }`），用来区分「`apply` 从没被调用」与
+  「`apply` 调了但注册失败」。不设置则完全不碰磁盘。
+- 测试 308 → 312 通过。
 
 ## v0.39.4 — 2026-10-06
 

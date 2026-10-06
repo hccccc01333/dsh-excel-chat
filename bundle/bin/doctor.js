@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, resolve as resolvePath } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -100,6 +101,54 @@ for (const dir of profileDirs) {
     `[${same ? 'PASS' : 'WARN'}] kernel-api: 配置目录解析到 @${profileTools}` +
       (same ? '（与插件一致）' : '（与插件不同：插件与宿主可能不是同一份工具 API）'),
   )
+}
+
+// Will dsh actually mount this bundle?
+//
+// Since 0.2.0 a launcher checks every `@deepseek-ai/dsh*` peer in the bundle's
+// package.json against the running dsh version, and a bundle that fails is
+// dropped into the profile's `skippedBundles` — the layer never applies, the
+// rows never mount, and **nothing is printed**. The plugin then looks like it
+// simply is not there, which is exactly what issue #5 reported.
+//
+// Rather than reimplement that rule, ask the host: `evaluatePluginCompatibility`
+// is exported, so the doctor can run the identical check and say in advance
+// whether dsh will silently skip this bundle.
+const ownManifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+let compatibilityChecked = 0
+let compatibilityUnavailable = false
+for (const dir of profileDirs) {
+  let boot
+  try {
+    const require = createRequire(pathToFileURL(join(dir, 'noop.js')))
+    boot = await import(pathToFileURL(require.resolve('@deepseek-ai/dsh-app-boot')).href)
+  } catch {
+    continue // no kernel in this profile, so there is nothing to be checked against
+  }
+  if (typeof boot.evaluatePluginCompatibility !== 'function' || typeof boot.getDshRuntimeVersion !== 'function') {
+    // Kernels before 0.2.0 have no such check, so there is nothing to predict.
+    compatibilityUnavailable = true
+    continue
+  }
+  try {
+    const runtime = boot.getDshRuntimeVersion()
+    const exemptions = boot.readProfileCompatibility(dir).exemptions ?? {}
+    const issue = boot.evaluatePluginCompatibility(ownManifest, exemptions, runtime)
+    compatibilityChecked += 1
+    if (issue === undefined) {
+      console.log(`[PASS] bundle-compatibility: dsh ${runtime} 会挂载本插件（peer 区间覆盖该内核）`)
+      continue
+    }
+    const exempted = issue.exempted ? '已豁免' : '未豁免'
+    console.log(`[FAIL] bundle-compatibility: dsh ${runtime} 会【静默跳过】本插件（豁免：${exempted}）`)
+    console.log(`       ${boot.pluginCompatibilityWarning(issue).split('.')[0]}`)
+    if (!issue.exempted) process.exitCode = 1
+  } catch (error) {
+    console.log(`[WARN] bundle-compatibility: 无法完成检查：${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+if (compatibilityUnavailable && compatibilityChecked === 0) {
+  console.log('[INFO] bundle-compatibility: 这些配置目录的内核早于 0.2.0，没有 bundle 兼容性检查，跳过')
 }
 
 if (checks.some((check) => !check.ok)) process.exitCode = 1
