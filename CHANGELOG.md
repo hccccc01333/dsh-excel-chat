@@ -2,28 +2,32 @@
 
 ## v0.39.4 — 2026-10-06
 
-> **本版本走 npm staged publishing 提交，需维护者用 2FA 批准后才会真正上线。**
-> stage id：`6bc2f08b-b17b-45d9-9943-c3e5caf41a5c`
+> 发布过程绕了一段路，记录在此。直接 `npm publish` 连续失败，**每个版本号都是
+> 首次 PUT 就报** `409 Cannot publish over previously staged version`；换 tag、
+> 绕代理、直连、从 `bundle/` 发都一样，registry 无故障。根因是 `~/.npmrc` 用的是
+> **bypass-2FA 的 granular access token**（`npm_KDjf…`），而 npm 已把这类 token 的
+> 发布能力收缩为**只能 staged publish、需维护者用 2FA 批准**（npm changelog
+> 2026-07-31 *Restricting npm bypass-2FA granular access tokens*）——该账号已提前
+> 生效；0.39.0 能发出去只是因为它赶在切换之前。
 >
-> 0.39.1 / 0.39.2 / 0.39.3 三次直接 `npm publish` 全部失败，**每个版本号都是
-> 首次 PUT 就报** `409 Cannot publish over previously staged version`；
-> `npm stage list` 查不到、registry 无故障、绕代理/直连/换 tag/从 `bundle/`
-> 发都一样。根因是 `~/.npmrc` 用的是 **bypass-2FA 的 granular access token**
-> （`npm_KDjf…`，2026-08-14 创建），而 npm 正把这类 token 的发布能力收缩为
-> **只能 staged publish、需维护者 2FA 批准**（npm changelog 2026-07-31
-> *Restricting npm bypass-2FA granular access tokens*），该账号**已提前生效**
-> ——0.39.0 能发出去只是因为它赶在切换之前。
+> 关键误解：那几次报 409 的 PUT **其实都已经成功 stage 了**（`npm stage list`
+> 当时还没显示出来，约 1 分钟后才转 `staged`）。所以
+> **0.39.1 / 0.39.2 / 0.39.3 / 0.39.4 四个版本最终都发布了，代码完全相同**
+> （均为 136 文件，只差 `package.json` 里的版本号），`latest` 指向 0.39.4。
+> 它们都是这份修复，没有中间态。
 >
-> `npm stage publish` 本身**不需要 2FA**，所以改走这条路：
+> **以后发版直接用 staged publishing**（`npm stage publish` 不需要 2FA）：
 >
 > ```sh
-> npx --yes npm@11 stage publish            # 已完成，不需要 2FA
-> npx --yes npm@11 stage approve <stage-id> # 需要维护者完成 2FA
+> cd bundle
+> npx --yes npm@11 stage publish                 # 不需要 2FA
+> npx --yes npm@11 stage list dsh-excel-chat     # 等 status 变成 staged
+> npx --yes npm@11 stage approve <stage-id>      # 维护者完成 2FA
 > ```
 >
 > 也可以直接在 npmjs.com 的 **Staged Packages** 标签页点 Approve。
->
-> 代码内容与 0.39.1 完全一致，仅版本号不同。
+> **注意：一次报错的 `npm publish` 也会留下 staged 条目**，所以别重复发——
+> 直接 `stage publish` 一次，然后去批准，不要靠重试版本号。
 
 - **注册路径不再静默失败**（回应 #5：0.39.0 在 DSH 0.2.0-rc.2 上所有 `excel_*`
   工具消失）。此前每个工具都是
