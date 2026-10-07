@@ -317,3 +317,82 @@ test('several commented sheets each get their own parts', async () => {
   await reopened.xlsx.load(Buffer.from(annotated))
   assert.deepEqual(reopened.worksheets.map((sheet) => sheet.name), ['一', '二'])
 })
+
+test('showFormulas goes into an extension-less sheet, an empty list, and every view', async () => {
+  const { data, sheetFile } = await sheetOfWorkbook()
+  const files = unzipSync(data)
+  const original = strFromU8(files[sheetFile]!)
+
+  const cases: Array<[string, string, number]> = [
+    ['no sheetViews at all', original, 1],
+    // An empty list is still a list; a second one would be invalid.
+    ['an empty sheetViews', original.replace('</worksheet>', '<sheetViews></sheetViews></worksheet>'), 1],
+    [
+      'two views',
+      original.replace('</worksheet>', '<sheetViews><sheetView workbookViewId="0"/><sheetView workbookViewId="1"/></sheetViews></worksheet>'),
+      2,
+    ],
+    [
+      'a view that already asks for it',
+      original.replace('</worksheet>', '<sheetViews><sheetView workbookViewId="0" showFormulas="1"/></sheetViews></worksheet>'),
+      1,
+    ],
+  ]
+
+  for (const [label, sheetXml, expected] of cases) {
+    const crafted = { ...files }
+    crafted[sheetFile] = new TextEncoder().encode(sheetXml)
+    const annotations = emptyAnnotations()
+    annotations.showFormulas.add('订单')
+    const out = readEntry(annotateWorkbookXml(zipSync(crafted), annotations, new Map([['订单', sheetFile]])), sheetFile)!
+
+    assertWellFormed(out, label)
+    assert.equal(
+      (out.match(/<sheetViews\b/g) ?? []).length,
+      1,
+      `${label}: exactly one list, never a second one`,
+    )
+    assert.equal(
+      (out.match(/showFormulas="1"/g) ?? []).length,
+      expected,
+      `${label}: every view that needs the attribute gets it, and no view gets two`,
+    )
+  }
+})
+
+test('the sheet file is resolved even when the relationship attributes are reordered', async () => {
+  // This module reads parts other tools wrote, so it must not depend on the
+  // order a writer happens to emit attributes in.
+  const { data, sheetFile } = await sheetOfWorkbook()
+  const files = unzipSync(data)
+  const relsKey = 'xl/_rels/workbook.xml.rels'
+  const reordered = strFromU8(files[relsKey]!).replace(
+    /<Relationship ([^>]*?)Id="([^"]+)"([^>]*?)Target="([^"]+)"([^>]*?)\/>/g,
+    '<Relationship $1Target="$4" $3Id="$2"$5/>',
+  )
+  assert.notEqual(reordered, strFromU8(files[relsKey]!), 'the fixture must actually reorder something')
+  assert.match(reordered, /<Relationship Target="[^"]+" [^>]*Id="rId\d+"/)
+  files[relsKey] = new TextEncoder().encode(reordered)
+
+  const annotations = emptyAnnotations()
+  annotations.showFormulas.add('订单')
+  // An empty map, so the sheet file has to come from the rels this module reads.
+  const out = readEntry(annotateWorkbookXml(zipSync(files), annotations, new Map()), sheetFile)
+  assert.ok(out, 'the sheet file must still be found')
+  assert.match(out, /showFormulas="1"/)
+})
+
+test('sheet names carrying XML escapes are matched back to their file', async () => {
+  // "Sales & Marketing" is escaped in workbook.xml; the annotation is keyed by
+  // the real name, so the lookup has to unescape before comparing.
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Sales & Marketing')
+  sheet.getCell('A1').value = 1
+  const data = new Uint8Array(await workbook.xlsx.writeBuffer())
+
+  const annotations = emptyAnnotations()
+  annotations.showFormulas.add('Sales & Marketing')
+  const out = readEntry(annotateWorkbookXml(data, annotations, new Map()), 'xl/worksheets/sheet1.xml')
+  assert.ok(out, 'the sheet must be found through the escaped name')
+  assert.match(out, /showFormulas="1"/)
+})

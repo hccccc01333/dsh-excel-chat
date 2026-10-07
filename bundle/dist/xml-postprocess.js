@@ -9,6 +9,30 @@ function escapeXml(text) {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;');
 }
+/** The inverse of {@link escapeXml}, for values read back out of a part. */
+function unescapeXml(text) {
+    return text
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'");
+}
+/**
+ * One attribute of an XML start tag, found wherever it sits in the tag.
+ *
+ * Reading attributes by position — `/<Relationship[^>]*Id="…"[^>]*Target="…"/` —
+ * only works while every writer emits them in the same order, and this module
+ * reads parts other tools produced. Looking each attribute up on its own costs
+ * nothing and cannot be caught out by a reordered tag.
+ */
+function attributeOf(tag, name) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = new RegExp(`(?:^|\\s)${escaped}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(tag);
+    if (!match)
+        return null;
+    return match[1] ?? match[2] ?? null;
+}
 /**
  * A sheet's own `<sheetView>` decides whether formulas or their results are
  * shown. exceljs' SheetViewXform renders a fixed attribute list that omits
@@ -16,13 +40,21 @@ function escapeXml(text) {
  * attribute has to be injected into the saved XML instead.
  */
 function withShowFormulas(sheetXml) {
-    const existing = /<sheetView\b[^>]*?\/?>/.exec(sheetXml);
-    if (existing) {
-        if (/showFormulas=/.test(existing[0]))
-            return sheetXml;
-        const patched = existing[0].replace(/\/?>$/, (tail) => ` showFormulas="1"${tail}`);
-        return sheetXml.slice(0, existing.index) + patched + sheetXml.slice(existing.index + existing[0].length);
+    // `showFormulas` belongs to a view, and a sheet can hold more than one, so
+    // every view that does not already ask for it gets the attribute. (`\b` keeps
+    // this from matching `<sheetViews>`.)
+    if (/<sheetView\b/.test(sheetXml)) {
+        return sheetXml.replace(/<sheetView\b[^>]*?\/?>/g, (tag) => /\bshowFormulas\s*=/.test(tag) ? tag : tag.replace(/\/?>$/, (tail) => ` showFormulas="1"${tail}`));
     }
+    // An empty `<sheetViews>` is still a list; adding a second one would be
+    // invalid, so the view goes inside the list that is already there.
+    const emptyList = /<sheetViews\b[^>]*>\s*<\/sheetViews>/.exec(sheetXml);
+    if (emptyList) {
+        const at = emptyList.index + emptyList[0].length - '</sheetViews>'.length;
+        return sheetXml.slice(0, at) + '<sheetView workbookViewId="0" showFormulas="1"/>' + sheetXml.slice(at);
+    }
+    if (/<sheetViews\b/.test(sheetXml))
+        return sheetXml;
     // exceljs only emits <sheetViews> when the sheet already has view settings, so
     // for a plain sheet the whole block has to be inserted — in schema order,
     // which puts sheetViews right after dimension.
@@ -47,14 +79,20 @@ export function annotateWorkbookXml(data, annotations, sheetFileOf) {
     const workbookXml = strFromU8(files['xl/workbook.xml'] ?? new Uint8Array(0));
     const relsXml = strFromU8(files['xl/_rels/workbook.xml.rels'] ?? new Uint8Array(0));
     const ridTarget = new Map();
-    for (const match of relsXml.matchAll(/<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g)) {
-        ridTarget.set(match[1], match[2]);
+    for (const match of relsXml.matchAll(/<Relationship\b[^>]*?\/?>/g)) {
+        const id = attributeOf(match[0], 'Id');
+        const target = attributeOf(match[0], 'Target');
+        if (id !== null && target !== null)
+            ridTarget.set(id, target);
     }
-    for (const match of workbookXml.matchAll(/<sheet[^>]*name="([^"]*)"[^>]*r:id="([^"]+)"/g)) {
-        const name = match[1].replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&quot;', '"').replaceAll('&#39;', "'");
-        const target = ridTarget.get(match[2]);
+    for (const match of workbookXml.matchAll(/<sheet\b[^>]*?\/?>/g)) {
+        const rawName = attributeOf(match[0], 'name');
+        const rid = attributeOf(match[0], 'r:id');
+        if (rawName === null || rid === null)
+            continue;
+        const target = ridTarget.get(rid);
         if (target)
-            sheetFileOf.set(name, `xl/${target.replace(/^\/?xl\//, '').replace(/^\//, '')}`);
+            sheetFileOf.set(unescapeXml(rawName), `xl/${target.replace(/^\/?xl\//, '').replace(/^\//, '')}`);
     }
     let contentTypes = strFromU8(files['[Content_Types].xml'] ?? new Uint8Array(0));
     let commentFileIndex = 0;
