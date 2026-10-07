@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+<!-- 在这里写本次改动；`node scripts/release.mjs X.Y.Z` 会把它定版并打 tag。 -->
+
 ## v0.39.5 — 2026-10-06
 
 ### 找到并修复了 #5 的根因：dsh 0.2.0 会**静默跳过** peer 不匹配的 bundle

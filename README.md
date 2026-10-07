@@ -226,14 +226,24 @@ dsh plugin --profile demo add ./bundle
 cd bundle && npm pack
 ```
 
-自动发布（GitHub Actions，需在仓库配置 `NPM_TOKEN` 自动化 token）：
+发版（一条命令）：
 
 ```sh
-git tag v0.18.0 && git push origin v0.18.0
+node scripts/release.mjs 0.40.0      # 或 npm run release -- 0.40.0
 ```
 
-CI 会执行测试、构建、`npm pack` 校验 tag 与版本一致、发布 npm，并在 GitHub
-Release 上附带 tarball。
+它会：改 `bundle/package.json` 与根 `package.json` 的版本 → 把 CHANGELOG 的
+`## Unreleased` 段定版为 `## v0.40.0 — 日期` → 重新构建 `bundle/dist` → 跑全量测试
+→ 提交 → 打 tag `v0.40.0` → 推送。**推 tag 会触发 `.github/workflows/publish.yml`**，
+由 CI 完成测试、构建、`npm pack` 校验 tag 与版本一致、发布 npm（并在 GitHub Release
+上附带 tarball）。
+
+发布走 **npm trusted publishing（OIDC）**：GitHub 为这个工作流签发短期凭证，
+仓库里不需要 `NPM_TOKEN`，也不需要人工过 2FA。首次使用前需在 npmjs.com 上做一次
+配置（包 → Settings → Trusted publishing → GitHub Actions，仓库 `hccccc01333/dsh-excel-chat`、
+工作流文件名 `publish.yml`、允许 `npm publish`）；细节见 workflow 顶部的注释。
+
+加 `--dry-run` 只校验不改动，加 `--no-push` 只本地提交打 tag。
 
 通过真实执行管线调用工具：
 

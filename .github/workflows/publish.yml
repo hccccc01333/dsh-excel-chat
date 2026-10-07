@@ -1,14 +1,28 @@
 # Publish dsh-excel-chat to npm and attach the tarball to a GitHub Release.
 #
-# One-time setup (repo owner):
-#   1. npm account → Access Tokens → generate an "Automation" token
-#      (automation tokens bypass 2FA prompts during CI).
-#   2. GitHub repo → Settings → Secrets and variables → Actions →
-#      New repository secret: NPM_TOKEN = the token from step 1.
+# Publishing uses npm **trusted publishing** (OIDC): GitHub mints a short-lived
+# token for this exact workflow, so there is no `NPM_TOKEN` secret to rotate, no
+# long-lived credential in the repo, and no 2FA prompt to sit through. It also
+# makes a release fully automatic — `node scripts/release.mjs X.Y.Z` is the whole
+# procedure.
+#
+# One-time setup (repo owner), on npmjs.com:
+#   Package → Settings → Trusted publishing → GitHub Actions
+#     Organization or user : hccccc01333
+#     Repository           : dsh-excel-chat
+#     Workflow filename    : publish.yml        (the file name only)
+#     Environment name     : (leave blank)
+#     Allowed actions      : allow `npm publish` — leaving only `npm stage
+#                            publish` checked sends every release back to a
+#                            manual 2FA approval
+#   Every field is case-sensitive and npm does not validate them on save: a typo
+#   only surfaces as ENEEDAUTH on the next release. The configuration must also
+#   complete one successful publish within two days or it expires.
 #
 # Trigger a release:
-#   git tag vX.Y.Z && git push origin vX.Y.Z
-# or run the workflow manually with "publish" checked (from a v* tag).
+#   node scripts/release.mjs X.Y.Z
+# which bumps both manifests, stamps CHANGELOG.md, commits, tags and pushes; this
+# workflow then tests, builds, publishes and opens the GitHub Release.
 
 name: Publish to npm
 
@@ -103,16 +117,19 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: https://registry.npmjs.org
+          # A release build must never restore a cached tree.
+          package-manager-cache: false
 
       - uses: actions/download-artifact@v4
         with:
           name: npm-tarball
           path: dist
 
+      # No NODE_AUTH_TOKEN: setting one would force token auth and defeat OIDC.
+      # Provenance is generated automatically for an OIDC publish from a public
+      # repository, so `--provenance` is not passed either.
       - name: Publish tarball
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish ./dist/*.tgz --provenance --access public
+        run: npm publish ./dist/*.tgz --access public
 
   release:
     name: GitHub Release with tarball
