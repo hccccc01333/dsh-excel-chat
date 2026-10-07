@@ -196,21 +196,55 @@ function patchSheetForComments(files: Record<string, Uint8Array>, sheetFile: str
   const legacy = `<legacyDrawing r:id="${vmlRid}"/>`
   let patched = xml
   if (!xml.includes(legacy)) {
-    // legacyDrawing must come after <drawing> and before tableParts/extLst.
-    if (/<extLst/.test(xml)) patched = xml.replace(/<extLst/, `${legacy}<extLst`)
-    else if (/<tableParts/.test(xml)) patched = xml.replace(/<tableParts/, `${legacy}<tableParts`)
-    else patched = xml.replace('</worksheet>', `${legacy}</worksheet>`)
+    // legacyDrawing sits after <drawing> and before tableParts, which itself
+    // precedes extLst. Inserting at whichever of those two comes first keeps
+    // that order. Matching the first `<extLst` instead would drop it inside a
+    // nested list — the one a conditional-formatting rule carries — and make
+    // the sheet invalid.
+    const bounds = [worksheetExtListStart(xml), xml.indexOf('<tableParts')].filter((at) => at >= 0)
+    const at = bounds.length > 0 ? Math.min(...bounds) : -1
+    patched = at >= 0
+      ? xml.slice(0, at) + legacy + xml.slice(at)
+      : xml.replace('</worksheet>', `${legacy}</worksheet>`)
   }
   files[sheetPath] = strToU8(patched)
 }
 
 const SPARKLINE_EXT_URI = '{05C60535-1F16-4fd2-B633-F4F36F0B64E0}'
 
+/**
+ * Index of the worksheet-level `<extLst>`'s opening tag, or -1 when the sheet
+ * has none.
+ *
+ * Extensions nest: a conditional-formatting rule carries a list of its own, and
+ * exceljs writes one for every data bar or colour scale. So neither "the first
+ * `<extLst>`" nor "the first closing tag" identifies the worksheet's own list —
+ * both resolve inside that rule, where an appended extension is ignored by Excel
+ * and a sibling inserted there makes the sheet invalid. Walking the tags and
+ * taking the list that sits directly under `<worksheet>` is what identifies it.
+ */
+function worksheetExtListStart(xml: string): number {
+  const tag = /<(\/?)([A-Za-z_][\w:.-]*)((?:"[^"]*"|[^>"])*?)(\/?)>/g
+  let depth = 0
+  for (const match of xml.matchAll(tag)) {
+    const [full, closing, , , selfClosing] = match
+    if (closing === '/') {
+      depth -= 1
+      continue
+    }
+    if (depth === 1 && selfClosing !== '/' && full.startsWith('<extLst')) return match.index!
+    if (selfClosing !== '/') depth += 1
+  }
+  return -1
+}
+
 function addSparklineExt(xml: string, groups: SparklineGroupSpec[]): string {
   const ext = sparklineExtXml(groups)
-  if (/<extLst[\s\S]*<\/extLst>/.test(xml)) {
-    // Merge into the existing extension list.
-    return xml.replace('</extLst>', `${ext}</extLst>`)
+  if (worksheetExtListStart(xml) >= 0) {
+    // The worksheet's own list is its last child, so its closing tag is the last
+    // one in the document; nested lists close earlier.
+    const at = xml.lastIndexOf('</extLst>')
+    return xml.slice(0, at) + ext + xml.slice(at)
   }
   return xml.replace('</worksheet>', `<extLst>${ext}</extLst></worksheet>`)
 }

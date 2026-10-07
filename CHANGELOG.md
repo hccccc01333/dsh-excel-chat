@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+- **修复：工作表已有扩展列表时，sparkline 与批注会被插到错误的位置。**
+  exceljs 每加一个数据条或色阶，就会在**条件格式规则内部**写一个嵌套的 `<extLst>`
+  ——而 `preset` / `report` 正是加这些的。原实现用
+  `xml.replace('</extLst>', …)` 追加 sparkline 扩展，替换的是**第一个**闭合标签，
+  于是扩展被塞进了 cfRule 内部：**Excel 不会渲染它，sparkline 等于静默失效**。
+  `patchSheetForComments` 有同样的缺陷——`xml.replace(/<extLst/, …)` 把
+  `<legacyDrawing/>` 插到第一个 `<extLst` 之前，会让工作表**不符合 schema**。
+
+  改为按标签深度定位「直接挂在 `<worksheet>` 下的那个 `<extLst>`」；
+  `legacyDrawing` 则插在 `tableParts` 与 `extLst` 中**靠前者**之前
+  （schema 要求它在两者之前）。走真实操作链路复验（加数据条 → 加 sparkline）：
+  扩展已落在条件格式之后，文件仍可被读回。
+
+- **新增两个直接测试文件**，补上此前只有间接覆盖的模块：
+  - `tests/xml-postprocess.test.ts`（14 例）：批注四件套（comments / VML / rels /
+    Content-Types）齐全、XML 转义、VML 的零基行列、showFormulas 的两种情形、
+    sparkline 逐行配对与行列不匹配的报错、**嵌套 extLst 的插入位置**，
+    以及重开文件确认可用。内含一个零依赖的 XML 标签平衡校验器——这个模块的 XML
+    全是手写的，格式良好性必须被测到。
+  - `tests/patterns.test.ts` 扩到 14 例：`detectPatternAnomalies` 的偏移异常与
+    expected/actual 偏移、少数派槽位不算「缺失」、汇总行与 SUBTOTAL 行豁免、
+    绝对引用、按列独立分析。
+
+  测试 325 → **347 通过**。
+
 ## v0.39.7 — 2026-10-07
 
 - **修复：编辑后的公式体检漏掉 `#N/A` 与 `#NAME?`。** `patterns.ts` 里硬编码了一份
