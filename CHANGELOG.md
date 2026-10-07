@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.39.6 — 2026-10-07
 
 本次发布包含 v0.39.5 的全部改动（dsh 0.2.0 静默跳过 bundle 的根因修复、更宽的
 peer 区间、doctor 的 `bundle-compatibility` 检查、`DSH_EXCEL_CHAT_STATUS` 状态文件），

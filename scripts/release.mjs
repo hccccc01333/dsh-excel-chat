@@ -58,11 +58,11 @@ const remote = run('git', ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`],
 if (remote !== '') fail(`${tag} already exists on origin`)
 
 const changelog = readFileSync(CHANGELOG, 'utf8')
-if (!/^## Unreleased\s*$/m.test(changelog)) {
+if (!/^## Unreleased[ \t]*$/m.test(changelog)) {
   fail('CHANGELOG.md has no `## Unreleased` section; write the release notes under it first')
 }
 const unreleasedBody = changelog
-  .split(/^## Unreleased\s*$/m)[1]
+  .split(/^## Unreleased[ \t]*$/m)[1]
   .split(/^## /m)[0]
   // The section ships with a guiding comment; it is not release notes.
   .replace(/<!--[\s\S]*?-->/g, '')
@@ -86,7 +86,7 @@ run('npm', ['version', version, '--no-git-tag-version', '--allow-same-version'],
 // 2. Date the notes. The body is untouched: this script does not write prose.
 const today = new Date()
 const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-writeFileSync(CHANGELOG, changelog.replace(/^## Unreleased\s*$/m, `## ${tag} — ${stamp}`))
+writeFileSync(CHANGELOG, changelog.replace(/^## Unreleased[ \t]*$/m, `## ${tag} — ${stamp}`))
 
 // 3. The published bundle must match the tag, so rebuild before testing.
 run('npm', ['run', 'build:bundle'])
