@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.39.7 — 2026-10-07
 
 - **修复：编辑后的公式体检漏掉 `#N/A` 与 `#NAME?`。** `patterns.ts` 里硬编码了一份
   自己的错误值正则 `/#(?:REF|DIV\/0|VALUE|NAME\?|N\/A|NULL|NUM)!/g`——它**要求结尾
