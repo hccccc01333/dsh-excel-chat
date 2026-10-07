@@ -1,16 +1,6 @@
 import ExcelJS from 'exceljs';
 import { stripPivotTableParts } from './workbook.js';
-/** The error values Excel can store in a cell. */
-export const EXCEL_ERROR_VALUES = [
-    '#DIV/0!',
-    '#N/A',
-    '#NAME?',
-    '#NULL!',
-    '#NUM!',
-    '#REF!',
-    '#VALUE!',
-    '#GETTING_DATA',
-];
+export { EXCEL_ERROR_VALUES } from './error-values.js';
 /**
  * Find cells whose value is an Excel *error* rather than text that merely looks
  * like one.

@@ -1,3 +1,4 @@
+export { EXCEL_ERROR_VALUES } from './error-values.ts';
 export interface ErrorCell {
     /** Sheet-qualified cell id, e.g. "订单!D4". */
     cell: string;
@@ -13,8 +14,6 @@ export interface ErrorScan {
     errorCells: ErrorCell[];
     sheetsScanned: string[];
 }
-/** The error values Excel can store in a cell. */
-export declare const EXCEL_ERROR_VALUES: readonly ['#DIV/0!', '#N/A', '#NAME?', '#NULL!', '#NUM!', '#REF!', '#VALUE!', '#GETTING_DATA'];
 /**
  * Find cells whose value is an Excel *error* rather than text that merely looks
  * like one.

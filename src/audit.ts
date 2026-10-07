@@ -1,5 +1,8 @@
 import ExcelJS from 'exceljs'
 import { stripPivotTableParts } from './workbook.ts'
+import { EXCEL_ERROR_VALUES } from './error-values.ts'
+
+export { EXCEL_ERROR_VALUES } from './error-values.ts'
 
 export interface ErrorCell {
   /** Sheet-qualified cell id, e.g. "订单!D4". */
@@ -17,18 +20,6 @@ export interface ErrorScan {
   errorCells: ErrorCell[]
   sheetsScanned: string[]
 }
-
-/** The error values Excel can store in a cell. */
-export const EXCEL_ERROR_VALUES = [
-  '#DIV/0!',
-  '#N/A',
-  '#NAME?',
-  '#NULL!',
-  '#NUM!',
-  '#REF!',
-  '#VALUE!',
-  '#GETTING_DATA',
-] as const
 
 /**
  * Find cells whose value is an Excel *error* rather than text that merely looks

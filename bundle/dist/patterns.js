@@ -1,4 +1,5 @@
 import { canonicalCellId, columnToNumber, parseCellId, parseFormula } from './formula.js';
+import { excelErrorPattern } from './error-values.js';
 function normalizeFormula(parsed, baseSheet, baseColumnNumber, baseRow) {
     const slots = new Map();
     parsed.references.forEach((ref, refIndex) => {
@@ -246,7 +247,15 @@ export function detectEmptyGaps(cells) {
     }
     return anomalies;
 }
-const ERROR_TOKEN = /#(?:REF|DIV\/0|VALUE|NAME\?|N\/A|NULL|NUM)!/g;
+/**
+ * Derived from the shared error list rather than written by hand.
+ *
+ * The hand-written version was `/#(?:REF|DIV\/0|VALUE|NAME\?|N\/A|NULL|NUM)!/g`,
+ * which demanded a trailing `!` and therefore missed `#N/A` and `#NAME?` — the
+ * errors a failed lookup and a misspelled function produce, and the two most
+ * likely to show up in a workbook this check exists to police.
+ */
+const ERROR_TOKEN = new RegExp(excelErrorPattern(), 'g');
 /**
  * Detect cells whose content carries an Excel error value such as #REF! or
  * #DIV/0! (both literal error constants and formulas whose cached result is
