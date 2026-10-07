@@ -8,9 +8,14 @@
  * result was that a workbook full of failed lookups passed the health check
  * while `excel_find_errors` reported the very same cells.
  *
+ * It was also short. `findErrorCells` never consulted this list — it accepts
+ * whatever error token the file carries — so it reported `#SPILL!` and friends
+ * while the health check, which does derive from the list, could not. Every
+ * token Excel is documented to write is therefore listed here.
+ *
  * Anything that needs to recognise an error value reads it from here.
  */
-export declare const EXCEL_ERROR_VALUES: readonly ['#DIV/0!', '#N/A', '#NAME?', '#NULL!', '#NUM!', '#REF!', '#VALUE!', '#GETTING_DATA'];
+export declare const EXCEL_ERROR_VALUES: readonly ['#DIV/0!', '#N/A', '#NAME?', '#NULL!', '#NUM!', '#REF!', '#VALUE!', '#GETTING_DATA', '#SPILL!', '#CALC!', '#FIELD!', '#BLOCKED!', '#UNKNOWN!', '#CONNECT!', '#BUSY!', '#PYTHON!', '#TIMEOUT!'];
 /**
  * A regex source matching any error value, for callers that only have a string.
  *

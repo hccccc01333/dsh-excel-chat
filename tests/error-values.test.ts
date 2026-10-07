@@ -47,6 +47,18 @@ test('text that merely looks like an error is not reported', () => {
   }
 })
 
+test('the list covers the errors Excel 365 and Python in Excel write', () => {
+  // `findErrorCells` never consults the list — it reports whatever error token a
+  // file carries — so a token missing here silently desynchronises it from the
+  // post-edit health check, which does derive from the list.
+  for (const value of ['#SPILL!', '#CALC!', '#FIELD!', '#BLOCKED!', '#UNKNOWN!', '#CONNECT!', '#BUSY!', '#PYTHON!', '#TIMEOUT!']) {
+    assert.ok(
+      (EXCEL_ERROR_VALUES as readonly string[]).includes(value),
+      `${value} is missing from EXCEL_ERROR_VALUES`,
+    )
+  }
+})
+
 test('every declared value is a well-formed error token', () => {
   for (const value of EXCEL_ERROR_VALUES) {
     assert.ok(value.startsWith('#'), `${value} must start with #`)

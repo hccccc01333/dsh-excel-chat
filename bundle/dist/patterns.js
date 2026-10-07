@@ -151,7 +151,16 @@ export function detectPatternAnomalies(cells) {
     }
     return reports;
 }
-const NUMERIC_PATTERN = /^[+-]?(\d+(\.\d*)?|\.\d+)(%|e[+-]?\d+)?$/i;
+/**
+ * A numeric cell's content, as `readWorkbookCells` stringifies it.
+ *
+ * Grouped digits are accepted because a number stored as *text* — what a paste
+ * from a web page or a CSV import leaves behind — keeps its separators, and such
+ * a cell sitting inside a formula column is exactly the hardcode break this
+ * check exists to find. A genuine number never arrives grouped: Excel keeps it
+ * as a value, and the reader stringifies `1000`, not `1,000`.
+ */
+const NUMERIC_PATTERN = /^[+-]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)(?:%|e[+-]?\d+)?$/i;
 export function detectHardcodeBreaks(cells) {
     const columns = new Map();
     for (const [id, content] of Object.entries(cells)) {
