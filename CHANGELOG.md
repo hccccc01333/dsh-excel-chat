@@ -65,7 +65,7 @@ if (issue !== undefined && !issue.exempted) throw new Error(pluginCompatibilityW
 > 发布过程绕了一段路，记录在此。直接 `npm publish` 连续失败，**每个版本号都是
 > 首次 PUT 就报** `409 Cannot publish over previously staged version`；换 tag、
 > 绕代理、直连、从 `bundle/` 发都一样，registry 无故障。根因是 `~/.npmrc` 用的是
-> **bypass-2FA 的 granular access token**（`npm_KDjf…`），而 npm 已把这类 token 的
+> **bypass-2FA 的 granular access token**，而 npm 已把这类 token 的
 > 发布能力收缩为**只能 staged publish、需维护者用 2FA 批准**（npm changelog
 > 2026-07-31 *Restricting npm bypass-2FA granular access tokens*）——该账号已提前
 > 生效；0.39.0 能发出去只是因为它赶在切换之前。
