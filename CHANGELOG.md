@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+本次发布包含 v0.39.5 的全部改动（dsh 0.2.0 静默跳过 bundle 的根因修复、更宽的
+peer 区间、doctor 的 `bundle-compatibility` 检查、`DSH_EXCEL_CHAT_STATUS` 状态文件），
+外加下面这些：
+
+- **发布流程改为 npm trusted publishing（OIDC）**。`publish.yml` 不再使用
+  `NODE_AUTH_TOKEN`：由 GitHub 为该工作流签发短期凭证，仓库里不再存放长期凭据，
+  发布也不再需要人工过 2FA。`--provenance` 也不再显式传入——公开仓库的 OIDC 发布
+  会自动生成来源证明。
+- **新增一键发版脚本** `scripts/release.mjs`：
+
+  ```sh
+  node scripts/release.mjs X.Y.Z     # 或 npm run release -- X.Y.Z
+  ```
+
+  改 `bundle/package.json` 与根 `package.json` 的版本 → 把本段定版为
+  `## vX.Y.Z — 日期` → 重建 `bundle/dist` → 跑全量测试 → 提交 → 打 tag → 推送，
+  之后由 CI 完成测试、构建、发布与 GitHub Release。`--dry-run` 只校验不改动，
+  `--no-push` 只本地提交。脚本会拒绝脏工作区、空的 `## Unreleased` 段、
+  已存在的 tag，以及不在 `master` 上的发布。
+- 测试 312 通过。
+
 <!-- 在这里写本次改动；`node scripts/release.mjs X.Y.Z` 会把它定版并打 tag。 -->
 
 ## v0.39.5 — 2026-10-06
