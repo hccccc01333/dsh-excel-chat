@@ -4,6 +4,8 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runAgentTask, type AgentPlanner, type AgentTaskResult } from './agent.ts'
+import { t } from './i18n.ts'
+import { PlanSchemaError } from './plan-schema.ts'
 import { evaluateTaskChecks, type FileBenchmarkTask } from './file-benchmark.ts'
 import {
   classifyFailure,
@@ -59,7 +61,7 @@ function diffOperationArgs(expected: ExcelOperation[], executed: ExcelOperation[
       const expectedValue = JSON.stringify((wanted as Record<string, unknown>)[key])
       const actualValue = JSON.stringify((actual as Record<string, unknown>)[key])
       if (expectedValue !== actualValue) {
-        diffs.push(`${wanted.op}.${key}：期望 ${expectedValue}，实际 ${actualValue}`)
+        diffs.push(t('{op}.{key}：期望 {expected}，实际 {actual}', { op: wanted.op, key, expected: expectedValue, actual: actualValue }))
       }
     }
   }
@@ -123,6 +125,9 @@ export async function runLlmTask(
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
+    // Carry the typed kind through: the taxonomy classifies on it rather than on
+    // the message wording, which is translated.
+    const errorKind = error instanceof PlanSchemaError ? error.kind : undefined
     return {
       id: task.id,
       category: task.category,
@@ -137,6 +142,7 @@ export async function runLlmTask(
       failure: classifyFailure({
         crashed: true,
         error: message,
+        errorKind,
         verifierFalsePositive: false,
         rounds: 0,
         maxRounds,

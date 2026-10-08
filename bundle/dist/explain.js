@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { t, listJoin } from './i18n.js';
 import ExcelJS from 'exceljs';
 import { parseFormula } from './formula.js';
 import { stripPivotTableParts } from './workbook.js';
@@ -49,6 +50,14 @@ const FUNCTION_DESCRIPTIONS = {
     CONCATENATE: '拼接文本',
     SUBSTITUTE: '替换文本',
 };
+/**
+ * Translate a function description at lookup time. Calling `t()` inside the map
+ * above would freeze the language at import, before the plugin config has had a
+ * chance to set it — the map is module-level and evaluated on first import.
+ */
+function describeFunction(name) {
+    return t(FUNCTION_DESCRIPTIONS[name] ?? name);
+}
 /** Explain an Excel formula in plain language (cellm/xeli-style). */
 export function explainFormula(formula) {
     const parsed = parseFormula(formula);
@@ -59,24 +68,24 @@ export function explainFormula(formula) {
     const references = parsed.references.map(refText);
     const details = [];
     if (functions.length > 0) {
-        details.push(`使用了函数：${functions.map((name) => `${name}（${FUNCTION_DESCRIPTIONS[name]}）`).join('、')}`);
+        details.push(t('使用了函数：{list}', { list: listJoin(functions.map((name) => t('{name}（{description}）', { name, description: describeFunction(name) }))) }));
     }
     if (references.length > 0) {
-        details.push(`引用区域：${references.join('、')}`);
+        details.push(t('引用区域：{list}', { list: listJoin(references) }));
         const crossSheet = parsed.references.filter((ref) => ref.start.sheet);
         if (crossSheet.length > 0) {
-            details.push(`涉及跨表引用：${[...new Set(crossSheet.map((ref) => ref.start.sheet))].join('、')}`);
+            details.push(t('涉及跨表引用：{list}', { list: listJoin([...new Set(crossSheet.map((ref) => ref.start.sheet))]) }));
         }
     }
     if (/[+\-*/^]/.test(raw))
-        details.push('包含算术运算（加/减/乘/除/乘方）');
+        details.push(t('包含算术运算（加/减/乘/除/乘方）'));
     if (/[<>=]/.test(raw.replace(/=+/g, '=')))
-        details.push('包含比较判断');
+        details.push(t('包含比较判断'));
     const summary = functions.length > 0
-        ? `这是一个 ${functions.join(' + ')} 公式：${functions.map((name) => FUNCTION_DESCRIPTIONS[name]).join('；')}。`
+        ? t('这是一个 {functions} 公式：{descriptions}。', { functions: functions.join(' + '), descriptions: listJoin(functions.map(describeFunction), 'semicolon') })
         : references.length > 0
-            ? '这是一个引用其他单元格/区域参与计算或比较的公式。'
-            : '这是一个常量或简单表达式。';
+            ? t('这是一个引用其他单元格/区域参与计算或比较的公式。')
+            : t('这是一个常量或简单表达式。');
     return { formula: formula.trim(), summary, details, references };
 }
 /** Read the formula (or value) of one cell from an .xlsx file. */

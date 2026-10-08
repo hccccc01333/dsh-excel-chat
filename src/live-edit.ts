@@ -1,6 +1,7 @@
 import { copyFile, readFile } from 'node:fs/promises'
 import { applyOperationsToWorkbook } from './operations.ts'
 import { diffCellMaps, readPatchLog, rollbackPatchLog, writePatchLog, type PatchLog } from './diff.ts'
+import { t } from './i18n.ts'
 import { validate } from './validator.ts'
 import { readWorkbookCells } from './workbook.ts'
 
@@ -54,8 +55,8 @@ export async function revertInPlaceEdit(path: string): Promise<{ restored: boole
   const patchLogPath = `${path}.patch.json`
   const log = await readPatchLog(patchLogPath)
   if (log.patches.length === 0) {
-    return { restored: false, message: '没有可回滚的编辑记录' }
+    return { restored: false, message: t('没有可回滚的编辑记录') }
   }
   await rollbackPatchLog(path, log, path)
-  return { restored: true, message: `已回滚 ${log.patches.length} 处修改` }
+  return { restored: true, message: t('已回滚 {count} 处修改', { count: log.patches.length }) }
 }

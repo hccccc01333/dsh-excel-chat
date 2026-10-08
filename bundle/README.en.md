@@ -65,8 +65,10 @@ dsh-excel-chat-doctor                                    # when installed global
 
 ### Switching language
 
-Output is Chinese by default — health reports, data insights, the capability menu, repair
-summaries, operation warnings, doctor output. Add an override to your profile's
+Output is Chinese by default. Every message a person reads follows this switch: health
+reports, data insights, the capability menu, repair summaries, operation warnings, formula
+explanations, verification results, planner salvage/validation notes, failure attribution,
+doctor output, and the three slash-command descriptions. Add an override to your profile's
 `cordis.patch.yml` to switch it to English:
 
 ```yaml

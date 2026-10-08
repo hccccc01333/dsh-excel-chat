@@ -34,7 +34,15 @@ test('classifyFailure maps an invalid plan to planning', () => {
 })
 
 test('classifyFailure maps a sanitize-rejected plan to planning', () => {
-  const result = classifyFailure(evidence({ crashed: true, error: 'conditionalFormatting 缺少必填数组 rules' }))
+  // The kind travels on the error now, instead of being inferred from the
+  // message text. That decoupling is what let the plan-schema messages be
+  // translated: matching Chinese prose meant an English message silently
+  // degraded to an "execution" error.
+  const result = classifyFailure(evidence({
+    crashed: true,
+    error: 'conditionalFormatting is missing the required array rules',
+    errorKind: 'planning',
+  }))
   assert.equal(result.category, 'planning')
 })
 

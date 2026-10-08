@@ -1,3 +1,21 @@
+/**
+ * A plan that cannot be salvaged. Carries the failure kind so the benchmark's
+ * taxonomy can classify it without pattern-matching the message text — that
+ * coupling made the messages untranslatable, because translating one silently
+ * turned a planning error into an execution error.
+ */
+export class PlanSchemaError extends Error {
+    // Declared explicitly rather than as a constructor parameter property: Node
+    // runs TypeScript in strip-only mode, which rejects that syntax at load time
+    // (`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`) even though `tsc` compiles it happily.
+    kind;
+    constructor(kind, message) {
+        super(message);
+        this.name = 'PlanSchemaError';
+        this.kind = kind;
+    }
+}
+import { t } from './i18n.js';
 const CELL_OR_RANGE = /^[A-Za-z]{1,3}\d+$|^[A-Za-z]{1,3}\d+:[A-Za-z]{1,3}\d+$/;
 /** Ops whose `name` field references an EXISTING sheet (new-name ops excluded). */
 const EXISTING_SHEET_NAME_OPS = new Set(['deleteSheet', 'hideSheet', 'duplicateSheet', 'setTabColor', 'moveSheet']);
@@ -104,18 +122,18 @@ export function sanitizeAssertions(assertions, sheetNames) {
     if (assertions === undefined || assertions === null)
         return { assertions: [], notes };
     if (!Array.isArray(assertions)) {
-        notes.push('断言不是数组，已丢弃');
+        notes.push(t('断言不是数组，已丢弃'));
         return { assertions: [], notes };
     }
     const out = [];
     assertions.forEach((entry, index) => {
         if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
-            notes.push(`断言[${index}] 不是对象，已丢弃`);
+            notes.push(t('断言[{index}] 不是对象，已丢弃', { index }));
             return;
         }
         const raw = { ...entry };
         if (typeof raw.id !== 'string' || raw.id.trim() === '') {
-            notes.push(`断言[${index}] 缺少 id，已丢弃`);
+            notes.push(t('断言[{index}] 缺少 id，已丢弃', { index }));
             return;
         }
         const id = raw.id.trim();
@@ -125,7 +143,7 @@ export function sanitizeAssertions(assertions, sheetNames) {
         if (!id.includes('!')) {
             if (CELL_OR_RANGE.test(id) || /^([A-Za-z]{1,3})(\d+)$/.test(id)) {
                 normalizedId = `${sheetNames[0] ?? 'Sheet1'}!${id}`;
-                notes.push(`断言[${index}] 的 id 已补工作表前缀`);
+                notes.push(t('断言[{index}] 的 id 已补工作表前缀', { index }));
             }
         }
         const result = { id: normalizedId };
@@ -141,7 +159,7 @@ export function sanitizeAssertions(assertions, sheetNames) {
                 hasCheck = true;
             }
             else {
-                notes.push(`断言[${index}] 的 expect 类型不支持，已忽略该字段`);
+                notes.push(t('断言[{index}] 的 expect 类型不支持，已忽略该字段', { index }));
             }
         }
         if (raw.startsWith !== undefined) {
@@ -150,7 +168,7 @@ export function sanitizeAssertions(assertions, sheetNames) {
                 hasCheck = true;
             }
             else {
-                notes.push(`断言[${index}] 的 startsWith 必须是非空字符串，已忽略`);
+                notes.push(t('断言[{index}] 的 startsWith 必须是非空字符串，已忽略', { index }));
             }
         }
         for (const key of ['fill', 'numberFormat', 'hAlign']) {
@@ -168,7 +186,7 @@ export function sanitizeAssertions(assertions, sheetNames) {
             }
         }
         if (!hasCheck) {
-            notes.push(`断言[${index}] 没有可检查字段，已丢弃`);
+            notes.push(t('断言[{index}] 没有可检查字段，已丢弃', { index }));
             return;
         }
         out.push(result);
@@ -192,44 +210,44 @@ export function sanitizePlan(steps, sheetNames) {
     const out = [];
     steps.forEach((step, stepIndex) => {
         if (!Array.isArray(step.operations)) {
-            throw new Error(`第 ${stepIndex + 1} 步没有 operations 数组`);
+            throw new PlanSchemaError('planning', t('第 {step} 步没有 operations 数组', { step: stepIndex + 1 }));
         }
         const operations = step.operations.map((operation, opIndex) => {
             if (!operation || typeof operation.op !== 'string') {
-                throw new Error(`第 ${stepIndex + 1} 步第 ${opIndex + 1} 个操作缺少 op 字段`);
+                throw new PlanSchemaError('planning', t('第 {step} 步第 {op} 个操作缺少 op 字段', { step: stepIndex + 1, op: opIndex + 1 }));
             }
             const raw = { ...operation };
             for (const key of ['range', 'source', 'target', 'start']) {
                 const value = Array.isArray(raw[key]) ? raw[key][0] : raw[key];
                 if (value !== undefined && typeof value === 'string' && !value.includes('!') && CELL_OR_RANGE.test(value)) {
                     raw[key] = `${firstSheet}!${value}`;
-                    notes.push(`${operation.op} 的 ${key} 已补工作表前缀`);
+                    notes.push(t('{op} 的 {key} 已补工作表前缀', { op: operation.op, key }));
                 }
             }
             if (raw.sheet === undefined && (REQUIRED_STRINGS[operation.op] ?? []).includes('sheet')) {
                 raw.sheet = firstSheet;
-                notes.push(`${operation.op} 已补默认工作表`);
+                notes.push(t('{op} 已补默认工作表', { op: operation.op }));
             }
             // Salvage colloquial sheet references onto the exact sheet list.
             if (typeof raw.sheet === 'string') {
                 const matched = matchSheetName(raw.sheet, sheetNames);
                 if (matched !== raw.sheet) {
                     raw.sheet = matched;
-                    notes.push(`${operation.op} 的 sheet 已匹配为 ${matched}`);
+                    notes.push(t('{op} 的 sheet 已匹配为 {matched}', { op: operation.op, matched }));
                 }
             }
             if (EXISTING_SHEET_NAME_OPS.has(operation.op) && typeof raw.name === 'string') {
                 const matched = matchSheetName(raw.name, sheetNames);
                 if (matched !== raw.name) {
                     raw.name = matched;
-                    notes.push(`${operation.op} 的 name 已匹配为 ${matched}`);
+                    notes.push(t('{op} 的 name 已匹配为 {matched}', { op: operation.op, matched }));
                 }
             }
             if (operation.op === 'renameSheet' && typeof raw.oldName === 'string') {
                 const matched = matchSheetName(raw.oldName, sheetNames);
                 if (matched !== raw.oldName) {
                     raw.oldName = matched;
-                    notes.push(`renameSheet 的 oldName 已匹配为 ${matched}`);
+                    notes.push(t('renameSheet 的 oldName 已匹配为 {matched}', { matched }));
                 }
             }
             for (const key of ['sheet', 'column', 'groupColumn', 'valueColumn', 'outputColumn', 'sourceKey', 'targetKey', 'name', 'oldName', 'newName', 'template', 'data', 'find', 'replace', 'delimiter']) {
@@ -239,7 +257,7 @@ export function sanitizePlan(steps, sheetNames) {
                 const scalar = Array.isArray(value) ? value[0] : value;
                 if (scalar !== undefined && typeof scalar !== 'string') {
                     raw[key] = String(scalar);
-                    notes.push(`${operation.op} 的 ${key} 已转为字符串`);
+                    notes.push(t('{op} 的 {key} 已转为字符串', { op: operation.op, key }));
                 }
             }
             for (const field of ['metrics', 'summaryColumns', 'keys', 'criteria']) {
@@ -248,15 +266,15 @@ export function sanitizePlan(steps, sheetNames) {
                     continue;
                 raw[field] = list.map((entry, index) => {
                     if (entry === null || typeof entry !== 'object') {
-                        throw new Error(`${operation.op} 的 ${field}[${index}] 必须是对象`);
+                        throw new PlanSchemaError('planning', t('{op} 的 {field}[{index}] 必须是对象', { op: operation.op, field, index }));
                     }
                     const record = { ...entry };
                     if (record.column !== undefined && typeof record.column !== 'string') {
                         record.column = String(record.column);
-                        notes.push(`${operation.op} 的 ${field}[${index}].column 已转为字符串`);
+                        notes.push(t('{op} 的 {field}[{index}].column 已转为字符串', { op: operation.op, field, index }));
                     }
                     if (record.column === undefined || record.column === '') {
-                        throw new Error(`${operation.op} 的 ${field}[${index}].column 缺失`);
+                        throw new PlanSchemaError('planning', t('{op} 的 {field}[{index}].column 缺失', { op: operation.op, field, index }));
                     }
                     return record;
                 });
@@ -267,27 +285,27 @@ export function sanitizePlan(steps, sheetNames) {
                 if (match) {
                     raw.column = match[1];
                     raw.row = Number(match[2]);
-                    notes.push(`freezePanes 已从 range ${raw.range} 推导 row/column`);
+                    notes.push(t('freezePanes 已从 range {range} 推导 row/column', { range: String(raw.range) }));
                 }
             }
             if (operation.op === 'crosstab') {
                 // Planners sometimes emit flat metric fields instead of the object.
                 if (raw.metric === undefined && (raw.metricColumn !== undefined || raw.metricFunction !== undefined)) {
                     raw.metric = { column: raw.metricColumn, function: raw.metricFunction ?? 'sum' };
-                    notes.push('crosstab 的 metricColumn/metricFunction 已合并为 metric 对象');
+                    notes.push(t('crosstab 的 metricColumn/metricFunction 已合并为 metric 对象'));
                 }
                 if (raw.metric !== undefined && raw.metric !== null && typeof raw.metric === 'object' && !Array.isArray(raw.metric)) {
                     const metric = { ...raw.metric };
                     if (metric.function === undefined) {
                         metric.function = 'sum';
-                        notes.push('crosstab 的 metric.function 已补默认 sum');
+                        notes.push(t('crosstab 的 metric.function 已补默认 sum'));
                     }
                     if (typeof metric.function !== 'string' || !['sum', 'average', 'count', 'counta', 'max', 'min'].includes(metric.function)) {
-                        throw new Error(`crosstab 的 metric.function 不支持：${String(metric.function)}`);
+                        throw new PlanSchemaError('argument', t('crosstab 的 metric.function 不支持：{value}', { value: String(metric.function) }));
                     }
                     if (metric.column !== undefined && typeof metric.column !== 'string') {
                         metric.column = String(metric.column);
-                        notes.push('crosstab 的 metric.column 已转为字符串');
+                        notes.push(t('crosstab 的 metric.column 已转为字符串'));
                     }
                     raw.metric = metric;
                 }
@@ -297,22 +315,22 @@ export function sanitizePlan(steps, sheetNames) {
                 const style = { ...raw.style };
                 if (style.hAlign === undefined && style.horizontal !== undefined) {
                     style.hAlign = style.horizontal;
-                    notes.push('style 的 horizontal 已改名为 hAlign');
+                    notes.push(t('style 的 horizontal 已改名为 hAlign'));
                 }
                 if (style.vAlign === undefined && style.vertical !== undefined) {
                     style.vAlign = style.vertical;
-                    notes.push('style 的 vertical 已改名为 vAlign');
+                    notes.push(t('style 的 vertical 已改名为 vAlign'));
                 }
                 raw.style = style;
             }
             for (const key of REQUIRED_NUMBERS[operation.op] ?? []) {
                 const value = raw[key];
                 if (value === undefined || value === null || value === '') {
-                    throw new Error(`${operation.op} 缺少必填数字 ${key}`);
+                    throw new PlanSchemaError('planning', t('{op} 缺少必填数字 {key}', { op: operation.op, key }));
                 }
                 const number = typeof value === 'string' ? Number(value) : value;
                 if (typeof number !== 'number' || !Number.isFinite(number)) {
-                    throw new Error(`${operation.op} 的 ${key} 必须是数字`);
+                    throw new PlanSchemaError('argument', t('{op} 的 {key} 必须是数字', { op: operation.op, key }));
                 }
                 raw[key] = number;
             }
@@ -324,26 +342,26 @@ export function sanitizePlan(steps, sheetNames) {
                     : '';
                 if (typeof start === 'string' && typeof target === 'string' && !targetBody.includes(':') && CELL_OR_RANGE.test(targetBody)) {
                     raw.target = `${start}:${targetBody}`;
-                    notes.push(`${operation.op} 的 target 已扩展为 ${start}:${targetBody}`);
+                    notes.push(t('{op} 的 target 已扩展为 {target}', { op: operation.op, target: `${start}:${targetBody}` }));
                 }
             }
             for (const field of REQUIRED_ARRAYS[operation.op] ?? []) {
                 if (raw[field] === undefined) {
-                    throw new Error(`${operation.op} 缺少必填数组 ${field}`);
+                    throw new PlanSchemaError('planning', t('{op} 缺少必填数组 {field}', { op: operation.op, field }));
                 }
                 if (!Array.isArray(raw[field])) {
                     raw[field] = [raw[field]];
-                    notes.push(`${operation.op} 的 ${field} 已包装为数组`);
+                    notes.push(t('{op} 的 {field} 已包装为数组', { op: operation.op, field }));
                 }
             }
             for (const field of REQUIRED_STRINGS[operation.op] ?? []) {
                 if (raw[field] === undefined || raw[field] === null || raw[field] === '') {
-                    throw new Error(`${operation.op} 缺少必填字段 ${field}`);
+                    throw new PlanSchemaError('planning', t('{op} 缺少必填字段 {field}', { op: operation.op, field }));
                 }
             }
             for (const field of REQUIRED_STRING_EXTRA[operation.op] ?? []) {
                 if (raw[field] === undefined || raw[field] === null || raw[field] === '') {
-                    throw new Error(`${operation.op} 缺少必填字段 ${field}`);
+                    throw new PlanSchemaError('planning', t('{op} 缺少必填字段 {field}', { op: operation.op, field }));
                 }
             }
             if (raw.cells && typeof raw.cells === 'object') {
@@ -357,11 +375,11 @@ export function sanitizePlan(steps, sheetNames) {
             if (operation.op === 'fillMissing') {
                 if (raw.mode === undefined) {
                     raw.mode = 'value';
-                    notes.push('fillMissing 已补 mode=value');
+                    notes.push(t('fillMissing 已补 mode=value'));
                 }
                 if (raw.value === undefined && raw.fillValue !== undefined) {
                     raw.value = raw.fillValue;
-                    notes.push('fillMissing 的 fillValue 已改为 value');
+                    notes.push(t('fillMissing 的 fillValue 已改为 value'));
                 }
             }
             if (operation.op === 'renameSheet') {
@@ -378,7 +396,7 @@ export function sanitizePlan(steps, sheetNames) {
             }
             if (operation.op === 'filterToRange' && typeof raw.target === 'string' && !raw.target.includes('!') && !CELL_OR_RANGE.test(raw.target)) {
                 raw.target = `${raw.target}!A1`;
-                notes.push('filterToRange 的 target 已补 !A1');
+                notes.push(t('filterToRange 的 target 已补 !A1'));
             }
             return raw;
         });

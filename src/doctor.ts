@@ -3,7 +3,7 @@ import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import ExcelJS from 'exceljs'
 import { validate } from './validator.ts'
-import { t } from './i18n.ts'
+import { t, listJoin, listSeparator } from './i18n.ts'
 import { readWorkbookCells } from './workbook.ts'
 
 export interface DoctorCheck {
@@ -68,7 +68,7 @@ export async function runDoctorChecks(options: { profileDirs?: string[] } = {}):
           ? t('{dir}：宿主包未出现在 dependencies（符合隔离要求）', { dir })
           : t('{dir}：宿主包被安装为 dependencies：{list}（会导致所有工具调用失败）', {
               dir,
-              list: violations.join('、'),
+              list: listJoin(violations),
             }),
       })
     }

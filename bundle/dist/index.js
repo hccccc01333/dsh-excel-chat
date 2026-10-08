@@ -11,7 +11,7 @@ import { readChartInfos } from './charts.js';
 import { compileFormula } from './compiler.js';
 import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.js';
 import { buildDependencyGraph, traceDependencies } from './graph.js';
-import { setLanguage } from './i18n.js';
+import { setLanguage, t } from './i18n.js';
 import { runDoctorChecks } from './doctor.js';
 import { buildWorkbookInsight } from './insight.js';
 import { writeWorkbookHealthReport } from './health-report.js';
@@ -77,18 +77,18 @@ function registerAll(ctx) {
     if (commands) {
         ctx.effect(() => commands.register({
             name: 'excel-set',
-            description: '就地修改本地 Excel 文件的一个单元格（自动备份 .bak + 审计日志 + 公式体检）',
+            description: t('就地修改本地 Excel 文件的一个单元格（自动备份 .bak + 审计日志 + 公式体检）'),
             input: { hint: '{"path":"D:\\\\x.xlsx","cell":"Sheet1!A1","value":"..."}' },
             handler: async (invocation) => {
                 try {
                     const payload = JSON.parse(invocation.rawInput.trim());
                     if (!payload.path || !payload.cell || payload.value === undefined) {
-                        return { kind: 'error', text: '需要 {"path","cell","value"}' };
+                        return { kind: 'error', text: t('需要 {"path","cell","value"}') };
                     }
                     const result = await applyInPlaceEdit(payload.path, payload.cell, payload.value);
                     return {
                         kind: 'success',
-                        text: `已就地保存 ${result.cell} = ${result.value}（备份 ${result.backupPath}，公式异常 ${result.anomalies}）`,
+                        text: t('已就地保存 {cell} = {value}（备份 {backup}，公式异常 {anomalies}）', { cell: result.cell, value: result.value, backup: result.backupPath, anomalies: result.anomalies }),
                     };
                 }
                 catch (error) {
@@ -98,13 +98,13 @@ function registerAll(ctx) {
         }), 'command:excel-set');
         ctx.effect(() => commands.register({
             name: 'excel-undo',
-            description: '回滚本地 Excel 文件最近一次就地修改',
+            description: t('回滚本地 Excel 文件最近一次就地修改'),
             input: { hint: '{"path":"D:\\\\x.xlsx"}' },
             handler: async (invocation) => {
                 try {
                     const payload = JSON.parse(invocation.rawInput.trim());
                     if (!payload.path)
-                        return { kind: 'error', text: '需要 {"path"}' };
+                        return { kind: 'error', text: t('需要 {"path"}') };
                     const outcome = await revertInPlaceEdit(payload.path);
                     return { kind: outcome.restored ? 'success' : 'error', text: outcome.message };
                 }
@@ -115,8 +115,8 @@ function registerAll(ctx) {
         }), 'command:excel-undo');
         ctx.effect(() => commands.register({
             name: 'excel-doctor',
-            description: '安装自检：检查宿主包隔离、Node 版本与 Excel 引擎冒烟',
-            input: { hint: '可选：{"profile":"D:\\\\profile目录"}' },
+            description: t('安装自检：检查宿主包隔离、Node 版本与 Excel 引擎冒烟'),
+            input: { hint: t('可选：{"profile":"D:\\\\profile-dir"}') },
             handler: async (invocation) => {
                 try {
                     const payload = JSON.parse(invocation.rawInput.trim() || '{}');

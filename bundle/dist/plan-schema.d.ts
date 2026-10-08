@@ -1,3 +1,13 @@
+/**
+ * A plan that cannot be salvaged. Carries the failure kind so the benchmark's
+ * taxonomy can classify it without pattern-matching the message text — that
+ * coupling made the messages untranslatable, because translating one silently
+ * turned a planning error into an execution error.
+ */
+export declare class PlanSchemaError extends Error {
+    readonly kind: 'planning' | 'argument';
+    constructor(kind: 'planning' | 'argument', message: string);
+}
 import type { ExcelOperation } from './operations.ts';
 import type { PlanStep } from './agent.ts';
 import type { WorkbookAssertion } from './verifier.ts';

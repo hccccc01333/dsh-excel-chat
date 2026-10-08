@@ -45,8 +45,8 @@ function buildSuggestions(profile, primary) {
     const sheet = primary.sheet;
     const groupColumn = primary.columns.find((column) => column.dtype === 'string' && column.header) ?? primary.columns[0];
     const metricColumn = primary.columns.find((column) => column.dtype === 'number') ?? groupColumn;
-    const groupHeader = groupColumn?.header ?? `${groupColumn?.column ?? 'A'} 列`;
-    const metricHeader = metricColumn?.header ?? `${metricColumn?.column ?? 'B'} 列`;
+    const groupHeader = groupColumn?.header ?? t('{column} 列', { column: groupColumn?.column ?? 'A' });
+    const metricHeader = metricColumn?.header ?? t('{column} 列', { column: metricColumn?.column ?? 'B' });
     const hasMissing = primary.columns.some((column) => column.missing > 0);
     const hasFormulas = primary.formulaCells > 0;
     const suggestions = [];

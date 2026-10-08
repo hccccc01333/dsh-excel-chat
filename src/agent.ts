@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import ExcelJS from 'exceljs'
 import type { ExcelOperation } from './operations.ts'
-import { sanitizeAssertions, sanitizePlan } from './plan-schema.ts'
+import { t, listJoin, listSeparator } from './i18n.ts'
+import { PlanSchemaError, sanitizeAssertions, sanitizePlan } from './plan-schema.ts'
 import { profileWorkbook, type WorkbookProfile } from './profile.ts'
 import { buildWorkbookSemanticProfile } from './semantic.ts'
 import { runExcelTask, type TaskResult } from './task.ts'
@@ -110,7 +111,7 @@ export async function runAgentTask(
       sheetNames: beforeProfile.sheets.map((sheet) => sheet.sheet),
       profileSummary: summarizeProfile(beforeProfile),
       semanticSummary: semanticProfile.summary,
-      validationSummary: `${beforeValidation.anomalies.length} 个公式异常`,
+      validationSummary: t('{count} 个公式异常', { count: beforeValidation.anomalies.length }),
       previousPlan,
       previousResult,
       verifierNote,
@@ -129,12 +130,12 @@ export async function runAgentTask(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       if (round < maxRounds) {
-        verifierNote = `计划无效：${message}。请修正后重新规划。`
+        verifierNote = t('计划无效：{message}。请修正后重新规划。', { message })
         previousPlan = undefined
         previousResult = undefined
         continue
       }
-      throw new Error(`${message}（第 ${round} 轮计划：${summarizePlanOps(plan ?? [])}）`)
+      throw wrapRoundError(error, t('{message}（第 {round} 轮计划：{ops}）', { message, round, ops: summarizePlanOps(plan ?? []) }))
     }
     const roundOut = join(dir, `round-${round}.xlsx`)
     let result: TaskResult
@@ -143,12 +144,12 @@ export async function runAgentTask(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       if (round < maxRounds) {
-        verifierNote = `执行出错：${message}。请修正计划后重新规划。`
+        verifierNote = t('执行出错：{message}。请修正计划后重新规划。', { message })
         previousPlan = plan
         previousResult = undefined
         continue
       }
-      throw new Error(`${message}（第 ${round} 轮计划：${summarizePlanOps(plan)}）`)
+      throw wrapRoundError(error, t('{message}（第 {round} 轮计划：{ops}）', { message, round, ops: summarizePlanOps(plan) }))
     }
     const afterProfile = await profileWorkbook(result.outputPath)
     const afterValidation = await validateWorkbookFile(result.outputPath)
@@ -166,20 +167,31 @@ export async function runAgentTask(
           ...planContext,
           path: result.outputPath,
           profileSummary: summarizeProfile(afterProfile),
-          validationSummary: `${afterValidation.anomalies.length} 个公式异常`,
+          validationSummary: t('{count} 个公式异常', { count: afterValidation.anomalies.length }),
           executedPlan: plan,
           executedResult: result,
           cellSnapshot,
         })
       : { achieved: deterministicVerification.achieved, reason: deterministicVerification.reason }
-    const deterministicNote = `${afterValidation.anomalies.length === 0 ? '公式无异常' : `仍有 ${afterValidation.anomalies.length} 个公式异常`}；文件${changed ? '有' : '没有'}实质变化`
+    const anomalyNote = afterValidation.anomalies.length === 0
+      ? t('公式无异常')
+      : t('仍有 {count} 个公式异常', { count: afterValidation.anomalies.length })
+    const deterministicNote = t('{anomalies}；文件{changed}实质变化', {
+      anomalies: anomalyNote,
+      changed: changed ? t('有') : t('没有'),
+    })
     if (!changed || afterValidation.anomalies.length > 0) {
-      verdict = { achieved: false, reason: `${verdict.reason}（确定性校验：${deterministicNote}）` }
+      verdict = { achieved: false, reason: t('{reason}（确定性校验：{note}）', { reason: verdict.reason, note: deterministicNote }) }
     }
     if (assertionCheck && !assertionCheck.achieved) {
       verdict = {
         achieved: false,
-        reason: `${verdict.reason}（规划器断言未过 ${assertionCheck.passed}/${assertionCheck.total}：${assertionCheck.failures.slice(0, 3).join('；')}）`,
+        reason: t('{reason}（规划器断言未过 {passed}/{total}：{failures}）', {
+          reason: verdict.reason,
+          passed: assertionCheck.passed,
+          total: assertionCheck.total,
+          failures: listJoin(assertionCheck.failures.slice(0, 3), 'semicolon'),
+        }),
       }
     }
     rounds.push({ round, plan, result, verdict, deterministicVerification, planAssertions: assertionCheck })
@@ -199,11 +211,21 @@ export async function runAgentTask(
   return { outputPath: finalOutput, rounds, achieved, finalAnomalies }
 }
 
+/**
+ * Re-throw a round failure with the round's plan attached, keeping the failure
+ * kind when there is one. Wrapping a `PlanSchemaError` in a plain `Error` would
+ * drop the kind, and the benchmark's taxonomy would then classify a planning
+ * failure as an execution failure — the exact confusion the kind exists to stop.
+ */
+function wrapRoundError(error: unknown, message: string): Error {
+  return error instanceof PlanSchemaError ? new PlanSchemaError(error.kind, message) : new Error(message)
+}
+
 function summarizeProfile(profile: WorkbookProfile): string {
   return profile.sheets.map((sheet) => {
     const headers = sheet.columns.filter((column) => column.header).map((column) => column.header).slice(0, 8).join(' / ')
-    return `${sheet.sheet}：${sheet.dataRows} 行 × ${sheet.columnCount} 列${headers ? `，表头 ${headers}` : ''}`
-  }).join('；')
+    return t('{sheet}：{rows} 行 × {columns} 列', { sheet: sheet.sheet, rows: sheet.dataRows, columns: sheet.columnCount }) + (headers ? t('，表头 {headers}', { headers }) : '')
+  }).join(listSeparator('semicolon'))
 }
 
 function summarizePlanOps(steps: PlanStep[]): string {

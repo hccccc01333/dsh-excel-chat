@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import ExcelJS from 'exceljs'
+import { t, listJoin, listSeparator } from './i18n.ts'
 import { normalizeCellId } from './score.ts'
 import { readWorkbookCells, stripPivotTableParts } from './workbook.ts'
 
@@ -59,10 +60,14 @@ export async function verifyWorkbookAssertions(
   const passed = results.length - failures.length
   const achieved = results.length > 0 && failures.length === 0
   const reason = achieved
-    ? `确定性断言全部通过（${passed}/${results.length}）`
+    ? t('确定性断言全部通过（{passed}/{total}）', { passed, total: results.length })
     : results.length === 0
-      ? '没有可执行的确定性断言'
-      : `确定性断言未全部通过（${passed}/${results.length}）：${failures.slice(0, 4).join('；')}`
+      ? t('没有可执行的确定性断言')
+      : t('确定性断言未全部通过（{passed}/{total}）：{failures}', {
+          passed,
+          total: results.length,
+          failures: listJoin(failures.slice(0, 4), 'semicolon'),
+        })
   return { achieved, passed, total: results.length, failures, assertions: results, reason }
 }
 
@@ -80,7 +85,13 @@ function evaluateAssertion(
     return {
       id: assertion.id,
       passed: matches,
-      detail: matches ? `${assertion.id} 已满足期望值` : `${assertion.id} 期望 ${formatValue(assertion.expect)}，实际 ${formatValue(actual)}`,
+      detail: matches
+        ? t('{id} 已满足期望值', { id: assertion.id })
+        : t('{id} 期望 {expected}，实际 {actual}', {
+            id: assertion.id,
+            expected: formatValue(assertion.expect),
+            actual: formatValue(actual),
+          }),
     }
   }
   if (assertion.startsWith !== undefined) {
@@ -88,16 +99,22 @@ function evaluateAssertion(
     return {
       id: assertion.id,
       passed: matches,
-      detail: matches ? `${assertion.id} 已满足前缀要求` : `${assertion.id} 期望以 ${formatValue(assertion.startsWith)} 开头，实际 ${formatValue(actual)}`,
+      detail: matches
+        ? t('{id} 已满足前缀要求', { id: assertion.id })
+        : t('{id} 期望以 {expected} 开头，实际 {actual}', {
+            id: assertion.id,
+            expected: formatValue(assertion.startsWith),
+            actual: formatValue(actual),
+          }),
     }
   }
   const cell = styleCells?.get(normalized)
   const checks: Array<{ label: string; passed: boolean }> = [
-    ...(assertion.fill !== undefined ? [{ label: `填充色=${assertion.fill}`, passed: colorMatches(cell, assertion.fill) }] : []),
-    ...(assertion.bold !== undefined ? [{ label: `加粗=${assertion.bold}`, passed: (cell?.font?.bold ?? false) === assertion.bold }] : []),
-    ...(assertion.numberFormat !== undefined ? [{ label: `数字格式=${assertion.numberFormat}`, passed: cell?.numFmt === assertion.numberFormat }] : []),
-    ...(assertion.wrapText !== undefined ? [{ label: `自动换行=${assertion.wrapText}`, passed: (cell?.alignment?.wrapText ?? false) === assertion.wrapText }] : []),
-    ...(assertion.hAlign !== undefined ? [{ label: `水平对齐=${assertion.hAlign}`, passed: cell?.alignment?.horizontal === assertion.hAlign }] : []),
+    ...(assertion.fill !== undefined ? [{ label: t('填充色={value}', { value: assertion.fill }), passed: colorMatches(cell, assertion.fill) }] : []),
+    ...(assertion.bold !== undefined ? [{ label: t('加粗={value}', { value: assertion.bold }), passed: (cell?.font?.bold ?? false) === assertion.bold }] : []),
+    ...(assertion.numberFormat !== undefined ? [{ label: t('数字格式={value}', { value: assertion.numberFormat }), passed: cell?.numFmt === assertion.numberFormat }] : []),
+    ...(assertion.wrapText !== undefined ? [{ label: t('自动换行={value}', { value: assertion.wrapText }), passed: (cell?.alignment?.wrapText ?? false) === assertion.wrapText }] : []),
+    ...(assertion.hAlign !== undefined ? [{ label: t('水平对齐={value}', { value: assertion.hAlign }), passed: cell?.alignment?.horizontal === assertion.hAlign }] : []),
   ]
   const passed = checks.length > 0 && checks.every((check) => check.passed)
   const failedChecks = checks.filter((check) => !check.passed).map((check) => check.label)
@@ -105,8 +122,13 @@ function evaluateAssertion(
     id: assertion.id,
     passed,
     detail: passed
-      ? `${assertion.id} 已满足样式要求`
-      : `${assertion.id} ${cell ? `样式不符合：${failedChecks.join('、')}` : '不存在或没有可检查的样式'}`,
+      ? t('{id} 已满足样式要求', { id: assertion.id })
+      : t('{id} {detail}', {
+          id: assertion.id,
+          detail: cell
+            ? t('样式不符合：{checks}', { checks: listJoin(failedChecks) })
+            : t('不存在或没有可检查的样式'),
+        }),
   }
 }
 
@@ -126,7 +148,7 @@ function colorMatches(cell: ExcelJS.Cell | undefined, expected: string): boolean
 }
 
 function formatValue(value: string | null | undefined): string {
-  return value === undefined ? '缺失' : JSON.stringify(value)
+  return value === undefined ? t('缺失') : JSON.stringify(value)
 }
 
 async function loadStyleCells(path: string): Promise<Map<string, ExcelJS.Cell>> {

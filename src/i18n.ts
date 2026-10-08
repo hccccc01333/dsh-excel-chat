@@ -139,6 +139,195 @@ const EN: Record<string, string> = {
     'freezeFormulas converted {frozen} formula(s) to their cached values',
   'copyRange valuesOnly：部分公式无缓存结果，已按公式复制':
     'copyRange valuesOnly: some formulas had no cached result and were copied as formulas',
+
+  // index.ts — slash commands (the tool descriptions and the system-prompt
+  // section are model-facing and stay as they are)
+  '就地修改本地 Excel 文件的一个单元格（自动备份 .bak + 审计日志 + 公式体检）':
+    'Edit one cell of a local .xlsx in place (auto .bak backup + audit log + formula check)',
+  '需要 {"path","cell","value"}': 'requires {"path","cell","value"}',
+  '已就地保存 {cell} = {value}（备份 {backup}，公式异常 {anomalies}）':
+    'Saved {cell} = {value} in place (backup {backup}, {anomalies} formula anomalies)',
+  '回滚本地 Excel 文件最近一次就地修改': 'Roll back the most recent in-place edit of a local .xlsx',
+  '需要 {"path"}': 'requires {"path"}',
+  '安装自检：检查宿主包隔离、Node 版本与 Excel 引擎冒烟':
+    'Install self-check: host-package isolation, Node version and an Excel engine smoke test',
+  '可选：{"profile":"D:\\\\profile-dir"}': 'optional: {"profile":"D:\\\\profile-dir"}',
+
+  // live-edit.ts
+  '没有可回滚的编辑记录': 'No edit record to roll back',
+  '已回滚 {count} 处修改': 'Rolled back {count} change(s)',
+
+  // llm-benchmark.ts
+  '{op}.{key}：期望 {expected}，实际 {actual}': '{op}.{key}: expected {expected}, got {actual}',
+
+  // preview.ts
+  '表 {sheet}：展示 {rows} 行 × {cols} 列': 'Sheet {sheet}: {rows} rows × {cols} columns',
+  '（范围 {range}）': ' (range {range})',
+  '，HTML 预览：{path}': ', HTML preview: {path}',
+  '{sheet} 预览': '{sheet} preview',
+
+  // verifier.ts
+  '确定性断言全部通过（{passed}/{total}）': 'All deterministic assertions passed ({passed}/{total})',
+  '没有可执行的确定性断言': 'No deterministic assertions to run',
+  '确定性断言未全部通过（{passed}/{total}）：{failures}':
+    'Deterministic assertions failed ({passed}/{total}): {failures}',
+  '{id} 已满足期望值': '{id} matches the expected value',
+  '{id} 期望 {expected}，实际 {actual}': '{id} expected {expected}, got {actual}',
+  '{id} 已满足前缀要求': '{id} matches the expected prefix',
+  '{id} 期望以 {expected} 开头，实际 {actual}': '{id} expected to start with {expected}, got {actual}',
+  '填充色={value}': 'fill={value}',
+  '加粗={value}': 'bold={value}',
+  '数字格式={value}': 'numberFormat={value}',
+  '自动换行={value}': 'wrapText={value}',
+  '水平对齐={value}': 'hAlign={value}',
+  '{id} 已满足样式要求': '{id} matches the style requirements',
+  '{id} {detail}': '{id} {detail}',
+  '样式不符合：{checks}': 'style mismatch: {checks}',
+  '不存在或没有可检查的样式': 'is missing or has no checkable style',
+  '缺失': 'missing',
+
+  // semantic.ts (the role-name heuristics in this module are patterns, not messages)
+  '未识别': 'unrecognised',
+  '无': 'none',
+  '{sheet}：粒度={grain}': '{sheet}: grain={grain}',
+  '时间={list}': 'time={list}',
+  '维度={list}': 'dimension={list}',
+  '指标={list}': 'measure={list}',
+  '标识={list}': 'id={list}',
+  '派生={list}': 'derived={list}',
+  '可关联：{keys}': 'joinable: {keys}',
+  '未发现跨表关联键': 'no cross-sheet join keys found',
+
+  // menu.ts (fallback label when a column has no header)
+  '{column} 列': 'column {column}',
+
+  // agent.ts
+  '{count} 个公式异常': '{count} formula anomalies',
+  '计划无效：{message}。请修正后重新规划。': 'Invalid plan: {message}. Fix it and plan again.',
+  '{message}（第 {round} 轮计划：{ops}）': '{message} (round {round} plan: {ops})',
+  '执行出错：{message}。请修正计划后重新规划。': 'Execution failed: {message}. Fix the plan and plan again.',
+  '公式无异常': 'no formula anomalies',
+  '仍有 {count} 个公式异常': 'still {count} formula anomalies',
+  '{anomalies}；文件{changed}实质变化': '{anomalies}; the file {changed} change substantially',
+  '有': 'did',
+  '没有': 'did not',
+  '{reason}（确定性校验：{note}）': '{reason} (deterministic check: {note})',
+  '{reason}（规划器断言未过 {passed}/{total}：{failures}）':
+    '{reason} (planner assertions failed {passed}/{total}: {failures})',
+  '{sheet}：{rows} 行 × {columns} 列': '{sheet}: {rows} rows × {columns} columns',
+  '，表头 {headers}': ', headers {headers}',
+
+  // plan-schema.ts — salvage notes
+  '断言不是数组，已丢弃': 'assertions is not an array; dropped',
+  '断言[{index}] 不是对象，已丢弃': 'assertion[{index}] is not an object; dropped',
+  '断言[{index}] 缺少 id，已丢弃': 'assertion[{index}] has no id; dropped',
+  '断言[{index}] 的 id 已补工作表前缀': 'assertion[{index}] id was given a sheet prefix',
+  '断言[{index}] 的 expect 类型不支持，已忽略该字段':
+    'assertion[{index}] expect has an unsupported type; field ignored',
+  '断言[{index}] 的 startsWith 必须是非空字符串，已忽略':
+    'assertion[{index}] startsWith must be a non-empty string; ignored',
+  '断言[{index}] 没有可检查字段，已丢弃': 'assertion[{index}] has nothing to check; dropped',
+  '{op} 的 {key} 已补工作表前缀': '{op} {key} was given a sheet prefix',
+  '{op} 已补默认工作表': '{op} was given the default sheet',
+  '{op} 的 sheet 已匹配为 {matched}': '{op} sheet was matched to {matched}',
+  '{op} 的 name 已匹配为 {matched}': '{op} name was matched to {matched}',
+  'renameSheet 的 oldName 已匹配为 {matched}': 'renameSheet oldName was matched to {matched}',
+  '{op} 的 {key} 已转为字符串': '{op} {key} was coerced to a string',
+  '{op} 的 {field}[{index}].column 已转为字符串': '{op} {field}[{index}].column was coerced to a string',
+  'freezePanes 已从 range {range} 推导 row/column': 'freezePanes derived row/column from range {range}',
+  'crosstab 的 metricColumn/metricFunction 已合并为 metric 对象':
+    'crosstab metricColumn/metricFunction were merged into a metric object',
+  'crosstab 的 metric.function 已补默认 sum': 'crosstab metric.function defaulted to sum',
+  'crosstab 的 metric.column 已转为字符串': 'crosstab metric.column was coerced to a string',
+  'style 的 horizontal 已改名为 hAlign': 'style horizontal was renamed to hAlign',
+  'style 的 vertical 已改名为 vAlign': 'style vertical was renamed to vAlign',
+  '{op} 的 target 已扩展为 {target}': '{op} target was expanded to {target}',
+  '{op} 的 {field} 已包装为数组': '{op} {field} was wrapped in an array',
+  'fillMissing 已补 mode=value': 'fillMissing defaulted to mode=value',
+  'fillMissing 的 fillValue 已改为 value': 'fillMissing fillValue was renamed to value',
+  'filterToRange 的 target 已补 !A1': 'filterToRange target was given !A1',
+
+  // plan-schema.ts — validation failures (kind is carried by PlanSchemaError)
+  '第 {step} 步没有 operations 数组': 'step {step} has no operations array',
+  '第 {step} 步第 {op} 个操作缺少 op 字段': 'step {step} operation {op} has no op field',
+  '{op} 的 {field}[{index}] 必须是对象': '{op} {field}[{index}] must be an object',
+  '{op} 的 {field}[{index}].column 缺失': '{op} {field}[{index}].column is missing',
+  'crosstab 的 metric.function 不支持：{value}': 'crosstab metric.function is not supported: {value}',
+  '{op} 缺少必填数字 {key}': '{op} is missing the required number {key}',
+  '{op} 的 {key} 必须是数字': '{op} {key} must be a number',
+  '{op} 缺少必填数组 {field}': '{op} is missing the required array {field}',
+  '{op} 缺少必填字段 {field}': '{op} is missing the required field {field}',
+
+  // failure-taxonomy.ts
+  '规划器/计划结构错误：{message}': 'Planner / plan-structure error: {message}',
+  '参数错误：{message}': 'Argument error: {message}',
+  '执行异常：{message}': 'Execution error: {message}',
+  '验证器判定目标已达成，但断言只过 {passed}/{total}，完整性异常 {integrity}':
+    'The verifier claimed success, but only {passed}/{total} checks passed and integrity found {integrity} anomalies',
+  '{rounds} 轮重规划后仍未达成目标，第一轮失败后没有纠正':
+    'Still not achieved after {rounds} replanning rounds; the first failure was never corrected',
+  '没有执行任何操作': 'No operation was executed',
+  '期望操作都已执行且参数一致，但断言未过，可能是列/表/指标语义理解偏差':
+    'The expected operations ran with matching arguments but the checks failed — likely a column/table/measure misunderstanding',
+  '缺少 {missing}，改用通用操作 {unexpected}': 'Missing {missing}; fell back to generic operations {unexpected}',
+  '缺关键步骤：{missing}': 'Missing key steps: {missing}',
+  '期望操作 {expected}，实际执行 {actual}': 'Expected {expected}, actually executed {actual}',
+
+  // explain.ts — function descriptions, translated at lookup time
+  '求和': 'sum',
+  '求平均': 'average',
+  '计数（只数数字）': 'count (numbers only)',
+  '计数（非空）': 'count (non-empty)',
+  '取最大值': 'maximum',
+  '取最小值': 'minimum',
+  '取中位数': 'median',
+  '求乘积': 'product',
+  '按条件求和': 'sum with one condition',
+  '按多个条件求和': 'sum with multiple conditions',
+  '按条件计数': 'count with one condition',
+  '按多个条件计数': 'count with multiple conditions',
+  '按条件求平均': 'average with one condition',
+  '按多个条件求平均': 'average with multiple conditions',
+  '分类汇总': 'subtotal',
+  '纵向查找（按首列找并返回指定列）': 'vertical lookup (match the first column, return another column)',
+  '查找并返回匹配值': 'lookup and return the matching value',
+  '按行列位置取值': 'value at a row/column position',
+  '查找目标所在位置': 'position of a value',
+  '条件判断，成立返回一个值、否则返回另一个值': 'conditional: one value when true, another when false',
+  '出错时返回替代值': 'fallback value when the expression errors',
+  '查不到时返回替代值': 'fallback value when a lookup finds nothing',
+  '返回当天日期': "today's date",
+  '返回当前日期时间': 'current date and time',
+  '取年份': 'year',
+  '取月份': 'month',
+  '取日': 'day of month',
+  '按年月日拼日期': 'build a date from year/month/day',
+  '计算两个日期的间隔': 'interval between two dates',
+  '返回某月最后一天': 'last day of a month',
+  '按格式转文本': 'format a value as text',
+  '四舍五入': 'round',
+  '向上取整': 'round up',
+  '向下取整': 'round down',
+  '取整': 'integer part',
+  '取余数': 'remainder',
+  '取绝对值': 'absolute value',
+  '去掉多余空格': 'strip extra spaces',
+  '计算字符数': 'character count',
+  '取左侧若干个字符': 'leftmost characters',
+  '取右侧若干个字符': 'rightmost characters',
+  '从中间取字符': 'characters from the middle',
+  '拼接文本': 'concatenate text',
+  '替换文本': 'replace text',
+  '使用了函数：{list}': 'Functions used: {list}',
+  '引用区域：{list}': 'Referenced ranges: {list}',
+  '涉及跨表引用：{list}': 'Cross-sheet references: {list}',
+  '包含算术运算（加/减/乘/除/乘方）': 'Contains arithmetic (+ − × ÷ power)',
+  '包含比较判断': 'Contains a comparison',
+  '这是一个 {functions} 公式：{descriptions}。': 'This is a {functions} formula: {descriptions}.',
+  '{name}（{description}）': '{name} ({description})',
+  '这是一个引用其他单元格/区域参与计算或比较的公式。':
+    'This formula references other cells or ranges in a calculation or comparison.',
+  '这是一个常量或简单表达式。': 'This is a constant or a simple expression.',
 }
 
 let language: Language = 'zh'
@@ -157,7 +346,7 @@ export function getLanguage(): Language {
  * back to the Chinese source when no translation is registered, so a missing
  * entry shows the original wording rather than a key.
  */
-export function t(zh: string, params?: Record<string, string | number>): string {
+export function t(zh: string, params?: Record<string, string | number | boolean>): string {
   const template = language === 'en' ? (EN[zh] ?? zh) : zh
   if (params === undefined) return template
   return template.replace(/\{(\w+)\}/g, (match, key: string) =>
@@ -167,6 +356,23 @@ export function t(zh: string, params?: Record<string, string | number>): string 
 /** True when an English translation is registered for this source text. */
 export function hasTranslation(zh: string): boolean {
   return zh in EN
+}
+
+/**
+ * The list separator itself, for callers that join an array directly. The
+ * separator is language-specific — Chinese uses the enumeration comma `、` and
+ * the full-width semicolon `；`, English the plain comma and semicolon — so
+ * hard-coding either one leaves English sentences punctuated like Chinese
+ * (`A、B、C`).
+ */
+export function listSeparator(style: 'comma' | 'semicolon' = 'comma'): string {
+  if (language === 'en') return style === 'semicolon' ? '; ' : ', '
+  return style === 'semicolon' ? '；' : '、'
+}
+
+/** Join a list for display with the language's own separator. */
+export function listJoin(items: readonly string[], style: 'comma' | 'semicolon' = 'comma'): string {
+  return items.join(listSeparator(style))
 }
 
 /** Source strings that have no English translation yet, for the coverage test. */

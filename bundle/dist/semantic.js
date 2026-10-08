@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { t, listJoin, listSeparator } from './i18n.js';
 import { profileWorkbook } from './profile.js';
 import { readWorkbookCells } from './workbook.js';
 const TIME_PATTERN = /日期|时间|年月|季度|月份|date|time|month|year/i;
@@ -43,7 +44,7 @@ export async function buildWorkbookSemanticProfile(path, sheet) {
             dtype: column.dtype,
         }));
         const dimensions = columns.filter((column) => column.role === 'dimension' || column.role === 'time');
-        const grain = dimensions.slice(0, 3).map((column) => column.header ?? column.column).join(' × ') || '未识别';
+        const grain = dimensions.slice(0, 3).map((column) => column.header ?? column.column).join(' × ') || t('未识别');
         const headerByColumn = new Map(sheetProfile.columns.map((column) => [column.column.toUpperCase(), column.header]));
         const derivedMetrics = (formulasBySheet.get(sheetProfile.sheet) ?? []).map((entry) => {
             const match = /^([A-Za-z]{1,3})(\d+) = =(.*)$/.exec(entry);
@@ -75,19 +76,20 @@ export async function buildWorkbookSemanticProfile(path, sheet) {
         }
     }
     const summary = sheets.map((entry) => {
+        const listOf = (role) => entry.columns.filter((column) => column.role === role).map((column) => column.header ?? column.column).join('/') || t('无');
         const parts = [
-            `${entry.sheet}：粒度=${entry.grain}`,
-            `时间=${entry.columns.filter((column) => column.role === 'time').map((column) => column.header ?? column.column).join('/') || '无'}`,
-            `维度=${entry.columns.filter((column) => column.role === 'dimension').map((column) => column.header ?? column.column).join('/') || '无'}`,
-            `指标=${entry.columns.filter((column) => column.role === 'measure').map((column) => column.header ?? column.column).join('/') || '无'}`,
-            `标识=${entry.columns.filter((column) => column.role === 'id').map((column) => column.header ?? column.column).join('/') || '无'}`,
+            t('{sheet}：粒度={grain}', { sheet: entry.sheet, grain: entry.grain }),
+            t('时间={list}', { list: listOf('time') }),
+            t('维度={list}', { list: listOf('dimension') }),
+            t('指标={list}', { list: listOf('measure') }),
+            t('标识={list}', { list: listOf('id') }),
         ];
         if (entry.derivedMetrics.length > 0)
-            parts.push(`派生=${entry.derivedMetrics.slice(0, 3).join('；')}`);
-        return parts.join('；');
+            parts.push(t('派生={list}', { list: listJoin(entry.derivedMetrics.slice(0, 3), 'semicolon') }));
+        return parts.join(listSeparator('semicolon'));
     }).join('\n');
     const joinSummary = joinKeys.length > 0
-        ? `可关联：${joinKeys.map((key) => `${key.left}.${key.key} ↔ ${key.right}.${key.key}`).join('、')}`
-        : '未发现跨表关联键';
+        ? t('可关联：{keys}', { keys: listJoin(joinKeys.map((key) => `${key.left}.${key.key} ↔ ${key.right}.${key.key}`)) })
+        : t('未发现跨表关联键');
     return { sheets, joinKeys, summary: `${summary}\n${joinSummary}` };
 }

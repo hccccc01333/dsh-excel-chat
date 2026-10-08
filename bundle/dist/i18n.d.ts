@@ -30,9 +30,19 @@ export declare function getLanguage(): Language;
  * back to the Chinese source when no translation is registered, so a missing
  * entry shows the original wording rather than a key.
  */
-export declare function t(zh: string, params?: Record<string, string | number>): string;
+export declare function t(zh: string, params?: Record<string, string | number | boolean>): string;
 /** True when an English translation is registered for this source text. */
 export declare function hasTranslation(zh: string): boolean;
+/**
+ * The list separator itself, for callers that join an array directly. The
+ * separator is language-specific — Chinese uses the enumeration comma `、` and
+ * the full-width semicolon `；`, English the plain comma and semicolon — so
+ * hard-coding either one leaves English sentences punctuated like Chinese
+ * (`A、B、C`).
+ */
+export declare function listSeparator(style?: 'comma' | 'semicolon'): string;
+/** Join a list for display with the language's own separator. */
+export declare function listJoin(items: readonly string[], style?: 'comma' | 'semicolon'): string;
 /** Source strings that have no English translation yet, for the coverage test. */
 export declare function untranslated(keys: readonly string[]): string[];
 //# sourceMappingURL=i18n.d.ts.map

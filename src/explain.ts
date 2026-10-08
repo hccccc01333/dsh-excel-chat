@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { t, listJoin, listSeparator } from './i18n.ts'
 import ExcelJS from 'exceljs'
 import { parseFormula, type ParsedRef } from './formula.ts'
 import { stripPivotTableParts } from './workbook.ts'
@@ -51,6 +52,15 @@ const FUNCTION_DESCRIPTIONS: Record<string, string> = {
   SUBSTITUTE: '替换文本',
 }
 
+/**
+ * Translate a function description at lookup time. Calling `t()` inside the map
+ * above would freeze the language at import, before the plugin config has had a
+ * chance to set it — the map is module-level and evaluated on first import.
+ */
+function describeFunction(name: string): string {
+  return t(FUNCTION_DESCRIPTIONS[name] ?? name)
+}
+
 export interface FormulaExplanation {
   formula: string
   summary: string
@@ -68,22 +78,22 @@ export function explainFormula(formula: string): FormulaExplanation {
   const references = parsed.references.map(refText)
   const details: string[] = []
   if (functions.length > 0) {
-    details.push(`使用了函数：${functions.map((name) => `${name}（${FUNCTION_DESCRIPTIONS[name]}）`).join('、')}`)
+    details.push(t('使用了函数：{list}', { list: listJoin(functions.map((name) => t('{name}（{description}）', { name, description: describeFunction(name) }))) }))
   }
   if (references.length > 0) {
-    details.push(`引用区域：${references.join('、')}`)
+    details.push(t('引用区域：{list}', { list: listJoin(references) }))
     const crossSheet = parsed.references.filter((ref) => ref.start.sheet)
     if (crossSheet.length > 0) {
-      details.push(`涉及跨表引用：${[...new Set(crossSheet.map((ref) => ref.start.sheet))].join('、')}`)
+      details.push(t('涉及跨表引用：{list}', { list: listJoin([...new Set(crossSheet.map((ref) => ref.start.sheet))]) }))
     }
   }
-  if (/[+\-*/^]/.test(raw)) details.push('包含算术运算（加/减/乘/除/乘方）')
-  if (/[<>=]/.test(raw.replace(/=+/g, '='))) details.push('包含比较判断')
+  if (/[+\-*/^]/.test(raw)) details.push(t('包含算术运算（加/减/乘/除/乘方）'))
+  if (/[<>=]/.test(raw.replace(/=+/g, '='))) details.push(t('包含比较判断'))
   const summary = functions.length > 0
-    ? `这是一个 ${functions.join(' + ')} 公式：${functions.map((name) => FUNCTION_DESCRIPTIONS[name]).join('；')}。`
+    ? t('这是一个 {functions} 公式：{descriptions}。', { functions: functions.join(' + '), descriptions: listJoin(functions.map(describeFunction), 'semicolon') })
     : references.length > 0
-      ? '这是一个引用其他单元格/区域参与计算或比较的公式。'
-      : '这是一个常量或简单表达式。'
+      ? t('这是一个引用其他单元格/区域参与计算或比较的公式。')
+      : t('这是一个常量或简单表达式。')
   return { formula: formula.trim(), summary, details, references }
 }
 

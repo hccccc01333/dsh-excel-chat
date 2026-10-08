@@ -1,4 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises'
+import { getLanguage, t } from './i18n.ts'
 import ExcelJS from 'exceljs'
 import { columnToNumber, numberToColumn } from './formula.ts'
 import { profileWorkbook } from './profile.ts'
@@ -62,7 +63,7 @@ export async function buildWorkbookPreview(path: string, options: PreviewOptions
   const markdown = renderMarkdown(header, rows)
   const previewPath = path.replace(/\.xlsx$/i, '.preview.html')
   await writeFile(previewPath, renderHtml(sheet.name, header, rows), 'utf8')
-  const summary = `表 ${sheet.name}：展示 ${rows.length} 行 × ${header.length} 列${options.range ? `（范围 ${options.range}）` : ''}，HTML 预览：${previewPath}`
+  const summary = `${t('表 {sheet}：展示 {rows} 行 × {cols} 列', { sheet: sheet.name, rows: rows.length, cols: header.length })}${options.range ? t('（范围 {range}）', { range: options.range }) : ''}${t('，HTML 预览：{path}', { path: previewPath })}`
   const details = await readWorkbookDetail(path, {
     sheet: sheet.name,
     range: options.range,
@@ -122,12 +123,12 @@ function renderHtml(sheetName: string, header: string[], rows: string[][]): stri
   const head = header.map((value) => `<th>${esc(value)}</th>`).join('')
   const body = rows.map((row) => `<tr>${row.map((value) => `<td>${esc(value)}</td>`).join('')}</tr>`).join('')
   return [
-    '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">',
-    `<title>${esc(sheetName)} 预览</title>`,
+    `<!doctype html><html lang="${getLanguage() === 'en' ? 'en' : 'zh-CN'}"><head><meta charset="utf-8">`,
+    `<title>${esc(t('{sheet} 预览', { sheet: sheetName }))}</title>`,
     '<style>body{font-family:system-ui,sans-serif;margin:24px}table{border-collapse:collapse;width:100%}',
     'th,td{border:1px solid #ddd;padding:6px 10px;text-align:left;font-size:13px}th{background:#f3f4f6;position:sticky;top:0}',
     'tr:nth-child(even){background:#fafafa}</style></head><body>',
-    `<h2>${esc(sheetName)} 预览</h2><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`,
+    `<h2>${esc(t('{sheet} 预览', { sheet: sheetName }))}</h2><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`,
     '</body></html>',
   ].join('')
 }
