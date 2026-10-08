@@ -84,7 +84,12 @@ export interface ResolvedRange {
 }
 
 export function parseRangeRef(ref: string): ResolvedRange | null {
-  const match = /^(?:'([^']+)'|([^!]+))!?\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?$/.exec(ref.trim())
+  // The `!` is required, not optional. With it optional, the greedy sheet group
+  // swallowed the range: `A1:B2` parsed as sheet "A1:" covering the single cell
+  // B2 — a plausible-looking wrong answer, which is worse than the `null` that
+  // `A1` already returned. A range with no sheet is invalid here, and callers
+  // turn `null` into an explicit `invalid-range` anomaly.
+  const match = /^(?:'([^']+)'|([^!]+))!\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?$/.exec(ref.trim())
   if (!match) return null
   const startColumn = match[3]!.toUpperCase()
   const endColumn = (match[5] ?? match[3]!).toUpperCase()
