@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **修复：`excel_task` 的步骤缺字段时抛裸 TypeError，而不是指出缺了哪个字段。**
+  `excel_operate` 的 `operations` 用的是 `excelOperationSchema`，宿主会在调用前校验，
+  畸形操作到不了 handler。但 `excel_task` 的 `steps[].operations` 声明是
+  `{ type: 'object', additionalProperties: true }`——**没有任何 schema 保护**，
+  于是漏字段的步骤一路走到 handler 内部崩掉：
+
+  ```
+  TypeError: Cannot read properties of undefined (reading 'toUpperCase')
+  ```
+
+  这条信息既没说是哪个操作，也没说缺哪个字段。现在两个入口都先过一遍
+  `sanitizeOperations`——**复用规划器已有的那套校验与修复**（`sanitizePlan`），
+  而不是再写一份：同一条规则有两份实现必然漂移。同样的输入现在得到
+  `sortRange 的 keys[0].column 缺失`。
+
+  顺带补上一个可用性缺口：`excel_operate` 收到不带表名的 `range`（如 `"A1:B1"`）
+  时会报 `range requires a sheet`，尽管这在 schema 里是合法的（`range` 只是个
+  字符串）。现在会按第一个工作表补全前缀，与规划器路径一致。
+
+  动手前已核对四张 `REQUIRED_*` 表要求的每个字段在 schema 里都标了 `required`，
+  所以这层不会拒绝任何 schema 允许的输入。
+
 - **修复：编辑后体检会把「提到错误值的普通内容」误判成错误单元格。**
   `detectErrorValues` 用的是**不锚定**的正则，所以错误 token 出现在内容的任何位置
   都算命中，置信度还是 1。实测这些都会被误报：
@@ -74,16 +96,19 @@
   此前被上面那句丢弃自环的代码掩盖了；修好构图后两个任务的完整性立刻从 1 掉到
   0.98，才把它暴露出来。按语义左移一列修正，原有的偏移错误与断言意图保持不变。
 
-- **新增 4 个测试文件，并给 3 个既有文件补了用例，共 +49 例**，补上此前没有直接测试
+- **新增 4 个测试文件，并给 5 个既有文件补了用例，共 +53 例**，补上此前没有直接测试
   的模块：`tests/csv.test.ts`（12 例，含端到端 `importCsv` 回归）、
   `tests/graph.test.ts`（14 例）、`tests/charts.test.ts`（8 例）、
   `tests/formula.test.ts`（10 例，列字母与单元格 id 的边界校验）；
   `tests/operations.test.ts` 的 `a column name where a column letter belongs is
   rejected, not allocated`（端到端 OOM 回归）、
-  `tests/error-values.test.ts` 的 3 例误报回归，以及
-  `tests/file-benchmark.test.ts` 的语料守卫
+  `tests/error-values.test.ts` 的 3 例误报回归、
+  `tests/plan-schema.test.ts` 与 `tests/task.test.ts` 的入口校验回归，以及
+  `tests/load-bundle.test.ts` 的 `excel_task names the missing field instead of
+  crashing on a malformed step`（**跑构建产物 + 真实 cordis 上下文**，
+  验证的是可达路径）和 `tests/file-benchmark.test.ts` 的语料守卫
   `no corpus fixture ships a circular formula`——遍历 100 个夹具断言无环，
-  这条守卫当初就能抓到那两处夹具缺陷。测试 350 → **399 通过**。
+  这条守卫当初就能抓到那两处夹具缺陷。测试 350 → **403 通过**。
 
 ## v0.39.8 — 2026-10-07
 
