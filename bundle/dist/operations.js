@@ -1706,6 +1706,18 @@ const REPORT_FUNCTIONS = {
     max: 'MAXIFS',
     min: 'MINIFS',
 };
+/**
+ * True when a row carries SUBTOTAL formulas. That is the marker `applySubtotal`
+ * writes, and the only subtotal marker that does not depend on the label's
+ * language — the labels themselves are workbook data and stay untranslated.
+ */
+function isSubtotalRow(sheet, row, metricColumns) {
+    return metricColumns.some((column) => {
+        const value = sheet.getCell(`${numberToColumn(columnToNumber(column))}${row}`).value;
+        const formula = value !== null && typeof value === 'object' ? value.formula : undefined;
+        return typeof formula === 'string' && formula.trimStart().toUpperCase().startsWith('SUBTOTAL(');
+    });
+}
 function applyAggregateReport(workbook, options) {
     const parsed = parseRange(workbook, options.source);
     const groupCol = columnToNumber(options.groupColumn);
@@ -1716,6 +1728,16 @@ function applyAggregateReport(workbook, options) {
     const groupValues = [];
     const seen = new Set();
     for (let row = firstData; row <= lastData; row++) {
+        // Skip subtotal rows. `report` inserts them into the source before building
+        // this summary (so the SUMIFS ranges below cover the final, sorted block),
+        // which means the block handed to us contains derived rows as well as data.
+        // Their label is "华东 汇总" / "总计" — a *different* string from every real
+        // group key — so without this check each one becomes a phantom group, and the
+        // grand-total row then sums the real groups twice over. Detected by the
+        // SUBTOTAL formula rather than by the label, because the label is data and
+        // therefore language-dependent.
+        if (isSubtotalRow(parsed.sheet, row, options.metrics.map((metric) => metric.column)))
+            continue;
         const raw = parsed.sheet.getCell(`${numberToColumn(groupCol)}${row}`).value;
         const key = raw === null || raw === undefined ? '' : String(raw);
         if (!seen.has(key)) {
