@@ -264,7 +264,47 @@ export function detectEmptyGaps(cells) {
  * errors a failed lookup and a misspelled function produce, and the two most
  * likely to show up in a workbook this check exists to police.
  */
-const ERROR_TOKEN = new RegExp(excelErrorPattern(), 'g');
+const ERROR_TOKEN = new RegExp(`^(?:${excelErrorPattern()})$`);
+/** A formula shown together with its error result, e.g. `=VLOOKUP(…) #N/A`. */
+const TRAILING_ERROR_TOKEN = new RegExp(`\\s((?:${excelErrorPattern()}))$`);
+/** `readWorkbookCells` serialises an error cell as `{"error":"#REF!"}`. */
+const SERIALISED_ERROR = /^\{\s*"error"\s*:\s*"([^"]+)"\s*\}$/;
+/** String literals inside a formula, so an error *mentioned* in one is not a value. */
+const FORMULA_STRING_LITERAL = /"(?:[^"\\]|\\.)*"/g;
+/**
+ * Return the error token a cell holds, or null when the cell holds no error.
+ *
+ * Matching the token *anywhere* in the content — which is what an unanchored
+ * regex did — flagged ordinary content as a broken cell: a note reading
+ * `备注：#REF! 已修复`, and worse, the perfectly valid
+ * `=IFERROR(A1/B1,"#N/A")`, whose entire purpose is to handle that error. It
+ * also made this check disagree with `excel_find_errors`, which reads the typed
+ * `cell.value.error` and therefore never over-reports.
+ *
+ * Only a few shapes actually occur: the value *is* the token (optionally as the
+ * body of a formula, `=#REF!`); the token wrapped in the JSON envelope
+ * `readWorkbookCells` produces; or a formula carrying its error result after the
+ * formula text. The last is allowed only after string literals are removed, so a
+ * formula that merely mentions an error inside a literal stays clean.
+ */
+function errorTokenOf(content) {
+    const trimmed = content.trim();
+    if (!trimmed)
+        return null;
+    const isFormula = trimmed.startsWith('=');
+    const body = isFormula ? trimmed.slice(1).trim() : trimmed;
+    if (ERROR_TOKEN.test(body))
+        return body;
+    const serialised = SERIALISED_ERROR.exec(trimmed);
+    if (serialised)
+        return serialised[1];
+    if (isFormula) {
+        const trailing = TRAILING_ERROR_TOKEN.exec(body.replace(FORMULA_STRING_LITERAL, ' '));
+        if (trailing)
+            return trailing[1];
+    }
+    return null;
+}
 /**
  * Detect cells whose content carries an Excel error value such as #REF! or
  * #DIV/0! (both literal error constants and formulas whose cached result is
@@ -276,12 +316,12 @@ export function detectErrorValues(cells) {
         const trimmed = content.trim();
         if (!trimmed)
             continue;
-        const match = trimmed.match(ERROR_TOKEN);
-        if (match) {
+        const token = errorTokenOf(trimmed);
+        if (token !== null) {
             anomalies.push({
                 kind: 'error-value',
                 cell: id,
-                message: `cell contains Excel error ${match[0]}`,
+                message: `cell contains Excel error ${token}`,
                 expected: 'valid value',
                 actual: trimmed.slice(0, 200),
                 confidence: 1,

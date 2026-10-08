@@ -75,3 +75,47 @@ test('the pattern escapes metacharacters in the values it is built from', () => 
   assert.ok(pattern.test('#DIV/0!'))
   assert.ok(!pattern.test('#NAMEE'))
 })
+
+test('content that merely mentions an error value is not a broken cell', () => {
+  // The token used to be matched anywhere in the content, so ordinary text was
+  // reported as an error with confidence 1 — including a note explaining that an
+  // error had been fixed.
+  for (const content of [
+    '备注：#REF! 已修复',
+    'see #VALUE! in column D',
+    '错误 #N/A 已处理',
+    'the lookup returned #N/A yesterday',
+  ]) {
+    assert.deepEqual(
+      detectErrorValues({ 'Sheet1!A1': content }),
+      [],
+      `${JSON.stringify(content)} must not be reported as an error`,
+    )
+  }
+})
+
+test('a formula that handles or compares against an error is not itself an error', () => {
+  // `=IFERROR(A1/B1,"#N/A")` exists to *handle* #N/A; reporting it as a broken
+  // cell would tell the user to "fix" a formula that is doing its job.
+  for (const formula of [
+    '=IFERROR(A1/B1,"#N/A")',
+    '=IF(A1="#N/A","missing",A1)',
+    '=IFERROR(VLOOKUP(A2,数据!A:B,2,FALSE),"#REF!")',
+  ]) {
+    assert.deepEqual(
+      detectErrorValues({ 'Sheet1!A1': formula }),
+      [],
+      `${JSON.stringify(formula)} must not be reported as an error`,
+    )
+  }
+})
+
+test('an error cell read back from a file is reported in either stored shape', () => {
+  // `readWorkbookCells` turns `<c t="e"><v>#REF!</v></c>` into the JSON envelope;
+  // `excel_validate` and the corpus pass the bare token. Both are real errors.
+  for (const content of ['#REF!', '{"error":"#REF!"}', '{"error":"#SPILL!"}']) {
+    const found = detectErrorValues({ 'Sheet1!A1': content })
+    assert.equal(found.length, 1, `${content} must be reported`)
+    assert.equal(found[0].kind, 'error-value')
+  }
+})
