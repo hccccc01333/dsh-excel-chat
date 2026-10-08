@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.40.0 — 2026-10-08
 
 - **新增：用户可见文案支持中英文切换**，走 dsh 配置项而不是环境变量或跟随消息语言。
   在 profile 的 `cordis.patch.yml` 里覆盖即可：

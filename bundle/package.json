@@ -1,6 +1,6 @@
 {
   "name": "dsh-excel-chat",
-  "version": "0.39.9",
+  "version": "0.40.0",
   "description": "Talk to Excel in DeepSeek Harness: read, edit, clean and report on spreadsheets by conversation. Re-checks every formula after each edit, repairs silent errors, and needs no local Excel for the core work (charts and PDF export use Windows Excel).",
   "license": "MIT",
   "type": "module",
