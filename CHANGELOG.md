@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased
+
+- **修复：CSV 导入会给每张表多写一整行空行。** `parseCsv` 把**末尾换行**当成了
+  新记录的开始，而真实 CSV 文件都以换行结尾——所以一个 3 行的 CSV 导入后
+  `sheet.rowCount` 是 4，第 4 行是 `A4=''`。更根本的是**往返不幂等**：
+  `stringifyCsv` 永远追加 `\r\n`，于是 `parseCsv(stringifyCsv(x))` 必然多一行，
+  导出再导入会不断长行（`exportCsv` 无 range 时正是用 `sheet.rowCount` 定范围）。
+  现在只在 `field !== '' || row.length > 0` 时才补最后一行，`stringifyCsv([])`
+  返回空串（原来返回 `\r\n`）。端到端复验：3 行 CSV（末尾带换行）导入后
+  `rowCount = 3`。
+
+- **修复：自引用公式查不出循环引用。** `buildDependencyGraph` 的 `addEdge` 里
+  有一句 `if (from === to) return`，把自环丢掉了——于是 `A1 = A1+1`
+  （Excel 最常见的循环引用，通常是少打一行的笔误）**`edges` 和 `cycles` 都是空的**，
+  `validator` 的 `circular-reference` 异常永不触发；`A1 = SUM(A1:A5)` 同理。
+  自引用是合法输入，不该在构图时被优化掉。删掉那句早退后 `findCycles` 天然处理
+  自环，`traceDependencies` 靠 `seen` 集合也不会死循环。
+
+- **修复：`parseRangeRef` 会把不带表名的区间静默解析成错值。** 原来 `!` 是可选的，
+  贪婪的表名分组会吃掉整个区间：`A1:B2` 被解析成**表名 `"A1:"`、只覆盖 B2 一格**。
+  返回一个看似合理的错值比返回 `null` 危险得多——调用方会继续拿它去校验单元格。
+  改为要求 `!` 后 `A1:B2` 返回 `null`，图表校验会据此报 `invalid-range`，
+  与 `A1` 原本就返回 `null` 的行为也一致了。
+
+- **修复：公式注入防护漏掉 `\t` 与 `\r` 前缀。** 按 OWASP CSV Injection 的清单，
+  Excel 会先剥掉前导制表符/回车再判断是否公式，所以这两个也是攻击前缀；
+  而 `stringifyCsv` 不会给含制表符的字段加引号，`\t=cmd` 会原样落进 CSV。
+
+- **修正语料中两处循环引用夹具**（`formula-repair-multi-sheet`、
+  `formula-repair-cross-sheet-offset`）。它们把公式从 `margin()` 的 4 列布局
+  （A=产品/B=收入/C=成本/D=毛利，`=B2-C2` 在那里是正确的）搬进 3 列布局
+  （A=收入/B=成本/C=毛利）却忘了把引用左移一列，于是「毛利」写成 `=B2-C2`——
+  **公式在 C2 里引用 C2**，语义上算的是「成本 − 毛利」。这是夹具自身的缺陷，
+  此前被上面那句丢弃自环的代码掩盖了；修好构图后两个任务的完整性立刻从 1 掉到
+  0.98，才把它暴露出来。按语义左移一列修正，原有的偏移错误与断言意图保持不变。
+
+- **新增 4 个测试文件 / 35 例**，补上此前没有直接测试的模块：
+  `tests/csv.test.ts`（12 例，含端到端 `importCsv` 回归）、
+  `tests/graph.test.ts`（14 例）、`tests/charts.test.ts`（8 例），
+  以及 `tests/file-benchmark.test.ts` 的语料守卫
+  `no corpus fixture ships a circular formula`——遍历 100 个夹具断言无环，
+  这条守卫当初就能抓到那两处夹具缺陷。测试 350 → **385 通过**。
+
 ## v0.39.8 — 2026-10-07
 
 - **修复：工作表已有扩展列表时，sparkline 与批注会被插到错误的位置。**
