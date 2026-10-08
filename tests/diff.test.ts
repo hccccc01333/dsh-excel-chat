@@ -1,7 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import ExcelJS from 'exceljs'
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   applyPatchLog,
@@ -73,4 +75,55 @@ test('patch log apply and rollback round-trip on real files', async () => {
   await rollbackPatchLog(originalPath, await readPatchLog(logPath))
   const afterRollback = await readWorkbookCells(await readFile(originalPath))
   assert.equal(afterRollback['Sales!D4'], '=B4-C3')
+})
+
+test('rolling a patch back restores the cell types, not just the text', async () => {
+  // The log stores what `cellContent` produced, so a rollback that assigned the
+  // raw string turned every restored number, boolean and date into text: undoing
+  // an edit left `42` as the string "42". The round-trip above could not catch
+  // it because `cellContent` renders both the same way — comparing the strings
+  // showed no difference at all. Only the type tells them apart.
+  const dir = await mkdtemp(join(tmpdir(), 'vera-rollback-'))
+  const book = join(dir, 'book.xlsx')
+  const edited = join(dir, 'edited.xlsx')
+  const restored = join(dir, 'restored.xlsx')
+
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Sheet1')
+  sheet.getCell('A1').value = 42
+  sheet.getCell('A2').value = true
+  sheet.getCell('A3').value = new Date(2026, 0, 15, 9, 30)
+  sheet.getCell('A4').value = { formula: 'A1*2' }
+  sheet.getCell('A5').value = '文本'
+  await workbook.xlsx.writeFile(book)
+
+  // Change A1, then roll the change back.
+  const editedWorkbook = new ExcelJS.Workbook()
+  await editedWorkbook.xlsx.readFile(book)
+  editedWorkbook.getWorksheet('Sheet1')!.getCell('A1').value = 99
+  await editedWorkbook.xlsx.writeFile(edited)
+  const log = {
+    version: 1 as const,
+    createdAt: new Date().toISOString(),
+    sourcePath: book,
+    patches: [{ id: 'Sheet1!A1', kind: 'value' as const, oldValue: '42', newValue: '99' }],
+  }
+  await writePatchLog(join(dir, 'p.patch.json'), log)
+  await rollbackPatchLog(edited, await readPatchLog(join(dir, 'p.patch.json')), restored)
+
+  const result = new ExcelJS.Workbook()
+  await result.xlsx.readFile(restored)
+  const out = result.getWorksheet('Sheet1')!
+  const typeOf = (id: string): string => {
+    const value = out.getCell(id).value
+    if (value instanceof Date) return 'date'
+    if (value !== null && typeof value === 'object') return 'formula' in value ? 'formula' : 'object'
+    return typeof value
+  }
+  assert.equal(typeOf('A1'), 'number')
+  assert.equal(out.getCell('A1').value, 42)
+  assert.equal(typeOf('A2'), 'boolean')
+  assert.equal(typeOf('A3'), 'date')
+  assert.equal(typeOf('A4'), 'formula')
+  assert.equal(typeOf('A5'), 'string')
 })

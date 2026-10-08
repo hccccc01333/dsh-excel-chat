@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula, } from './formula.js';
 import { guardFormulaInjection, parseCsv, stringifyCsv, unguardFormulaInjection } from './csv.js';
 import { validate } from './validator.js';
-import { cellContent, plainContent, readWorkbookCells, stripPivotTableParts } from './workbook.js';
+import { cellContent, contentToCellValue, plainContent, readWorkbookCells, stripPivotTableParts } from './workbook.js';
 import { diffCellMaps, writePatchLog } from './diff.js';
 import { annotateWorkbookXml, emptyAnnotations } from './xml-postprocess.js';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -27,7 +27,7 @@ function writeContent(cell, content) {
         return;
     }
     const trimmed = content.trim();
-    cell.value = toCellValue(trimmed);
+    cell.value = contentToCellValue(trimmed);
 }
 /**
  * Keep typed scalars intact. Non-finite numbers degrade to text because Excel
@@ -41,41 +41,6 @@ function toScalarValue(content) {
     if (typeof content === 'boolean' || content instanceof Date)
         return content;
     return String(content);
-}
-/**
- * Convert user-provided text into an Excel value: formulas stay formulas,
- * plain numbers/dates/booleans keep their type, everything else is text.
- * Workplace spreadsheets break when "100" is written as text, so numeric
- * strings are typed before they reach ExcelJS.
- */
-function toCellValue(content) {
-    if (content.startsWith('='))
-        return { formula: content.slice(1) };
-    if (/^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(content))
-        return Number(content);
-    if (/^true$/i.test(content))
-        return true;
-    if (/^false$/i.test(content))
-        return false;
-    // Accept the whole ISO 8601 date-time form, including the fractional seconds
-    // and `Z` that `cellContent` emits — the reader's own output has to be
-    // writable again, or reading a date and writing it back silently degrades the
-    // cell to text.
-    const date = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?(Z|[+-]\d{2}:?\d{2})?$/.exec(content);
-    if (date) {
-        const [, year, month, day, hour, minute, second, millis, zone] = date;
-        if (zone) {
-            // A zone designator makes the string an absolute instant. Re-deriving the
-            // components in local time would shift it by the offset.
-            const instant = new Date(content.replace(' ', 'T'));
-            if (!Number.isNaN(instant.getTime()))
-                return instant;
-        }
-        // Without a zone the value is a wall clock, which is how exceljs reads and
-        // writes dates, so the components go in as local time.
-        return new Date(Number(year), Number(month) - 1, Number(day), Number(hour ?? 0), Number(minute ?? 0), Number(second ?? 0), Number(millis ?? 0));
-    }
-    return content;
 }
 function parseRange(workbook, range) {
     const bang = range.lastIndexOf('!');
@@ -1990,7 +1955,7 @@ function copyRange(workbook, sourceRange, targetCell, move, valuesOnly = false, 
                     colDelta: destCol - col,
                 }).slice(1),
             }
-            : toCellValue(content);
+            : contentToCellValue(content);
     }
     if (move) {
         for (let row = parsed.startRow; row <= parsed.endRow; row++) {
@@ -2215,7 +2180,7 @@ function findReplace(workbook, find, replace, sheetName, matchCase) {
                 count += 1;
                 cell.value = content.startsWith('=')
                     ? { formula: replaced.slice(1) }
-                    : toCellValue(replaced);
+                    : contentToCellValue(replaced);
             });
         });
     };
@@ -2348,7 +2313,7 @@ function transposeRange(workbook, sourceRange, targetCell) {
         if (!content)
             continue;
         dest.value = content.startsWith('=')
-            ? toCellValue(shiftFormulaReferences(content, parsed.sheet.name, null, {
+            ? contentToCellValue(shiftFormulaReferences(content, parsed.sheet.name, null, {
                 rowDelta: destRow - row,
                 colDelta: destCol - col,
             }))
@@ -2408,7 +2373,7 @@ function joinSheets(workbook, operation, warnings, opIndex) {
         values.forEach((value, i) => {
             const column = columnToNumber(operation.outputColumns[i]);
             sourceParsed.sheet.getCell(`${numberToColumn(column)}${row}`).value =
-                value.startsWith('=') ? { formula: value.slice(1) } : toCellValue(value);
+                value.startsWith('=') ? { formula: value.slice(1) } : contentToCellValue(value);
         });
     }
     warnings.push({ op: opIndex, message: `joinSheets matched ${matched} row(s), ${missed} without a lookup hit` });

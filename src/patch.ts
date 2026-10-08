@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs'
 import { readFile } from 'node:fs/promises'
-import { cellContent, stripPivotTableParts } from './workbook.ts'
+import { cellContent, contentToCellValue, stripPivotTableParts } from './workbook.ts'
 
 export interface CellPatch {
   id: string
@@ -53,11 +53,12 @@ export async function applyPatchesToWorkbook(
     if ((current ?? '') !== patch.oldValue) {
       throw new Error(`patch precondition failed for ${patch.id}: expected ${patch.oldValue}, got ${current}`)
     }
-    target.value = patch.newValue === ''
-      ? null
-      : patch.newValue.startsWith('=')
-        ? { formula: patch.newValue.slice(1) }
-        : patch.newValue
+    // Re-infer the type rather than assigning the raw string. The log stores
+    // what `cellContent` produced, so writing it back verbatim turned every
+    // restored number, boolean and date into text — undoing an edit left `42`
+    // as the string "42", which `cellContent` renders identically, so nothing
+    // looked wrong.
+    target.value = patch.newValue === '' ? null : contentToCellValue(patch.newValue)
   }
   await workbook.xlsx.writeFile(outputPath)
 }

@@ -12,6 +12,17 @@ export declare function stripPivotTableParts(data: Uint8Array): Uint8Array;
 export declare function readWorkbookCells(data: Uint8Array): Promise<Record<string, string>>;
 export declare function validateWorkbookFile(path: string): Promise<ValidationResult>;
 /**
+ * The inverse of `cellContent`: turn a serialized cell string back into a typed
+ * value. Shared so that every writer — `set`, `importCsv`, and the patch-log
+ * rollback behind `excel_undo` — infers the same types from the same strings.
+ *
+ * The rollback used to assign the raw string, which turned every restored
+ * number, boolean and date into *text*: undoing an edit left `42` as the string
+ * "42". The damage was invisible because `cellContent` renders both the same
+ * way, so comparing the strings showed no difference at all.
+ */
+export declare function contentToCellValue(content: string): ExcelJS.CellValue;
+/**
  * `cellContent` wraps an error cell as `{"error":"#REF!"}` so an error stays
  * distinguishable from text that happens to spell the same token. A consumer
  * that wants the plain representation — a CSV, which Excel writes as the bare

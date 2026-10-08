@@ -68,6 +68,45 @@ export async function validateWorkbookFile(path) {
     return validate(await readWorkbookCells(data));
 }
 /**
+ * The inverse of `cellContent`: turn a serialized cell string back into a typed
+ * value. Shared so that every writer — `set`, `importCsv`, and the patch-log
+ * rollback behind `excel_undo` — infers the same types from the same strings.
+ *
+ * The rollback used to assign the raw string, which turned every restored
+ * number, boolean and date into *text*: undoing an edit left `42` as the string
+ * "42". The damage was invisible because `cellContent` renders both the same
+ * way, so comparing the strings showed no difference at all.
+ */
+export function contentToCellValue(content) {
+    if (content.startsWith('='))
+        return { formula: content.slice(1) };
+    if (/^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(content))
+        return Number(content);
+    if (/^true$/i.test(content))
+        return true;
+    if (/^false$/i.test(content))
+        return false;
+    // Accept the whole ISO 8601 date-time form, including the fractional seconds
+    // and `Z` that `cellContent` emits — the reader's own output has to be
+    // writable again, or reading a date and writing it back silently degrades the
+    // cell to text.
+    const date = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?(Z|[+-]\d{2}:?\d{2})?$/.exec(content);
+    if (date) {
+        const [, year, month, day, hour, minute, second, millis, zone] = date;
+        if (zone) {
+            // A zone designator makes the string an absolute instant. Re-deriving the
+            // components in local time would shift it by the offset.
+            const instant = new Date(content.replace(' ', 'T'));
+            if (!Number.isNaN(instant.getTime()))
+                return instant;
+        }
+        // Without a zone the value is a wall clock, which is how exceljs reads and
+        // writes dates, so the components go in as local time.
+        return new Date(Number(year), Number(month) - 1, Number(day), Number(hour ?? 0), Number(minute ?? 0), Number(second ?? 0), Number(millis ?? 0));
+    }
+    return content;
+}
+/**
  * `cellContent` wraps an error cell as `{"error":"#REF!"}` so an error stays
  * distinguishable from text that happens to spell the same token. A consumer
  * that wants the plain representation — a CSV, which Excel writes as the bare
