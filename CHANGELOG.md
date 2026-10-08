@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- **修复：`exportCsv` 把四种单元格形状写成垃圾。** 序列化用的是 `String(raw)`，
+  而 exceljs 里日期、超链接、富文本、错误值都是对象：
+
+  | 单元格 | 旧输出 |
+  | --- | --- |
+  | 超链接 `{text:'官网', hyperlink:…}` | `[object Object]` |
+  | 富文本 `{richText:[…]}` | `[object Object]` |
+  | 错误值 `{error:'#REF!'}` | `[object Object]` |
+  | 日期 | `Thu Jan 15 2026 17:30:00 GMT+0800 (中国标准时间)` |
+
+  日期那一条尤其糟：它是**依赖机器时区与语言环境**的英文串，既不可解析也不可移植。
+  现在统一走 `cellContent`（日期→ISO、超链接→显示文本、富文本→纯文本），错误值再经
+  `plainContent` 取回裸 token（Excel 导出 CSV 就是这么写的）。
+
+- **修复：日期读出来之后写不回去。** `cellContent` 产出 `toISOString()`，所以
+  `excel_read` 把日期显示成 `2026-01-15T01:30:00.000Z`；但写入端的正则
+  `^(\d{4})-(\d{2})-(\d{2})([T ](\d{2}):(\d{2})(:(\d{2}))?)?$` **不接受毫秒与 `Z`**，
+  于是把读出来的值原样写回会**降级成文本**——而且因为文本恰好长得一样，这个损坏
+  几乎看不出来。现在正则接受完整 ISO 8601（含小数秒与区标识）：带区标识时按绝对
+  时刻解析，不带时按本地墙钟解析（与 exceljs 的读写约定一致，实测往返精确一致）。
+  顺带修好毫秒被截断的问题。
+
+- **修复：公式注入防护是单向的，导出再导入会污染单元格。** `exportCsv` 给看起来像
+  公式的文本加 `'` 前缀，但 `importCsv` 不去掉，于是文本 `=1+1` 导出成 `'=1+1`、
+  再导入就成了带撇号的 `'=1+1`——以 `+` 开头的手机号这类文本尤其常见。现在加了
+  `unguardFormulaInjection` 作为防护的精确逆操作，并且**把还原后的值强制写成文本**：
+  交回给 `writeContent` 会重新推断出公式，正好把防护要挡的东西复活。
+
 - **修复：`excel_task` 的步骤缺字段时抛裸 TypeError，而不是指出缺了哪个字段。**
   `excel_operate` 的 `operations` 用的是 `excelOperationSchema`，宿主会在调用前校验，
   畸形操作到不了 handler。但 `excel_task` 的 `steps[].operations` 声明是
@@ -96,19 +124,18 @@
   此前被上面那句丢弃自环的代码掩盖了；修好构图后两个任务的完整性立刻从 1 掉到
   0.98，才把它暴露出来。按语义左移一列修正，原有的偏移错误与断言意图保持不变。
 
-- **新增 4 个测试文件，并给 5 个既有文件补了用例，共 +53 例**，补上此前没有直接测试
-  的模块：`tests/csv.test.ts`（12 例，含端到端 `importCsv` 回归）、
-  `tests/graph.test.ts`（14 例）、`tests/charts.test.ts`（8 例）、
+- **新增 4 个测试文件，并给 6 个既有文件补了用例，共 +59 例**，补上此前没有直接测试
+  的模块：`tests/csv.test.ts`（16 例，含端到端 `importCsv` 回归、四种单元格形状的
+  导出、导出导入往返）、`tests/graph.test.ts`（14 例）、`tests/charts.test.ts`（8 例）、
   `tests/formula.test.ts`（10 例，列字母与单元格 id 的边界校验）；
-  `tests/operations.test.ts` 的 `a column name where a column letter belongs is
-  rejected, not allocated`（端到端 OOM 回归）、
+  `tests/operations.test.ts` 的 OOM 回归与日期读写回归、
   `tests/error-values.test.ts` 的 3 例误报回归、
   `tests/plan-schema.test.ts` 与 `tests/task.test.ts` 的入口校验回归，以及
   `tests/load-bundle.test.ts` 的 `excel_task names the missing field instead of
   crashing on a malformed step`（**跑构建产物 + 真实 cordis 上下文**，
   验证的是可达路径）和 `tests/file-benchmark.test.ts` 的语料守卫
   `no corpus fixture ships a circular formula`——遍历 100 个夹具断言无环，
-  这条守卫当初就能抓到那两处夹具缺陷。测试 350 → **403 通过**。
+  这条守卫当初就能抓到那两处夹具缺陷。测试 350 → **409 通过**。
 
 ## v0.39.8 — 2026-10-07
 
