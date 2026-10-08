@@ -50,8 +50,13 @@ export function parseCsv(text, delimiter = ',') {
         field += char;
         index += 1;
     }
-    row.push(field);
-    rows.push(row);
+    // A trailing record terminator *closes* the last record; it must not open an
+    // empty one. Real CSV files end with a newline, so without this guard every
+    // import gains a phantom row and stringify→parse stops being stable.
+    if (field !== '' || row.length > 0) {
+        row.push(field);
+        rows.push(row);
+    }
     return rows;
 }
 function csvField(value, delimiter) {
@@ -60,10 +65,17 @@ function csvField(value, delimiter) {
     }
     return value;
 }
-/** Neutralize spreadsheet formula injection (=, +, -, @) for literal values. */
+/**
+ * Neutralize spreadsheet formula injection (=, +, -, @) for literal values.
+ * The prefix set follows OWASP CSV Injection guidance: Excel strips a leading
+ * tab or carriage return before deciding a cell is a formula, so `\t` and `\r`
+ * are attack prefixes too — not just `=`, `+`, `-`, `@`.
+ */
 export function guardFormulaInjection(value) {
-    return /^[=+\-@]/.test(value) ? `'${value}` : value;
+    return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
 }
 export function stringifyCsv(rows, delimiter = ',') {
+    if (rows.length === 0)
+        return '';
     return rows.map((row) => row.map((cell) => csvField(cell, delimiter)).join(delimiter)).join('\r\n') + '\r\n';
 }
