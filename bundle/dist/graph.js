@@ -43,8 +43,10 @@ export function buildDependencyGraph(formulas) {
     const edgeKeys = new Set();
     const known = new Set();
     function addEdge(from, to) {
-        if (from === to)
-            return;
+        // Self-edges are deliberately kept. A formula that reads its own cell —
+        // `A1 = A1+1`, or `A1 = SUM(A1:A5)` — is Excel's most common circular
+        // reference, and skipping the edge here made it invisible to `findCycles`
+        // and therefore to the validator's `circular-reference` anomaly.
         const key = `${from}->${to}`;
         if (edgeKeys.has(key))
             return;
