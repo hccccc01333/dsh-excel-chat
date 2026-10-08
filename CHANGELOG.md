@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.39.9 — 2026-10-08
 
 - **修复：goal 模式下只改格式/元数据的步骤一律被判为「未达成」。** agent 循环用
   `workbookFingerprint` 判断「这一步到底改没改文件」，而它是**单元格值 + 粗体 /
