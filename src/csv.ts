@@ -77,6 +77,19 @@ export function guardFormulaInjection(value: string): string {
   return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
 }
 
+/**
+ * Undo `guardFormulaInjection` for a field read back from a CSV.
+ *
+ * The guard is one-way unless something reverses it: a text cell `=1+1` was
+ * exported as `'=1+1`, and importing that CSV left the apostrophe in the cell,
+ * so an export/import round-trip corrupted the value. `guarded` tells the
+ * caller the field was text when it was written, which matters — letting the
+ * value be re-inferred would turn it back into a live formula.
+ */
+export function unguardFormulaInjection(value: string): { text: string; guarded: boolean } {
+  return /^'[=+\-@\t\r]/.test(value) ? { text: value.slice(1), guarded: true } : { text: value, guarded: false }
+}
+
 export function stringifyCsv(rows: string[][], delimiter = ','): string {
   if (rows.length === 0) return ''
   return rows.map((row) => row.map((cell) => csvField(cell, delimiter)).join(delimiter)).join('\r\n') + '\r\n'

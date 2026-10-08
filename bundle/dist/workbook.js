@@ -68,6 +68,16 @@ export async function validateWorkbookFile(path) {
     return validate(await readWorkbookCells(data));
 }
 /**
+ * `cellContent` wraps an error cell as `{"error":"#REF!"}` so an error stays
+ * distinguishable from text that happens to spell the same token. A consumer
+ * that wants the plain representation — a CSV, which Excel writes as the bare
+ * token — unwraps it here instead of re-deriving the shape.
+ */
+export function plainContent(content) {
+    const serialised = /^\{"error":"([^"]+)"\}$/.exec(content);
+    return serialised ? serialised[1] : content;
+}
+/**
  * Sheet names in workbook order. The plan salvage needs them to fill in a
  * missing `sheet`/range prefix, so anything applying model-supplied operations
  * has to know the sheets before it can validate them.

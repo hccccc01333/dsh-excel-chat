@@ -12,6 +12,13 @@ export declare function stripPivotTableParts(data: Uint8Array): Uint8Array;
 export declare function readWorkbookCells(data: Uint8Array): Promise<Record<string, string>>;
 export declare function validateWorkbookFile(path: string): Promise<ValidationResult>;
 /**
+ * `cellContent` wraps an error cell as `{"error":"#REF!"}` so an error stays
+ * distinguishable from text that happens to spell the same token. A consumer
+ * that wants the plain representation — a CSV, which Excel writes as the bare
+ * token — unwraps it here instead of re-deriving the shape.
+ */
+export declare function plainContent(content: string): string;
+/**
  * Sheet names in workbook order. The plan salvage needs them to fill in a
  * missing `sheet`/range prefix, so anything applying model-supplied operations
  * has to know the sheets before it can validate them.

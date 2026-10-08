@@ -1,8 +1,8 @@
 import ExcelJS from 'exceljs';
 import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula, } from './formula.js';
-import { guardFormulaInjection, parseCsv, stringifyCsv } from './csv.js';
+import { guardFormulaInjection, parseCsv, stringifyCsv, unguardFormulaInjection } from './csv.js';
 import { validate } from './validator.js';
-import { readWorkbookCells, stripPivotTableParts } from './workbook.js';
+import { cellContent, plainContent, readWorkbookCells, stripPivotTableParts } from './workbook.js';
 import { diffCellMaps, writePatchLog } from './diff.js';
 import { annotateWorkbookXml, emptyAnnotations } from './xml-postprocess.js';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -57,15 +57,23 @@ function toCellValue(content) {
         return true;
     if (/^false$/i.test(content))
         return false;
-    const date = /^(\d{4})-(\d{2})-(\d{2})([T ](\d{2}):(\d{2})(:(\d{2}))?)?$/.exec(content);
+    // Accept the whole ISO 8601 date-time form, including the fractional seconds
+    // and `Z` that `cellContent` emits — the reader's own output has to be
+    // writable again, or reading a date and writing it back silently degrades the
+    // cell to text.
+    const date = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?(Z|[+-]\d{2}:?\d{2})?$/.exec(content);
     if (date) {
-        const year = Number(date[1]);
-        const month = Number(date[2]);
-        const day = Number(date[3]);
-        const hour = date[5] ? Number(date[5]) : 0;
-        const minute = date[6] ? Number(date[6]) : 0;
-        const second = date[8] ? Number(date[8]) : 0;
-        return new Date(year, month - 1, day, hour, minute, second);
+        const [, year, month, day, hour, minute, second, millis, zone] = date;
+        if (zone) {
+            // A zone designator makes the string an absolute instant. Re-deriving the
+            // components in local time would shift it by the offset.
+            const instant = new Date(content.replace(' ', 'T'));
+            if (!Number.isNaN(instant.getTime()))
+                return instant;
+        }
+        // Without a zone the value is a wall clock, which is how exceljs reads and
+        // writes dates, so the components go in as local time.
+        return new Date(Number(year), Number(month) - 1, Number(day), Number(hour ?? 0), Number(minute ?? 0), Number(second ?? 0), Number(millis ?? 0));
     }
     return content;
 }
@@ -2139,7 +2147,15 @@ async function importCsv(workbook, options) {
         sheet = workbook.addWorksheet(sheetName);
     rows.forEach((row, rowIndex) => {
         row.forEach((value, colIndex) => {
-            writeContent(sheet.getCell(`${numberToColumn(colIndex + 1)}${rowIndex + 1}`), value);
+            const cell = sheet.getCell(`${numberToColumn(colIndex + 1)}${rowIndex + 1}`);
+            const { text, guarded } = unguardFormulaInjection(value);
+            // A guarded field was text when it was written, so it has to stay text:
+            // handing it back to writeContent would infer `=` and revive the formula
+            // the guard exists to defuse.
+            if (guarded)
+                cell.value = text;
+            else
+                writeContent(cell, value);
         });
     });
 }
@@ -2162,8 +2178,12 @@ async function exportCsv(workbook, options) {
                 row.push(`=${cell.formula}`);
             }
             else {
+                // Serialise through `cellContent`, not `String(raw)`. Dates, hyperlinks,
+                // rich text and error cells are all objects, and `String()` on those gave
+                // a locale-and-timezone-dependent date string or a literal
+                // `[object Object]` — four shapes written into the CSV as garbage.
                 const raw = cell.value;
-                let text = raw === null || raw === undefined ? '' : String(raw);
+                let text = plainContent(cellContent(cell) ?? '');
                 if (guard && typeof raw === 'string')
                     text = guardFormulaInjection(text);
                 row.push(text);

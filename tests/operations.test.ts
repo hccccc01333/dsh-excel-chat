@@ -2056,6 +2056,56 @@ test('sortRange by fill colour moves the matching rows to the top, formatting in
   )
 })
 
+test('a date written back from the reader output stays a date', async () => {
+  // `cellContent` emits `toISOString()`, so `excel_read` shows a date cell as
+  // `2026-01-15T01:30:00.000Z`. The date parser did not accept fractional
+  // seconds or `Z`, so writing that string back left it as *text* — reading a
+  // date and writing it again silently degraded the cell, and the damage was
+  // invisible because the text happened to read the same.
+  const workbook = new ExcelJS.Workbook()
+  workbook.addWorksheet('Sheet1').getCell('A1').value = new Date(2026, 0, 15, 9, 30)
+  const dir = await mkdtemp(join(tmpdir(), 'vera-date-'))
+  const path = join(dir, 'book.xlsx')
+  await writeFile(path, await workbook.xlsx.writeBuffer())
+
+  const shown = (await readWorkbookCells(await readFile(path)))['Sheet1!A1']!
+  const outPath = join(dir, 'out.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'set', cells: { 'Sheet1!B1': shown } }], outPath)
+
+  const result = new ExcelJS.Workbook()
+  await result.xlsx.readFile(outPath)
+  const written = result.getWorksheet('Sheet1')!.getCell('B1').value
+  assert.ok(written instanceof Date, `expected a Date, got ${typeof written}`)
+  assert.equal((await readWorkbookCells(await readFile(outPath)))['Sheet1!B1'], shown)
+})
+
+test('date strings keep their precision and non-dates stay text', async () => {
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1')
+  })
+  const outPath = join(join(path, '..'), 'dates.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'set',
+    cells: {
+      'Sheet1!A1': '2026-01-15',
+      'Sheet1!A2': '2026-01-15 09:30',
+      'Sheet1!A3': '2026-01-15T09:30:00.500',
+      'Sheet1!A4': '2026-01-15T09:30:00+08:00',
+      'Sheet1!A5': '2026-1-5',
+    },
+  }], outPath)
+
+  const result = new ExcelJS.Workbook()
+  await result.xlsx.readFile(outPath)
+  const sheet = result.getWorksheet('Sheet1')!
+  for (const id of ['A1', 'A2', 'A3', 'A4']) {
+    assert.ok(sheet.getCell(id).value instanceof Date, `${id} should be a date`)
+  }
+  assert.equal(sheet.getCell('A5').value, '2026-1-5', 'a non-ISO string must stay text')
+  // Fractional seconds must survive rather than being truncated.
+  assert.equal((await readWorkbookCells(await readFile(outPath)))['Sheet1!A3'], '2026-01-15T01:30:00.500Z')
+})
+
 test('sortRange rejects a colour key without a colour', async () => {
   const path = await makeWorkbook((workbook) => {
     workbook.addWorksheet('Sheet1')

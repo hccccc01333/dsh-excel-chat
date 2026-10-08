@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import ExcelJS from 'exceljs'
-import { guardFormulaInjection, parseCsv, stringifyCsv } from '../src/csv.ts'
+import { guardFormulaInjection, parseCsv, stringifyCsv, unguardFormulaInjection } from '../src/csv.ts'
 import { operateWorkbookFile } from '../src/operations.ts'
 
 test('a trailing newline closes the last record instead of opening an empty one', () => {
@@ -83,6 +83,25 @@ test('ordinary values are left untouched by the injection guard', () => {
   }
 })
 
+test('unguarding reverses exactly what the guard did', () => {
+  // The guard is one-way unless something undoes it, and a one-way guard makes
+  // export→import corrupt the value: a text cell `=1+1` came back as `'=1+1`.
+  for (const value of ['=1+1', '+8613800138000', '-5', '@handle', '\t=cmd', '\r=cmd']) {
+    const guarded = guardFormulaInjection(value)
+    assert.deepEqual(unguardFormulaInjection(guarded), { text: value, guarded: true })
+  }
+})
+
+test('unguarding leaves everything the guard would not have touched', () => {
+  for (const value of ['safe', '3', 'a-b', 'x@y.com', "'hello", "''=1", '', '-5']) {
+    assert.deepEqual(
+      unguardFormulaInjection(value),
+      { text: value, guarded: false },
+      `${JSON.stringify(value)} must be left alone`,
+    )
+  }
+})
+
 test('importing a real CSV does not add a phantom row to the sheet', async () => {
   // End-to-end form of the first test: the unit fix is only worth anything if
   // the extra row stops reaching the worksheet. It used to, because writeContent
@@ -105,4 +124,69 @@ test('importing a real CSV does not add a phantom row to the sheet', async () =>
   assert.equal(sheet.rowCount, 3)
   assert.equal(sheet.getCell('A1').value, 'name')
   assert.equal(sheet.getCell('A3').value, 'pear')
+})
+
+test('exporting writes every cell shape as text, not as an object', async () => {
+  // `String(raw)` on a cell value gave `[object Object]` for hyperlinks, rich
+  // text and error cells, and a locale-and-timezone string for dates — four
+  // shapes written into the CSV as garbage, unreadable by anything else.
+  const dir = await mkdtemp(join(tmpdir(), 'vera-csv-export-'))
+  const book = join(dir, 'book.xlsx')
+  const csv = join(dir, 'out.csv')
+
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Sheet1')
+  sheet.getCell('A1').value = { text: '官网', hyperlink: 'https://example.com' }
+  sheet.getCell('A2').value = { richText: [{ text: '富' }, { text: '文本' }] }
+  sheet.getCell('A3').value = { error: '#REF!' }
+  sheet.getCell('A4').value = new Date(Date.UTC(2026, 0, 15, 9, 30))
+  sheet.getCell('A5').value = -5
+  sheet.getCell('A6').value = '=1+1'
+  sheet.getCell('A7').value = { formula: 'A5*2' }
+  await workbook.xlsx.writeFile(book)
+
+  await operateWorkbookFile(book, [{ op: 'exportCsv', file: csv, sheet: 'Sheet1' }], join(dir, 't.xlsx'))
+  const lines = (await readFile(csv, 'utf8')).split('\r\n').filter((line) => line !== '')
+
+  assert.deepEqual(lines, [
+    '官网',
+    '富文本',
+    '#REF!',
+    '2026-01-15T09:30:00.000Z',
+    '-5',
+    "'=1+1",
+    '=A5*2',
+  ])
+})
+
+test('exporting then importing preserves the values', async () => {
+  // The guard used to be one-way, so `=1+1` went out as `'=1+1` and came back
+  // with the apostrophe still attached — an export/import round-trip that
+  // silently corrupted the cell.
+  const dir = await mkdtemp(join(tmpdir(), 'vera-csv-roundtrip-'))
+  const book = join(dir, 'book.xlsx')
+  const csv = join(dir, 'out.csv')
+  const back = join(dir, 'back.xlsx')
+
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Sheet1')
+  sheet.getCell('A1').value = '=1+1'
+  sheet.getCell('A2').value = '+8613800138000'
+  sheet.getCell('A3').value = -5
+  sheet.getCell('A4').value = new Date(Date.UTC(2026, 0, 15, 9, 30))
+  sheet.getCell('A5').value = 1234.5
+  await workbook.xlsx.writeFile(book)
+
+  await operateWorkbookFile(book, [{ op: 'exportCsv', file: csv, sheet: 'Sheet1' }], join(dir, 't.xlsx'))
+  await operateWorkbookFile(book, [{ op: 'importCsv', file: csv, sheet: 'Sheet1' }], back)
+
+  const result = new ExcelJS.Workbook()
+  await result.xlsx.readFile(back)
+  const out = result.getWorksheet('Sheet1')!
+  assert.equal(out.getCell('A1').value, '=1+1', 'a guarded text cell must come back as text, not a formula')
+  assert.equal(out.getCell('A1').formula, undefined)
+  assert.equal(out.getCell('A2').value, '+8613800138000')
+  assert.equal(out.getCell('A3').value, -5, 'a negative number must not be guarded')
+  assert.ok(out.getCell('A4').value instanceof Date)
+  assert.equal(out.getCell('A5').value, 1234.5)
 })
