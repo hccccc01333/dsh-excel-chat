@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- **修复：goal 模式下只改格式/元数据的步骤一律被判为「未达成」。** agent 循环用
+  `workbookFingerprint` 判断「这一步到底改没改文件」，而它是**单元格值 + 粗体 /
+  数字格式 / 填充**的快照。可绝大多数操作改的东西**根本不在单元格网格里**：
+
+  | 操作 | 旧指纹 |
+  | --- | --- |
+  | addComment 加批注 | 无变化 |
+  | setColumnWidth 设列宽 | 无变化 |
+  | freezePanes 冻结窗格 | 无变化 |
+  | autoFilter 加筛选 | 无变化 |
+  | conditionalFormatting 条件格式 | 无变化 |
+  | dataValidation 数据校验 | 无变化 |
+  | addTable 建表 | 无变化 |
+  | setZoom 设缩放 | 无变化 |
+  | setHyperlink 更新已有链接 | 无变化 |
+
+  实测 10 个操作里 **9 个检测不到**。而循环里有
+  `if (!changed || …) verdict = { achieved: false }`——**于是这些步骤被强制判失败**，
+  即使操作成功、文件完全正确。goal 模式下「冻结首行」「加个筛选」「给表头加批注」
+  这类请求因此必然失败，还会白白消耗重规划轮次。
+
+  改为**按部件内容取哈希**（解压 xlsx，对排序后的部件做 sha256）。这是**按构造完备**
+  的——新操作只要写出任何东西就会被覆盖——而枚举式快照必须手工维护、必然漂移，
+  正是这个项目反复出现的缺陷类型。
+
+  比较前两侧都先过一遍 exceljs：它写出时会重新序列化，所以「Excel 写的文件」与
+  「exceljs 写的文件」即使语义相同也逐字节不同，不归一化就会恒判「有变化」。
+  实测 exceljs 输出**逐字节确定**（同一输入两次写出一致，`dcterms:created` /
+  `modified` 被原样保留而非重新打时间戳），所以归一化是安全的。空操作现在正确
+  判为「无变化」，把单元格设成它已有的值同样如此。
+
+- **修复：`excel_profile` 把日期列的样本值显示成本地语言英文串。** 样本来自
+  `String(date)`，于是出现 `Thu Jan 15 2026 09:30:00 GMT+0800 (中国标准时间)`
+  ——依赖机器语言环境、与工具其他部分的 ISO 表示不一致，换台机器还会变成
+  `Eastern Daylight Time`。现在统一为 ISO。
+
 - **修复：`excel_undo` 回滚会把数字、布尔、日期都变成文本。** 补丁日志里存的是
   `cellContent` 的产物（字符串），而写入端 `applyPatchesToWorkbook` 直接
   `cell.value = patch.newValue`，于是撤销一次编辑会把 `42` 恢复成**字符串** `"42"`
@@ -141,20 +177,23 @@
   此前被上面那句丢弃自环的代码掩盖了；修好构图后两个任务的完整性立刻从 1 掉到
   0.98，才把它暴露出来。按语义左移一列修正，原有的偏移错误与断言意图保持不变。
 
-- **新增 4 个测试文件，并给 7 个既有文件补了用例，共 +60 例**，补上此前没有直接测试
+- **新增 5 个测试文件，并给 8 个既有文件补了用例，共 +73 例**，补上此前没有直接测试
   的模块：`tests/csv.test.ts`（16 例，含端到端 `importCsv` 回归、四种单元格形状的
   导出、导出导入往返）、`tests/graph.test.ts`（14 例）、`tests/charts.test.ts`（8 例）、
-  `tests/formula.test.ts`（10 例，列字母与单元格 id 的边界校验）；
+  `tests/formula.test.ts`（10 例，列字母与单元格 id 的边界校验）、
+  `tests/workbook-fingerprint.test.ts`（12 例：九个「不在网格里」的操作都必须被指纹
+  检测到，空操作必须判为无变化——这条守卫防止指纹再次漂移）；
   `tests/operations.test.ts` 的 OOM 回归与日期读写回归、
   `tests/diff.test.ts` 的 `rolling a patch back restores the cell types, not just
   the text`（断言单元格*类型*，既有往返测试比较字符串所以抓不到）、
+  `tests/profile.test.ts` 的日期样本回归、
   `tests/error-values.test.ts` 的 3 例误报回归、
   `tests/plan-schema.test.ts` 与 `tests/task.test.ts` 的入口校验回归，以及
   `tests/load-bundle.test.ts` 的 `excel_task names the missing field instead of
   crashing on a malformed step`（**跑构建产物 + 真实 cordis 上下文**，
   验证的是可达路径）和 `tests/file-benchmark.test.ts` 的语料守卫
   `no corpus fixture ships a circular formula`——遍历 100 个夹具断言无环，
-  这条守卫当初就能抓到那两处夹具缺陷。测试 350 → **410 通过**。
+  这条守卫当初就能抓到那两处夹具缺陷。测试 350 → **423 通过**。
 
 ## v0.39.8 — 2026-10-07
 
