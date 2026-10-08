@@ -86,7 +86,8 @@ dsh-excel-chat-doctor                                    # npm 全局 / npx 可�
 
 100 个职场任务的[自建评测语料](https://github.com/hccccc01333/dsh-excel-chat/blob/master/docs/benchmark.md)
 （ExcelBench lite：编辑 / 分析 / 公式 / 多步工作流），goal 模式 + glm-5.3-flash
-全量实测任务成功率 **86%**（DeepSeek 基线 52%）；失败归因、复测方式与已知局限
+全量实测任务成功率 **86%**（DeepSeek 基线 52%）。[逐次跑分的公开结果表](https://github.com/hccccc01333/dsh-excel-chat/blob/master/docs/benchmark-results.md)
+由原始输出生成，任何人都能跑一行加进去；失败归因、复测方式与已知局限
 都写在评测文档里。单元测试 423 项全绿。
 
 ## 工具（25 个）

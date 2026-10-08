@@ -136,8 +136,9 @@ dsh web --profile demo                             # 打开对话界面
 | `excel_export_pdf` | 用本机 Excel COM 把工作簿或单个工作表导出为 PDF（Windows，只读打开不动源文件） |
 
 能力深度与可靠性进展：100 个职场任务的自建评测语料（ExcelBench lite），
-goal 模式 + glm-5.3-flash 全量实测成功率 86%（DeepSeek 基线 52%），指标与
-失败归因见 [docs/benchmark.md](docs/benchmark.md)；右侧可编辑 Excel
+goal 模式 + glm-5.3-flash 全量实测成功率 86%（DeepSeek 基线 52%）。
+**逐次跑分的公开结果表见 [docs/benchmark-results.md](docs/benchmark-results.md)**
+（由原始输出生成，你可以自己跑一行加进去）；指标与失败归因见 [docs/benchmark.md](docs/benchmark.md)；右侧可编辑 Excel
 面板的设计与实测见 [docs/web-panel.md](docs/web-panel.md)。
 
 ## Modules

@@ -148,7 +148,9 @@ because code keys off it. See [docs/usage.md](docs/usage.md).
 
 Depth and reliability: on a self-built evaluation corpus of 100 workplace tasks (ExcelBench
 lite), goal mode with glm-5.3-flash reaches a measured task success rate of 86% (DeepSeek
-baseline 52%); the metrics and failure attribution are in
+baseline 52%). **The per-run results table is [docs/benchmark-results.md](docs/benchmark-results.md)**
+— generated from raw run output, and you can run a row yourself. The metrics and failure
+attribution are in
 [docs/benchmark.md](docs/benchmark.md). The design and measurements of the editable Excel
 panel are in [docs/web-panel.md](docs/web-panel.md).
 

@@ -1,0 +1,26 @@
+{
+  "label": "DeepSeek 基线（v0.36 前提示词）",
+  "model": "deepseek-chat",
+  "provider": "deepseek",
+  "date": "2026-10-07",
+  "rounds": 3,
+  "total": 100,
+  "success": 52,
+  "successRate": 0.52,
+  "meanAccuracy": 0.61,
+  "integrityRate": 0.93,
+  "categories": {
+    "editing": { "total": 35, "success": 23, "successRate": 0.657 },
+    "analysis": { "total": 25, "success": 7, "successRate": 0.28 },
+    "formula": { "total": 22, "success": 15, "successRate": 0.682 },
+    "workflow": { "total": 18, "success": 7, "successRate": 0.389 }
+  },
+  "failureBreakdown": {
+    "verification": 33,
+    "replan": 9,
+    "planning": 4,
+    "argument": 2,
+    "execution": 0
+  },
+  "provenance": "docs/benchmark.md 的 v0.35/v0.37 对比表转录。原始 JSONL 未随仓库提交，所以这一行不能由脚本重新生成。"
+}

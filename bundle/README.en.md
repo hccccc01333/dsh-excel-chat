@@ -101,7 +101,9 @@ cell contents are of course left exactly as they are.
 A self-built evaluation corpus of 100 workplace tasks
 ([ExcelBench lite](https://github.com/hccccc01333/dsh-excel-chat/blob/master/docs/benchmark.md):
 editing / analysis / formulas / multi-step workflows). In goal mode with glm-5.3-flash the
-measured task success rate is **86%** (DeepSeek baseline 52%); the failure attribution, the
+measured task success rate is **86%** (DeepSeek baseline 52%). The
+[per-run results table](https://github.com/hccccc01333/dsh-excel-chat/blob/master/docs/benchmark-results.md)
+is generated from raw run output and anyone can add a row; the failure attribution, the
 re-test method and the known limitations are all written up in the evaluation document.
 423 unit tests pass.
 

@@ -15,23 +15,31 @@
 ## 运行
 
 ```sh
-node --test tests/invoke-file-benchmark.ts   # 打印聚合报告
-node --test tests/file-benchmark.test.ts     # 语料回归守护（100/100）
-node --test tests/invoke-llm-benchmark.ts    # 真实 LLM 规划基准
+npm run bench:corpus    # 语料回归守护（100/100，不调用模型，秒级）
+npm run bench           # 真实 LLM 规划基准（需要 API key，输出 JSON）
+npm run bench:report    # 把 bench-results/*.json 汇成公开结果表
 ```
+
+**公开结果表在 [benchmark-results.md](benchmark-results.md)**——由 `npm run bench:report`
+从 `bench-results/*.json` 生成，每行都是一次真实跑分的原始输出。**任何人都能加一行**：
+把 `npm run bench` 的输出存成 `bench-results/<日期>-<模型>.json`，再跑一次 report。
+不花钱的做法是用本地 Ollama（见该文档）。
 
 LLM 基准走的是 OpenAI 兼容的 `/chat/completions`，**任何兼容端点都能接**，不限于下面两家。
 端点与模型都可用环境变量覆盖（`DEEPSEEK_BASE_URL` / `BAI_BASE_URL`）：
 
 ```sh
 # DeepSeek（默认）
-DEEPSEEK_API_KEY=sk-... node --test tests/invoke-llm-benchmark.ts
+DEEPSEEK_API_KEY=sk-... node tests/invoke-llm-benchmark.ts
 # BAI（api.b.ai，glm-5.3-flash / qwen3.8-flash）
-LLM_PROVIDER=bai BAI_MODEL=glm-5.3-flash node --test tests/invoke-llm-benchmark.ts
+LLM_PROVIDER=bai BAI_MODEL=glm-5.3-flash node tests/invoke-llm-benchmark.ts
 # 任意 OpenAI 兼容端点——本地 Ollama 示例，零 API 成本、数据不出网
 DEEPSEEK_API_KEY=ollama DEEPSEEK_BASE_URL=http://localhost:11434/v1 \
-  DEEPSEEK_MODEL=qwen2.5:14b node --test tests/invoke-llm-benchmark.ts
+  DEEPSEEK_MODEL=qwen2.5:14b node tests/invoke-llm-benchmark.ts
 ```
+
+**注意**：直接 `node tests/invoke-llm-benchmark.ts`（**不要**加 `--test`）——
+加了 `--test` 会在 stdout 混入 TAP 行，输出就不是纯 JSON 了，没法直接存成结果行。
 
 可选环境变量：`LLM_BENCH_SAMPLE`/`LLM_BENCH_OFFSET`（切片）、
 `LLM_BENCH_OUT`（JSONL 断点续跑文件，逐任务落盘、重跑自动跳过已完成、

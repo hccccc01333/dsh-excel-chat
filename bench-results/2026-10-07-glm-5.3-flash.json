@@ -1,0 +1,27 @@
+{
+  "label": "glm-5.3-flash（v0.37 提示词）",
+  "model": "glm-5.3-flash",
+  "provider": "bai",
+  "date": "2026-10-07",
+  "rounds": 3,
+  "total": 100,
+  "success": 86,
+  "successRate": 0.86,
+  "meanAccuracy": 0.885,
+  "integrityRate": 0.99,
+  "categories": {
+    "editing": { "total": 35, "success": 30, "successRate": 0.857 },
+    "analysis": { "total": 25, "success": 21, "successRate": 0.84 },
+    "formula": { "total": 22, "success": 21, "successRate": 0.955 },
+    "workflow": { "total": 18, "success": 14, "successRate": 0.778 }
+  },
+  "failureBreakdown": {
+    "argument": 9,
+    "planning": 3,
+    "replan": 1,
+    "intent": 1,
+    "verification": 0,
+    "execution": 0
+  },
+  "provenance": "docs/benchmark.md 的 v0.37 全量实测转录。换模型与换提示词同时发生，86% 是两者叠加的结果，不是提示词的单独贡献。托管端点限流严重，该轮依赖 JSONL 断点续跑逐任务补齐。原始 JSONL 未随仓库提交。"
+}

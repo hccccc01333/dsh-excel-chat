@@ -26,7 +26,19 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+
+/**
+ * True when this file is the entry point, so importing it (from the test suite)
+ * does not run the CLI. Comparing `fileURLToPath(import.meta.url)` against the raw
+ * `process.argv[1]` does not work on Windows — one is absolute with backslashes,
+ * the other is whatever the shell passed, often relative. That silent mismatch once
+ * left a CLI printing nothing while every test still passed, because the tests
+ * import the module rather than running it.
+ */
+function isMain() {
+  return process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href
+}
 import ExcelJS from 'exceljs'
 import { autofixWorkbookFile } from '../src/autofix.ts'
 import { readWorkbookCells } from '../src/workbook.ts'
@@ -298,6 +310,6 @@ export async function main(argv = process.argv.slice(2)) {
 
 // Only run when invoked directly, so the test suite can import `collectEvidence`
 // and `EXPECTED` without triggering a render.
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1].replace(/\\/g, '/')) {
+if (isMain()) {
   process.exit(await main())
 }
