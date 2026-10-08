@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **修复：编辑后体检会把「提到错误值的普通内容」误判成错误单元格。**
+  `detectErrorValues` 用的是**不锚定**的正则，所以错误 token 出现在内容的任何位置
+  都算命中，置信度还是 1。实测这些都会被误报：
+
+  | 单元格内容 | 旧行为 |
+  | --- | --- |
+  | `备注：#REF! 已修复` | 报错 |
+  | `=IF(A1="#N/A","missing",A1)` | 报错 |
+  | `=IFERROR(A1/B1,"#N/A")` | 报错 |
+
+  最后一条最说明问题：**这个公式存在的意义就是处理 #N/A，却被判成含错误的单元格**。
+  它还让 `validate` 与 `excel_find_errors` 对同一份文件结论不一致——
+  `findErrorCells` 读的是类型化的 `cell.value.error`，从不误报。方向正好与上一版
+  相反：那次是体检漏报 `#N/A`/`#NAME?`，这次是体检过报。
+
+  现在只认真正会出现的几种形状：整值就是错误 token（允许 `=#REF!` 这种公式体）、
+  `readWorkbookCells` 产出的 JSON 信封 `{"error":"#REF!"}`、以及以 `=` 开头且
+  **剥掉字符串字面量后**以错误 token 结尾的公式结果文本。最后一条的「剥掉字面量」
+  是关键：`=IFERROR(A1/B1,"#N/A")` 剥掉后剩 `=IFERROR(A1/B1, )`，不再以 token 结尾。
+
 - **修复：模型把列名当列字母传入时会把进程打崩（OOM）。** `columnToNumber`
   对任何字符串都不做校验，`columnToNumber('Sheet1')` 会算出 **229493717**
   （S=19,H=8,E=5,E=5,T=20,1=−15 的进位结果）。`groupColumns` 只检查
@@ -54,15 +74,16 @@
   此前被上面那句丢弃自环的代码掩盖了；修好构图后两个任务的完整性立刻从 1 掉到
   0.98，才把它暴露出来。按语义左移一列修正，原有的偏移错误与断言意图保持不变。
 
-- **新增 5 个测试文件 / 46 例**，补上此前没有直接测试的模块：
-  `tests/csv.test.ts`（12 例，含端到端 `importCsv` 回归）、
+- **新增 4 个测试文件，并给 3 个既有文件补了用例，共 +49 例**，补上此前没有直接测试
+  的模块：`tests/csv.test.ts`（12 例，含端到端 `importCsv` 回归）、
   `tests/graph.test.ts`（14 例）、`tests/charts.test.ts`（8 例）、
-  `tests/formula.test.ts`（10 例，列字母与单元格 id 的边界校验）、
+  `tests/formula.test.ts`（10 例，列字母与单元格 id 的边界校验）；
   `tests/operations.test.ts` 的 `a column name where a column letter belongs is
-  rejected, not allocated`（端到端 OOM 回归），以及
+  rejected, not allocated`（端到端 OOM 回归）、
+  `tests/error-values.test.ts` 的 3 例误报回归，以及
   `tests/file-benchmark.test.ts` 的语料守卫
   `no corpus fixture ships a circular formula`——遍历 100 个夹具断言无环，
-  这条守卫当初就能抓到那两处夹具缺陷。测试 350 → **396 通过**。
+  这条守卫当初就能抓到那两处夹具缺陷。测试 350 → **399 通过**。
 
 ## v0.39.8 — 2026-10-07
 
