@@ -100,6 +100,43 @@ test('excel_operate runs through the plugin context and re-validates', async () 
   assert.ok(value.validation.anomalies.some((anomaly) => anomaly.cell === 'Sheet1!D4'))
 })
 
+test('excel_task names the missing field instead of crashing on a malformed step', async () => {
+  // `excel_task` declares its steps as `{ type: 'object', additionalProperties: true }`,
+  // so unlike `excel_operate` its operations never meet `excelOperationSchema`.
+  // A step missing a nested field therefore reached a handler and surfaced as
+  // `TypeError: Cannot read properties of undefined (reading 'toUpperCase')` —
+  // a message naming neither the operation nor the field.
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Sheet1')
+  sheet.addRow(['name', 'qty'])
+  sheet.addRow(['a', 3])
+  const dir = await mkdtemp(join(tmpdir(), 'vera-bundle-task-'))
+  const input = join(dir, 'book.xlsx')
+  await writeFile(input, await workbook.xlsx.writeBuffer())
+
+  const plugin = await import(bundleUrl)
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(plugin)
+  const result = await ctx.tools.execute({
+    signal: new AbortController().signal,
+    callId: CallId('vera-bundle-task-1'),
+    name: 'excel_task',
+    arguments: {
+      path: input,
+      steps: [{
+        name: 'sort',
+        operations: [{ op: 'sortRange', range: 'Sheet1!A1:B2', keys: [{ direction: 'desc' }] }],
+      }],
+    },
+  })
+  assert.equal(result.isError, true)
+  const message = JSON.stringify(result.error ?? result.value)
+  assert.match(message, /keys\[0\]\.column 缺失/)
+  assert.doesNotMatch(message, /Cannot read properties of undefined/)
+})
+
 test('excel_read runs through the plugin context and returns lossless JSON', async () => {
   const workbook = new ExcelJS.Workbook()
   const sheet = workbook.addWorksheet('Sheet1')

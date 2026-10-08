@@ -31,6 +31,7 @@ import { excelOperationSchema } from './operation-schema.ts'
 import { operateWorkbookFile, type ExcelOperation } from './operations.ts'
 import { buildWorkbookMenu } from './menu.ts'
 import { createPivotTable, type PivotValueSpec } from './pivot.ts'
+import { sanitizeOperations } from './plan-schema.ts'
 import { buildWorkbookPreview } from './preview.ts'
 import { profileWorkbook } from './profile.ts'
 import { repairWorkbookFile } from './repair.ts'
@@ -40,7 +41,7 @@ import { runExcelTask } from './task.ts'
 import { detectTableFromCells } from './tables.ts'
 import { validate } from './validator.ts'
 import { visionTextFromContext } from './vision.ts'
-import { readWorkbookCells, validateWorkbookFile } from './workbook.ts'
+import { readWorkbookCells, readWorkbookSheetNames, validateWorkbookFile } from './workbook.ts'
 import { createVisionCritic } from './chart-visual.ts'
 import { announce, describeError, guardedContext, registrationSummary, writeStatusReport } from './registration.ts'
 
@@ -281,12 +282,16 @@ function registerAll(ctx: Context) {
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     },
     async execute(args) {
-      const outPath = (typeof args.outPath === 'string' && args.outPath ? args.outPath : (args.path as string).replace(/\.xlsx$/i, '.edited.xlsx'))
-      const result = await operateWorkbookFile(
-        args.path as string,
+      const path = args.path as string
+      const outPath = (typeof args.outPath === 'string' && args.outPath ? args.outPath : path.replace(/\.xlsx$/i, '.edited.xlsx'))
+      // Validate and salvage before the executor sees them: it assumes a
+      // well-formed array, so a missing nested field used to surface as a raw
+      // TypeError from deep inside a handler.
+      const operations = sanitizeOperations(
         args.operations as unknown as ExcelOperation[],
-        outPath,
+        await readWorkbookSheetNames(path),
       )
+      const result = await operateWorkbookFile(path, operations, outPath)
       if (args.validateAfter === false) {
         return {
           ...result,

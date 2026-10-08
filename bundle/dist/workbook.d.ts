@@ -11,4 +11,10 @@ export declare function cellContent(cell: ExcelJS.Cell): string | null;
 export declare function stripPivotTableParts(data: Uint8Array): Uint8Array;
 export declare function readWorkbookCells(data: Uint8Array): Promise<Record<string, string>>;
 export declare function validateWorkbookFile(path: string): Promise<ValidationResult>;
+/**
+ * Sheet names in workbook order. The plan salvage needs them to fill in a
+ * missing `sheet`/range prefix, so anything applying model-supplied operations
+ * has to know the sheets before it can validate them.
+ */
+export declare function readWorkbookSheetNames(path: string): Promise<string[]>;
 //# sourceMappingURL=workbook.d.ts.map

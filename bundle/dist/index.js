@@ -22,6 +22,7 @@ import { excelOperationSchema } from './operation-schema.js';
 import { operateWorkbookFile } from './operations.js';
 import { buildWorkbookMenu } from './menu.js';
 import { createPivotTable } from './pivot.js';
+import { sanitizeOperations } from './plan-schema.js';
 import { buildWorkbookPreview } from './preview.js';
 import { profileWorkbook } from './profile.js';
 import { repairWorkbookFile } from './repair.js';
@@ -31,7 +32,7 @@ import { runExcelTask } from './task.js';
 import { detectTableFromCells } from './tables.js';
 import { validate } from './validator.js';
 import { visionTextFromContext } from './vision.js';
-import { readWorkbookCells, validateWorkbookFile } from './workbook.js';
+import { readWorkbookCells, readWorkbookSheetNames, validateWorkbookFile } from './workbook.js';
 import { createVisionCritic } from './chart-visual.js';
 import { announce, describeError, guardedContext, registrationSummary, writeStatusReport } from './registration.js';
 export const name = 'dsh-excel-chat';
@@ -265,8 +266,13 @@ function registerAll(ctx) {
             render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
         },
         async execute(args) {
-            const outPath = (typeof args.outPath === 'string' && args.outPath ? args.outPath : args.path.replace(/\.xlsx$/i, '.edited.xlsx'));
-            const result = await operateWorkbookFile(args.path, args.operations, outPath);
+            const path = args.path;
+            const outPath = (typeof args.outPath === 'string' && args.outPath ? args.outPath : path.replace(/\.xlsx$/i, '.edited.xlsx'));
+            // Validate and salvage before the executor sees them: it assumes a
+            // well-formed array, so a missing nested field used to surface as a raw
+            // TypeError from deep inside a handler.
+            const operations = sanitizeOperations(args.operations, await readWorkbookSheetNames(path));
+            const result = await operateWorkbookFile(path, operations, outPath);
             if (args.validateAfter === false) {
                 return {
                     ...result,

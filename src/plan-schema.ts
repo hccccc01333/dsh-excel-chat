@@ -395,3 +395,20 @@ export function sanitizePlan(steps: PlanStep[], sheetNames: string[]): Sanitized
   })
   return { steps: out, notes }
 }
+
+/**
+ * Run the same validation and salvage the planner path uses, for an operations
+ * array that arrived straight from a tool call rather than from the planner.
+ *
+ * `excel_operate` and `excel_workflow` hand the model's array to the executor
+ * directly, and the executor assumes it is already well-formed. So a model that
+ * omitted a nested field reached a handler and crashed with
+ * `TypeError: Cannot read properties of undefined (reading 'toUpperCase')`,
+ * where the planner gets the actionable `sortRange 的 keys[0].column 缺失`.
+ * Reusing this function rather than writing a second validator is deliberate:
+ * one rule with two implementations drifts.
+ */
+export function sanitizeOperations(operations: ExcelOperation[], sheetNames: string[]): ExcelOperation[] {
+  const [step] = sanitizePlan([{ operations }], sheetNames).steps
+  return step?.operations ?? []
+}

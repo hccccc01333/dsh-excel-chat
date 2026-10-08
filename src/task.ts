@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { autofixWorkbookFile } from './autofix.ts'
 import { applyOperationsToWorkbook, type ExcelOperation, type OperationWarning } from './operations.ts'
-import { validateWorkbookFile } from './workbook.ts'
+import { sanitizeOperations } from './plan-schema.ts'
+import { readWorkbookSheetNames, validateWorkbookFile } from './workbook.ts'
 
 export interface TaskStepInput {
   name?: string
@@ -39,7 +40,11 @@ export async function runExcelTask(path: string, steps: TaskStepInput[], outPath
   const results: TaskStepResult[] = []
   for (const [index, step] of steps.entries()) {
     const stepOut = index === steps.length - 1 ? join(dir, 'final.xlsx') : join(dir, `step-${index + 1}.xlsx`)
-    const applied = await applyOperationsToWorkbook(current, step.operations, stepOut)
+    // Validate each step against the sheets that exist *now* — an earlier step
+    // may have added one. Same reason as excel_operate: the executor assumes a
+    // well-formed array.
+    const operations = sanitizeOperations(step.operations, await readWorkbookSheetNames(current))
+    const applied = await applyOperationsToWorkbook(current, operations, stepOut)
     const result: TaskStepResult = { index, name: step.name ?? `step ${index + 1}`, warnings: applied.warnings }
     if (step.verify !== false) {
       const validation = await validateWorkbookFile(stepOut)

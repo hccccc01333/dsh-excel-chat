@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { autofixWorkbookFile } from './autofix.js';
 import { applyOperationsToWorkbook } from './operations.js';
-import { validateWorkbookFile } from './workbook.js';
+import { sanitizeOperations } from './plan-schema.js';
+import { readWorkbookSheetNames, validateWorkbookFile } from './workbook.js';
 /**
  * Multi-step Excel workflow in one call (ExcelGenius2/SheetCopilot-style task
  * orchestration): each step applies an operations array, validates formulas,
@@ -19,7 +20,11 @@ export async function runExcelTask(path, steps, outPath) {
     const results = [];
     for (const [index, step] of steps.entries()) {
         const stepOut = index === steps.length - 1 ? join(dir, 'final.xlsx') : join(dir, `step-${index + 1}.xlsx`);
-        const applied = await applyOperationsToWorkbook(current, step.operations, stepOut);
+        // Validate each step against the sheets that exist *now* — an earlier step
+        // may have added one. Same reason as excel_operate: the executor assumes a
+        // well-formed array.
+        const operations = sanitizeOperations(step.operations, await readWorkbookSheetNames(current));
+        const applied = await applyOperationsToWorkbook(current, operations, stepOut);
         const result = { index, name: step.name ?? `step ${index + 1}`, warnings: applied.warnings };
         if (step.verify !== false) {
             const validation = await validateWorkbookFile(stepOut);

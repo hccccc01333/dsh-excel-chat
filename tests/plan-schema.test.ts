@@ -1,6 +1,29 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { sanitizeAssertions, sanitizePlan } from '../src/plan-schema.ts'
+import { sanitizeAssertions, sanitizeOperations, sanitizePlan } from '../src/plan-schema.ts'
+
+test('sanitizeOperations gives a tool call the same error the planner gets', () => {
+  // `excel_operate` hands the model's array straight to the executor, which
+  // assumes it is well-formed. Without this pass a missing nested field reached
+  // a handler and surfaced as `TypeError: Cannot read properties of undefined
+  // (reading 'toUpperCase')` — a message that names neither the operation nor
+  // the field. The planner path already produced the actionable version.
+  assert.throws(
+    () => sanitizeOperations(
+      [{ op: 'sortRange', range: 'Sheet1!A1:B3', keys: [{ direction: 'desc' }] }] as never,
+      ['Sheet1'],
+    ),
+    /keys\[0\]\.column 缺失/,
+  )
+})
+
+test('sanitizeOperations salvages exactly like sanitizePlan', () => {
+  const operations = sanitizeOperations(
+    [{ op: 'style', range: 'A1:B1', style: { bold: true } }] as never,
+    ['订单'],
+  )
+  assert.equal((operations[0] as { range: string }).range, '订单!A1:B1')
+})
 
 test('sanitizePlan prefixes bare ranges with the first sheet', () => {
   const { steps } = sanitizePlan([{

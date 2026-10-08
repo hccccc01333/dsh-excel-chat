@@ -56,3 +56,15 @@ test('runExcelTask skips validation when verify is false', async () => {
   const result = await runExcelTask(path, [{ name: 'no-verify', operations: [{ op: 'set', cells: { 'Sheet1!E1': 'x' } }], verify: false }])
   assert.equal(result.steps[0]!.validation, undefined)
 })
+
+test('a step missing a nested field names the field instead of crashing', async () => {
+  // The workflow tool takes the same "excel_operate-style" operations straight
+  // from the model, so it needs the same validation the planner path gets.
+  const path = await makeBrokenWorkbook()
+  await assert.rejects(
+    () => runExcelTask(path, [{
+      operations: [{ op: 'sortRange', range: 'Sheet1!A1:B3', keys: [{ direction: 'desc' }] }] as never,
+    }]),
+    /keys\[0\]\.column 缺失/,
+  )
+})

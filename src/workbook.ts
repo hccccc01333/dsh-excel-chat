@@ -62,3 +62,14 @@ export async function validateWorkbookFile(path: string): Promise<ValidationResu
   const data = await readFile(path)
   return validate(await readWorkbookCells(data))
 }
+
+/**
+ * Sheet names in workbook order. The plan salvage needs them to fill in a
+ * missing `sheet`/range prefix, so anything applying model-supplied operations
+ * has to know the sheets before it can validate them.
+ */
+export async function readWorkbookSheetNames(path: string): Promise<string[]> {
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(stripPivotTableParts(await readFile(path)) as any)
+  return workbook.worksheets.map((sheet) => sheet.name)
+}
