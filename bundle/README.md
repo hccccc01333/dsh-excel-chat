@@ -8,6 +8,8 @@
 
 ![dsh-excel-chat](https://raw.githubusercontent.com/hccccc01333/dsh-excel-chat/master/assets/banner.png)
 
+![能力一览](https://raw.githubusercontent.com/hccccc01333/dsh-excel-chat/master/assets/feature-grid.png)
+
 在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 里用自然语言
 操作 Excel：说一句「给 D 列加毛利公式、表头加粗、冻结首行、加筛选」，agent 会自动
 调用 `excel_operate` 完成；**每次编辑后自动体检公式有没有被弄坏**，也可以让它
@@ -139,6 +141,8 @@ dsh-excel-chat-doctor                                    # npm 全局 / npx 可�
 | 公式体检 + 自动修复：差异一目了然 | 数据洞察：自动发现数据问题 |
 | --- | --- |
 | ![excel_autofix](https://raw.githubusercontent.com/hccccc01333/dsh-excel-chat/master/assets/feature-autofix.png) | ![excel_insight](https://raw.githubusercontent.com/hccccc01333/dsh-excel-chat/master/assets/feature-insight.png) |
+
+![公式静默损坏的检出与修复](https://raw.githubusercontent.com/hccccc01333/dsh-excel-chat/master/assets/before-after.png)
 
 截图都是 DeepSeek Harness Web 里真实模型调用工具后、在消息流工具行内渲染出的结果。
 更多截图、演示动图与架构说明见

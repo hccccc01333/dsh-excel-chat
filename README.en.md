@@ -15,6 +15,8 @@ calls `excel_operate` to do it. Every edit is followed by an automatic formula c
 you can also ask it to "find what's wrong with this sheet" and repair it. Everything
 happens in the conversation — there is no Excel UI to memorise.
 
+![dsh-excel-chat capability overview](assets/feature-grid.png)
+
 ![dsh-excel-chat live demo (DeepSeek Harness Web, recorded with a real model)](assets/demo.gif)
 
 ## In action (real screenshots from the conversation)
@@ -26,6 +28,12 @@ happens in the conversation — there is no Excel UI to memorise.
 | Table preview: a real grid inline | Formula check + auto-repair: the diff at a glance |
 | --- | --- |
 | ![excel_preview](assets/feature-preview.png) | ![excel_autofix](assets/feature-autofix.png) |
+
+This one is **why you can let it touch your file**: one row of a formula column was silently
+broken; it names the cell and fixes it. The cell, both formulas and the health score are the
+engine's own output.
+
+![A silently broken formula, found and repaired](assets/before-after.png)
 
 All four screenshots come from a real model calling the tools inside DeepSeek Harness Web,
 rendered inline in the message stream: capability menu, issue list, editable table, and the

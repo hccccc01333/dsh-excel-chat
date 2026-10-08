@@ -8,3 +8,4 @@ benchmarks/
 .workbuddy/
 .workbuddy-ai/
 cordis.yml
+.assets-build/

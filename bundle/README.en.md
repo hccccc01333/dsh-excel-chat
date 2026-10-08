@@ -8,6 +8,8 @@
 
 ![dsh-excel-chat](https://raw.githubusercontent.com/hccccc01333/dsh-excel-chat/master/assets/banner.png)
 
+![Capability overview](https://raw.githubusercontent.com/hccccc01333/dsh-excel-chat/master/assets/feature-grid.png)
+
 A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin for working
 on Excel in plain language. Say "add a margin formula in column D, bold the header, freeze
 the first row, add a filter" and the agent calls `excel_operate` to do it. **Every edit is
@@ -160,6 +162,8 @@ re-test method and the known limitations are all written up in the evaluation do
 | Formula check + auto-repair: the diff at a glance | Data insight: problems found for you |
 | --- | --- |
 | ![excel_autofix](https://raw.githubusercontent.com/hccccc01333/dsh-excel-chat/master/assets/feature-autofix.png) | ![excel_insight](https://raw.githubusercontent.com/hccccc01333/dsh-excel-chat/master/assets/feature-insight.png) |
+
+![A silently broken formula, found and repaired](https://raw.githubusercontent.com/hccccc01333/dsh-excel-chat/master/assets/before-after.png)
 
 Both screenshots come from a real model calling the tools inside DeepSeek Harness Web and
 the result being rendered inline in the message stream. More screenshots, a demo

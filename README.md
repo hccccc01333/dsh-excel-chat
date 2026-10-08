@@ -13,6 +13,8 @@
 调用 `excel_operate` 完成；每次编辑后自动体检公式有没有被弄坏，也可以让它
 “检查这个表哪里算错了”并自动修复。所有工作都在对话里完成，不需要记 Excel 操作。
 
+![dsh-excel-chat 能力一览](assets/feature-grid.png)
+
 ![dsh-excel-chat 真实演示（DeepSeek Harness Web + 真实模型录制）](assets/demo.gif)
 
 ## 功能实录（对话内真实截图）
@@ -24,6 +26,11 @@
 | 表格预览：对话内真网格 | 公式体检 + 自动修复：差异一目了然 |
 | --- | --- |
 | ![excel_preview 表格预览](assets/feature-preview.png) | ![excel_autofix 自动修复](assets/feature-autofix.png) |
+
+下面这张是**为什么敢让它动手**：同一列公式，一行被静默弄坏，它指出来并修好——
+图中的异常位置、修复前后公式、健康分都是引擎真实输出。
+
+![公式静默损坏的检出与修复](assets/before-after.png)
 
 四张截图都是 DeepSeek Harness Web 里真实模型调用工具后，在消息流工具行内
 渲染出的结果：能力菜单、问题清单、可编辑表格、修复前后差异。
