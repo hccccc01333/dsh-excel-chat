@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import ExcelJS from 'exceljs'
 import { guardFormulaInjection, parseCsv, stringifyCsv, unguardFormulaInjection } from '../src/csv.ts'
 import { operateWorkbookFile } from '../src/operations.ts'
+import { readWorkbookCells } from '../src/workbook.ts'
 
 test('a trailing newline closes the last record instead of opening an empty one', () => {
   // Every CSV file written by a normal tool ends with a newline. Treating that
@@ -145,6 +146,11 @@ test('exporting writes every cell shape as text, not as an object', async () => 
   sheet.getCell('A7').value = { formula: 'A5*2' }
   await workbook.xlsx.writeFile(book)
 
+  // Take the date from the reader rather than a literal: a date cell's ISO
+  // rendering depends on the machine's zone, and hardcoding it made the test
+  // pass here and fail on CI, which runs in UTC.
+  const shownDate = (await readWorkbookCells(await readFile(book)))['Sheet1!A4']!
+
   await operateWorkbookFile(book, [{ op: 'exportCsv', file: csv, sheet: 'Sheet1' }], join(dir, 't.xlsx'))
   const lines = (await readFile(csv, 'utf8')).split('\r\n').filter((line) => line !== '')
 
@@ -152,7 +158,7 @@ test('exporting writes every cell shape as text, not as an object', async () => 
     '官网',
     '富文本',
     '#REF!',
-    '2026-01-15T09:30:00.000Z',
+    shownDate,
     '-5',
     "'=1+1",
     '=A5*2',
