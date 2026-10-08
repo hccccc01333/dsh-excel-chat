@@ -1,5 +1,7 @@
 # dsh-excel-chat — 和 Excel 对话，把活干完
 
+**简体中文 | [English](README.en.md)**
+
 [![npm version](https://img.shields.io/npm/v/dsh-excel-chat)](https://www.npmjs.com/package/dsh-excel-chat)
 [![GitHub release](https://img.shields.io/github/v/release/hccccc01333/dsh-excel-chat)](https://github.com/hccccc01333/dsh-excel-chat/releases)
 [![license](https://img.shields.io/github/license/hccccc01333/dsh-excel-chat)](https://github.com/hccccc01333/dsh-excel-chat/blob/master/LICENSE)

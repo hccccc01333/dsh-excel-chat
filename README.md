@@ -1,5 +1,7 @@
 # dsh-excel-chat — 和 Excel 对话，把活干完
 
+**简体中文 | [English](README.en.md)**
+
 [![npm version](https://img.shields.io/npm/v/dsh-excel-chat)](https://www.npmjs.com/package/dsh-excel-chat)
 [![GitHub release](https://img.shields.io/github/v/release/hccccc01333/dsh-excel-chat)](https://github.com/hccccc01333/dsh-excel-chat/releases)
 [![license](https://img.shields.io/github/license/hccccc01333/dsh-excel-chat)](LICENSE)
@@ -90,7 +92,7 @@ dsh web --profile demo                             # 打开对话界面
 平台说明：公式校验/修复、读写单元格、样式、汇总、合并、邮件合并等功能跨平台；
 图表创建/改参、原生透视表、图表 PNG 导出、PDF 导出需要 Windows + 本机安装 Excel。
 
-锁定版本：`dsh plugin --profile demo add dsh-excel-chat@0.23.0`（不写版本默认 latest）。
+锁定版本：`dsh plugin --profile demo add dsh-excel-chat@0.39.9`（不写版本默认 latest）。
 
 ## 工具
 
@@ -159,7 +161,7 @@ goal 模式 + glm-5.3-flash 全量实测成功率 86%（DeepSeek 基线 52%）�
   一键自愈闭环，供 `excel_autofix` 工具使用。
 - `src/pivot.ts` — `createPivotTable`：驱动 Excel COM 生成原生数据透视表
   （pivotCache + pivotTable），保证文件始终合法可打开。
-- `src/operation-schema.ts` — `excel_operate` 的 27 操作严格判别联合 schema，
+- `src/operation-schema.ts` — `excel_operate` 的 77 操作严格判别联合 schema，
   让模型按 `op` 字段直接生成正确结构。
 - `src/operations.ts` — Excel 操作 DSL：set（自动类型识别）/ fill / fillSeries /
   insertRows / deleteRows / insertColumns / deleteColumns（公式引用联动，含跨表，
@@ -173,30 +175,14 @@ goal 模式 + glm-5.3-flash 全量实测成功率 86%（DeepSeek 基线 52%）�
   跨表、多表、聚合结构、hardcode 等场景。
 - `src/file-benchmark.ts` + `src/corpus/` — ExcelBench lite：100 个文件级真实
   职场任务（编辑/分析/公式/工作流），运行与指标见 [docs/benchmark.md](docs/benchmark.md)。
-- `src/index.ts` — dsh plugin entry exposing eight tools（validate / compile / repair / diff / operate / chart structure / chart export / chart visual）。
+- `src/index.ts` — dsh plugin entry exposing 25 tools（理解文件 / 公式体检与修复 /
+  操作与编排 / 图表与导出，完整清单见上面的「工具」表）。
 - `bundle/` — 可发布 dsh bundle：manifest + cordis.patch.yml + 编译产物。
 
 ## Run tests
 
 ```sh
-node --test tests/formula-validator.test.ts
-node --test tests/compiler.test.ts
-node --test tests/workbook-reader.test.ts
-node --test tests/patch.test.ts
-node --test tests/repair.test.ts
-node --test tests/ir-schema.test.ts
-node --test tests/advisor.test.ts
-node --test tests/llm-wiring.test.ts
-node --test tests/diff.test.ts
-node --test tests/chart-validator.test.ts
-node --test tests/load-bundle.test.ts
-node --test tests/chart-visual.test.ts
-node --test tests/pack-bundle.test.ts
-node --test tests/vision-wiring.test.ts
-node --test tests/deepseek.test.ts
-node --test tests/tables.test.ts
-node --test tests/score.test.ts
-node --test tests/benchmark.test.ts
+node --test tests/*.test.ts        # 全量（423 项）
 ```
 
 真实模型端到端：
