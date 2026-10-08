@@ -2102,8 +2102,14 @@ test('date strings keep their precision and non-dates stay text', async () => {
     assert.ok(sheet.getCell(id).value instanceof Date, `${id} should be a date`)
   }
   assert.equal(sheet.getCell('A5').value, '2026-1-5', 'a non-ISO string must stay text')
-  // Fractional seconds must survive rather than being truncated.
-  assert.equal((await readWorkbookCells(await readFile(outPath)))['Sheet1!A3'], '2026-01-15T01:30:00.500Z')
+  // Fractional seconds must survive rather than being truncated. A wall-clock
+  // string is interpreted in the machine's own zone, so compare against the
+  // instant it denotes rather than a literal UTC string — hardcoding one made
+  // this test pass here and fail on CI, which runs in UTC.
+  assert.equal(
+    (await readWorkbookCells(await readFile(outPath)))['Sheet1!A3'],
+    new Date(2026, 0, 15, 9, 30, 0, 500).toISOString(),
+  )
 })
 
 test('sortRange rejects a colour key without a colour', async () => {
