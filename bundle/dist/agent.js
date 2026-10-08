@@ -1,13 +1,12 @@
 import { copyFile, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import ExcelJS from 'exceljs';
 import { sanitizeAssertions, sanitizePlan } from './plan-schema.js';
 import { profileWorkbook } from './profile.js';
 import { buildWorkbookSemanticProfile } from './semantic.js';
 import { runExcelTask } from './task.js';
 import { verifyWorkbookAssertions } from './verifier.js';
-import { readWorkbookCells, stripPivotTableParts, validateWorkbookFile } from './workbook.js';
+import { readWorkbookCells, validateWorkbookFile, workbookFingerprint } from './workbook.js';
 /**
  * Goal-driven agent loop (Plan -> Act -> Observe -> Verify -> Replan):
  * the planner proposes operation steps for the goal, `runExcelTask` executes
@@ -179,21 +178,4 @@ async function cellSnapshotOf(path, limit = 96) {
         index++;
     }
     return lines.join('\n');
-}
-async function workbookFingerprint(path) {
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(stripPivotTableParts(await readFile(path)));
-    const parts = [];
-    workbook.eachSheet((sheet) => {
-        sheet.eachRow({ includeEmpty: false }, (row) => {
-            row.eachCell({ includeEmpty: false }, (cell) => {
-                const fill = cell.fill?.type === 'pattern' ? `|fill=${String(cell.fill.fgColor?.argb ?? '')}` : '';
-                const bold = cell.font?.bold ? '|bold' : '';
-                const numFmt = cell.numFmt && cell.numFmt !== 'General' ? `|fmt=${cell.numFmt}` : '';
-                const value = cell.formula ? `=${cell.formula}` : cell.value instanceof Date ? cell.value.toISOString() : String(cell.value ?? '');
-                parts.push(`${sheet.name}!${cell.address}=${value}${bold}${numFmt}${fill}`);
-            });
-        });
-    });
-    return parts.sort().join('|');
 }

@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs'
+import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { validate, type ValidationResult } from './validator.ts'
@@ -121,4 +122,38 @@ export async function readWorkbookSheetNames(path: string): Promise<string[]> {
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.load(stripPivotTableParts(await readFile(path)) as any)
   return workbook.worksheets.map((sheet) => sheet.name)
+}
+
+/**
+ * Content hash of a workbook's parts, used to answer "did this step change
+ * anything?".
+ *
+ * It hashes the serialized parts rather than a snapshot of the cell grid,
+ * because most of what an operation can change lives *outside* the grid:
+ * comments, frozen panes, column widths, autofilters, conditional formats, data
+ * validations, tables, images, sparklines, defined names, tab colours. A
+ * cell-value snapshot reported "no change" for every one of those, and since
+ * the agent loop forces `achieved: false` when nothing changed, a step that had
+ * in fact worked was judged a failure. Hashing the parts is complete by
+ * construction — a new operation is covered the moment it writes anything —
+ * whereas an enumerated snapshot has to be extended by hand and drifts.
+ *
+ * Both sides are re-serialized through exceljs first. It normalizes on write,
+ * so a file Excel wrote and one exceljs wrote differ even when they are
+ * semantically identical; without this the comparison would always say
+ * "changed". exceljs output is byte-deterministic (verified: two passes over
+ * one input are identical, and `dcterms:created`/`modified` are preserved
+ * rather than re-stamped), so this normalization is safe.
+ */
+export async function workbookFingerprint(path: string): Promise<string> {
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.load(stripPivotTableParts(await readFile(path)) as any)
+  const parts = unzipSync(new Uint8Array(await workbook.xlsx.writeBuffer()))
+  const hash = createHash('sha256')
+  for (const name of Object.keys(parts).sort()) {
+    if (name.endsWith('/')) continue
+    hash.update(name)
+    hash.update(parts[name]!)
+  }
+  return hash.digest('hex')
 }

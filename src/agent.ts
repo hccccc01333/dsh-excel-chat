@@ -8,7 +8,7 @@ import { profileWorkbook, type WorkbookProfile } from './profile.ts'
 import { buildWorkbookSemanticProfile } from './semantic.ts'
 import { runExcelTask, type TaskResult } from './task.ts'
 import { verifyWorkbookAssertions, type WorkbookAssertion, type WorkbookVerification } from './verifier.ts'
-import { readWorkbookCells, stripPivotTableParts, validateWorkbookFile } from './workbook.ts'
+import { readWorkbookCells, validateWorkbookFile, workbookFingerprint } from './workbook.ts'
 
 export interface PlanStep {
   name?: string
@@ -252,20 +252,4 @@ async function cellSnapshotOf(path: string, limit = 96): Promise<string> {
   return lines.join('\n')
 }
 
-async function workbookFingerprint(path: string): Promise<string> {
-  const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(stripPivotTableParts(await readFile(path)) as any)
-  const parts: string[] = []
-  workbook.eachSheet((sheet) => {
-    sheet.eachRow({ includeEmpty: false }, (row) => {
-      row.eachCell({ includeEmpty: false }, (cell) => {
-        const fill = cell.fill?.type === 'pattern' ? `|fill=${String((cell.fill.fgColor as { argb?: string } | undefined)?.argb ?? '')}` : ''
-        const bold = cell.font?.bold ? '|bold' : ''
-        const numFmt = cell.numFmt && cell.numFmt !== 'General' ? `|fmt=${cell.numFmt}` : ''
-        const value = cell.formula ? `=${cell.formula}` : cell.value instanceof Date ? cell.value.toISOString() : String(cell.value ?? '')
-        parts.push(`${sheet.name}!${cell.address}=${value}${bold}${numFmt}${fill}`)
-      })
-    })
-  })
-  return parts.sort().join('|')
-}
+

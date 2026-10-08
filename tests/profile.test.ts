@@ -72,3 +72,25 @@ test('profileWorkbook readHint pages large sheets in pageSize chunks', async () 
   assert.equal(sheet.readHint, 'A2:E101')
   assert.equal(profile.pageSize, 100)
 })
+
+test('a date column is sampled as ISO, not as a locale string', async () => {
+  // The samples feed `excel_profile` and the file menu. They used to be
+  // `String(date)` — a locale- and timezone-dependent English string such as
+  // "Thu Jan 15 2026 09:30:00 GMT+0800 (中国标准时间)", which no other part of the
+  // tool would produce or accept.
+  const dir = await mkdtemp(join(tmpdir(), 'vera-profile-date-'))
+  const path = join(dir, 'dates.xlsx')
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Sheet1')
+  sheet.addRow(['日期', '金额'])
+  sheet.addRow([new Date(2026, 0, 15, 9, 30), 100])
+  sheet.addRow([new Date(2026, 5, 20, 14, 0), 200])
+  await workbook.xlsx.writeFile(path)
+
+  const profile = await profileWorkbook(path)
+  const samples = profile.sheets[0]!.columns[0]!.samples
+  assert.ok(samples.length > 0, 'a date column should have samples')
+  for (const sample of samples) {
+    assert.match(sample, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, `${sample} should be an ISO timestamp`)
+  }
+})

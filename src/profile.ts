@@ -188,7 +188,11 @@ function profileColumn(
     } else {
       hasString = true
     }
-    const text = String(value)
+    // Serialize a date the way the rest of the tool does. `String(date)` gave a
+    // locale- and timezone-dependent English string ("Thu Jan 15 2026 09:30:00
+    // GMT+0800 (中国标准时间)"), which is what the profile showed as a sample
+    // value for every date column.
+    const text = value instanceof Date ? value.toISOString() : String(value)
     if (seen.size < UNIQUE_LIMIT) {
       seen.add(text)
     } else if (!seen.has(text)) {
