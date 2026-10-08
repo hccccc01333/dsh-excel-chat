@@ -2068,3 +2068,27 @@ test('sortRange rejects a colour key without a colour', async () => {
     /requires color/,
   )
 })
+
+test('a column name where a column letter belongs is rejected, not allocated', async () => {
+  // `columnToNumber('Sheet1')` used to fold the string into 229493717, and
+  // groupColumns passed that straight to `sheet.getColumn`, which allocated
+  // until the process died with an out-of-memory error. A model that confuses a
+  // column *name* for a letter has to get a clear error, not a crash.
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('Sheet1').addRow(['a', 'b'])
+  })
+  const outPath = join(join(path, '..'), 'group-bad.xlsx')
+  await assert.rejects(
+    () => applyOperationsToWorkbook(path, [{
+      op: 'groupColumns', sheet: 'Sheet1', from: 'Sheet1', to: 'Sheet1',
+    }], outPath),
+    /invalid column letter/,
+  )
+  // A well-formed but out-of-range column must also stop before allocation.
+  await assert.rejects(
+    () => applyOperationsToWorkbook(path, [{
+      op: 'groupColumns', sheet: 'Sheet1', from: 'A', to: 'ZZZ',
+    }], outPath),
+    /out of range/,
+  )
+})

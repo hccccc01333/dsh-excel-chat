@@ -5,11 +5,27 @@ export function normalizeSheet(sheet) {
 export function canonicalCellId(sheet, column, row) {
     return `${normalizeSheet(sheet)}!${column.toUpperCase()}${row}`;
 }
+/**
+ * Convert a column letter (A … Z, AA … XFD) to its 1-based number.
+ *
+ * Validation belongs here rather than downstream. This used to fold *any*
+ * string into a number — `columnToNumber('Sheet1')` returned 229493717 — so a
+ * model that emitted a column *name* where a letter was expected sailed past
+ * every guard and only failed much later, as `Invalid column letter: SHEESK`
+ * (the round-trip of 229493717) or, worse, as `sheet.getColumn(229493717)`
+ * allocating until the process ran out of memory. Rejecting at the boundary
+ * keeps the error next to the argument that caused it.
+ */
 export function columnToNumber(column) {
+    const normalized = column.toUpperCase();
+    if (!/^[A-Z]{1,3}$/.test(normalized))
+        throw new Error(`invalid column letter: ${column}`);
     let value = 0;
-    for (const char of column.toUpperCase()) {
+    for (const char of normalized) {
         value = value * 26 + (char.charCodeAt(0) - 64);
     }
+    if (value > 16384)
+        throw new Error(`column out of range: ${column} (Excel supports A..XFD)`);
     return value;
 }
 export function numberToColumn(value) {
@@ -111,7 +127,14 @@ export function parseCellId(id) {
     if (!match) {
         throw new Error(`invalid cell id: ${id}`);
     }
-    return { sheet: normalizeSheet(rawSheet), column: match[1].toUpperCase(), row: Number(match[2]) };
+    // Excel rows are 1-based and stop at 1048576. Accepting row 0 or an
+    // arbitrary large row produced ids that later reached `sheet.getCell`, where
+    // the same out-of-range value that blew up column handling can allocate.
+    const row = Number(match[2]);
+    if (row < 1 || row > 1048576) {
+        throw new Error(`invalid cell id: ${id} (row out of range)`);
+    }
+    return { sheet: normalizeSheet(rawSheet), column: match[1].toUpperCase(), row };
 }
 /**
  * Shift every relative row reference in a formula by rowDelta, preserving

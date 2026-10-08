@@ -21,6 +21,17 @@ export interface ParsedFormula {
 export declare const DEFAULT_SHEET = "Sheet1";
 export declare function normalizeSheet(sheet: string | null): string;
 export declare function canonicalCellId(sheet: string | null, column: string, row: number): string;
+/**
+ * Convert a column letter (A … Z, AA … XFD) to its 1-based number.
+ *
+ * Validation belongs here rather than downstream. This used to fold *any*
+ * string into a number — `columnToNumber('Sheet1')` returned 229493717 — so a
+ * model that emitted a column *name* where a letter was expected sailed past
+ * every guard and only failed much later, as `Invalid column letter: SHEESK`
+ * (the round-trip of 229493717) or, worse, as `sheet.getColumn(229493717)`
+ * allocating until the process ran out of memory. Rejecting at the boundary
+ * keeps the error next to the argument that caused it.
+ */
 export declare function columnToNumber(column: string): number;
 export declare function numberToColumn(value: number): string;
 export declare function parseFormula(input: string): ParsedFormula;
