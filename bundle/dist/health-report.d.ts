@@ -1,3 +1,8 @@
+/**
+ * Sheet name is an identifier, not prose: it is written into the file, exported
+ * here, and skipped by `validator` through its `_dsh_` prefix. It therefore stays
+ * the same in every language — only the report's *content* is translated.
+ */
 export declare const HEALTH_REPORT_SHEET = "_dsh_\u4F53\u68C0\u62A5\u544A";
 export interface HealthReportResult {
     path: string;

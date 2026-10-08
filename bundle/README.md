@@ -57,6 +57,21 @@ dsh-excel-chat-doctor                                    # npm 全局 / npx 可�
 ~/.dsh/profiles/demo/node_modules/.bin/dsh-excel-chat-doctor
 ```
 
+### 切换语言
+
+插件默认用中文输出（体检报告、数据洞察、能力菜单、修复摘要、操作警告、doctor 自检）。
+在 profile 的 `cordis.patch.yml` 里加一条覆盖即可切成英文：
+
+```yaml
+- id: vera
+  config:
+    language: en        # zh（默认）| en
+```
+
+**工作簿里的数据不会被翻译**——汇总标签（`总计`）、生成的表名（`-汇总`）、岗位模板名
+都是写进文件的产物，而且有代码依赖它们（`patterns.ts` 正是靠 `总计`/`小计` 识别并跳过
+汇总行），翻译会让行为静默改变。用户自己的表名、列名、单元格内容当然也保持原样。
+
 ## 可以这么说
 
 - 「帮我把 report.xlsx 做成报表：D 列毛利、E 列合计、表头加粗、冻结首行、加筛选」

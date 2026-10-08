@@ -3,6 +3,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 import { validate } from './validator.js';
+import { t } from './i18n.js';
 import { readWorkbookCells } from './workbook.js';
 /** Host packages that must stay peer/dev-only; a profile installing them as
  * dependencies shadows the harness host and breaks tool dispatch (Issue #1). */
@@ -25,7 +26,7 @@ export async function runDoctorChecks(options = {}) {
     checks.push({
         name: 'node-version',
         ok: nodeMajor >= 22,
-        detail: `node ${process.versions.node}（要求 ^22.19 || >=24）`,
+        detail: t('node {version}（要求 ^22.19 || >=24）', { version: process.versions.node }),
     });
     const profileDirs = options.profileDirs ?? [];
     if (profileDirs.length === 0) {
@@ -39,7 +40,7 @@ export async function runDoctorChecks(options = {}) {
         }
     }
     if (profileDirs.length === 0) {
-        checks.push({ name: 'profile-host-isolation', ok: true, detail: '未发现 dsh profile，跳过宿主包隔离检查' });
+        checks.push({ name: 'profile-host-isolation', ok: true, detail: t('未发现 dsh profile，跳过宿主包隔离检查') });
     }
     else {
         for (const dir of profileDirs) {
@@ -57,8 +58,11 @@ export async function runDoctorChecks(options = {}) {
                 name: `profile-host-isolation:${dir}`,
                 ok: violations.length === 0,
                 detail: violations.length === 0
-                    ? `${dir}：宿主包未出现在 dependencies（符合隔离要求）`
-                    : `${dir}：宿主包被安装为 dependencies：${violations.join('、')}（会导致所有工具调用失败）`,
+                    ? t('{dir}：宿主包未出现在 dependencies（符合隔离要求）', { dir })
+                    : t('{dir}：宿主包被安装为 dependencies：{list}（会导致所有工具调用失败）', {
+                        dir,
+                        list: violations.join('、'),
+                    }),
             });
         }
     }
@@ -78,14 +82,17 @@ export async function runDoctorChecks(options = {}) {
         checks.push({
             name: 'engine-smoke',
             ok: hasFormula && typeof result.formulaCount === 'number' && result.formulaCount > 0,
-            detail: `临时工作簿读取+公式体检正常（公式 ${result.formulaCount} 个，异常 ${result.anomalies.length} 个）`,
+            detail: t('临时工作簿读取+公式体检正常（公式 {formulas} 个，异常 {anomalies} 个）', {
+                formulas: result.formulaCount,
+                anomalies: result.anomalies.length,
+            }),
         });
     }
     catch (error) {
         checks.push({
             name: 'engine-smoke',
             ok: false,
-            detail: `引擎冒烟失败：${error instanceof Error ? error.message : String(error)}`,
+            detail: t('引擎冒烟失败：{error}', { error: error instanceof Error ? error.message : String(error) }),
         });
     }
     return checks;

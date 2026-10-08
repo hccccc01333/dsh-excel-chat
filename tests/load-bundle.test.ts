@@ -164,3 +164,35 @@ test('excel_read runs through the plugin context and returns lossless JSON', asy
   assert.equal(cell?.value, 100)
   assert.equal(cell?.bold, true)
 })
+
+test('the language config option switches user-facing output', async () => {
+  // The loader passes an entry's `config` to `apply` as the second argument
+  // (`registry.plugin(plugin, options.config, …)`), so this is the path a real
+  // `cordis.patch.yml` override takes. Verified against the built bundle because
+  // the wiring — not just the catalog — is what can break.
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('销售')
+  sheet.addRow(['区域', '金额'])
+  sheet.addRow(['华东', 100])
+  sheet.addRow(['华东', null])
+  const dir = await mkdtemp(join(tmpdir(), 'vera-bundle-i18n-'))
+  const input = join(dir, 'sales.xlsx')
+  await writeFile(input, await workbook.xlsx.writeBuffer())
+
+  const plugin = await import(bundleUrl)
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(plugin, { language: 'en' })
+  const result = await ctx.tools.execute({
+    signal: new AbortController().signal,
+    callId: CallId('vera-bundle-i18n-1'),
+    name: 'excel_insight',
+    arguments: { path: input },
+  })
+  assert.equal(result.isError, false)
+  const value = result.value as { summary: string; suggestions: string[] }
+  assert.match(value.summary, /worksheet\(s\)/)
+  assert.ok(value.suggestions.every((suggestion) => !/[\u4e00-\u9fa5]/.test(suggestion)))
+  await ctx.fiber.dispose()
+})

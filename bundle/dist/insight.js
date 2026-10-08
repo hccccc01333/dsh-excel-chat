@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 import { profileWorkbook } from './profile.js';
 /**
  * Heuristic data insight report (ExcelGenius2-style "upload -> summary +
@@ -10,7 +11,11 @@ export async function buildWorkbookInsight(path, sheet) {
     const findings = sheetInsights.flatMap((entry) => entry.findings);
     const suggestions = buildSuggestions(profile, findings);
     return {
-        summary: `共 ${profile.sheetCount} 个工作表；${findings.filter((f) => f.severity === 'alert').length} 个重点、${findings.filter((f) => f.severity === 'warn').length} 个提示。`,
+        summary: t('共 {sheets} 个工作表；{alerts} 个重点、{warns} 个提示。', {
+            sheets: profile.sheetCount,
+            alerts: findings.filter((f) => f.severity === 'alert').length,
+            warns: findings.filter((f) => f.severity === 'warn').length,
+        }),
         sheets: sheetInsights,
         suggestions,
     };
@@ -18,13 +23,20 @@ export async function buildWorkbookInsight(path, sheet) {
 function insightForSheet(sheet) {
     const findings = [];
     const headers = sheet.columns.filter((column) => column.header).map((column) => column.header);
-    let summary = `${sheet.sheet}：${sheet.dataRows} 行数据，${sheet.columnCount} 列`;
-    if (headers.length > 0)
-        summary += `，表头：${headers.slice(0, 6).join(' / ')}${headers.length > 6 ? ' …' : ''}`;
+    let summary = t('{sheet}：{rows} 行数据，{columns} 列', {
+        sheet: sheet.sheet,
+        rows: sheet.dataRows,
+        columns: sheet.columnCount,
+    });
+    if (headers.length > 0) {
+        summary += t('，表头：{headers}', {
+            headers: `${headers.slice(0, 6).join(' / ')}${headers.length > 6 ? ' …' : ''}`,
+        });
+    }
     if (sheet.formulaCells > 0)
-        summary += `，含 ${sheet.formulaCells} 个公式`;
+        summary += t('，含 {count} 个公式', { count: sheet.formulaCells });
     if (sheet.dataRows === 0) {
-        findings.push({ severity: 'info', category: 'empty', message: `${sheet.sheet} 没有数据行，只有表头。` });
+        findings.push({ severity: 'info', category: 'empty', message: t('{sheet} 没有数据行，只有表头。', { sheet: sheet.sheet }) });
     }
     for (const column of sheet.columns) {
         if (!column.header)
@@ -35,14 +47,18 @@ function insightForSheet(sheet) {
             findings.push({
                 severity: ratio >= 0.2 ? 'warn' : 'info',
                 category: 'missing',
-                message: `${label} 有 ${column.missing} 个空值（${Math.round(ratio * 100)}%）。`,
+                message: t('{label} 有 {count} 个空值（{percent}%）。', {
+                    label,
+                    count: column.missing,
+                    percent: Math.round(ratio * 100),
+                }),
             });
         }
         if (column.nonEmpty > 3 && column.uniqueCapped) {
             findings.push({
                 severity: 'warn',
                 category: 'duplicate',
-                message: `${label} 值分布很集中，疑似存在大量重复值。`,
+                message: t('{label} 值分布很集中，疑似存在大量重复值。', { label }),
             });
         }
         if (column.dtype === 'number' && column.mean !== undefined && column.max !== undefined && column.min !== undefined && column.mean > 0) {
@@ -50,14 +66,18 @@ function insightForSheet(sheet) {
                 findings.push({
                     severity: 'warn',
                     category: 'outlier',
-                    message: `${label} 最大值 ${column.max} 远高于均值 ${column.mean}，疑似存在异常大值。`,
+                    message: t('{label} 最大值 {max} 远高于均值 {mean}，疑似存在异常大值。', {
+                        label,
+                        max: column.max,
+                        mean: column.mean,
+                    }),
                 });
             }
             if (column.min < 0 && /(金额|amount|price|cost|revenue|sales|profit|总额|费用)/i.test(column.header)) {
                 findings.push({
                     severity: 'warn',
                     category: 'negative',
-                    message: `${label} 出现负数（最小值 ${column.min}），请确认是否为退款/冲销。`,
+                    message: t('{label} 出现负数（最小值 {min}），请确认是否为退款/冲销。', { label, min: column.min }),
                 });
             }
         }
@@ -65,7 +85,7 @@ function insightForSheet(sheet) {
             findings.push({
                 severity: 'info',
                 category: 'whitespace',
-                message: `${label} 存在首尾空格，建议 trimText。`,
+                message: t('{label} 存在首尾空格，建议 trimText。', { label }),
             });
         }
     }
@@ -73,7 +93,10 @@ function insightForSheet(sheet) {
         findings.push({
             severity: 'info',
             category: 'formula',
-            message: `${sheet.sheet} 含 ${sheet.formulaCells} 个公式，可运行 excel_autofix 体检并修复。`,
+            message: t('{sheet} 含 {count} 个公式，可运行 excel_autofix 体检并修复。', {
+                sheet: sheet.sheet,
+                count: sheet.formulaCells,
+            }),
         });
     }
     return { sheet: sheet.sheet, summary, findings };
@@ -81,18 +104,18 @@ function insightForSheet(sheet) {
 function buildSuggestions(profile, findings) {
     const suggestions = [];
     if (findings.some((f) => f.category === 'missing'))
-        suggestions.push('有缺失值：用 excel_operate 的 fillMissing 补空值，或删除整空行。');
+        suggestions.push(t('有缺失值：用 excel_operate 的 fillMissing 补空值，或删除整空行。'));
     if (findings.some((f) => f.category === 'duplicate'))
-        suggestions.push('疑似重复：用 dedupeRows 按关键列去重。');
+        suggestions.push(t('疑似重复：用 dedupeRows 按关键列去重。'));
     if (findings.some((f) => f.category === 'outlier' || f.category === 'negative'))
-        suggestions.push('发现异常/负值：建议先核对源数据，再用条件格式或图表突出展示。');
+        suggestions.push(t('发现异常/负值：建议先核对源数据，再用条件格式或图表突出展示。'));
     if (findings.some((f) => f.category === 'whitespace'))
-        suggestions.push('存在首尾空格：用 trimText 清理，再去做匹配/去重。');
+        suggestions.push(t('存在首尾空格：用 trimText 清理，再去做匹配/去重。'));
     if (profile.sheets.some((s) => s.formulaCells > 0))
-        suggestions.push('表里含公式：可运行 excel_autofix 体检并修复。');
+        suggestions.push(t('表里含公式：可运行 excel_autofix 体检并修复。'));
     if (profile.sheets.some((s) => s.dataRows > 20))
-        suggestions.push('数据量较大：可用 excel_create_pivot / aggregateReport 做透视汇总，或 excel_create_chart 画图。');
+        suggestions.push(t('数据量较大：可用 excel_create_pivot / aggregateReport 做透视汇总，或 excel_create_chart 画图。'));
     if (suggestions.length === 0)
-        suggestions.push('未发现明显数据问题；可继续做报表（report）、透视或图表。');
+        suggestions.push(t('未发现明显数据问题；可继续做报表（report）、透视或图表。'));
     return suggestions;
 }

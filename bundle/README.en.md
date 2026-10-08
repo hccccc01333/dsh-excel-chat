@@ -63,6 +63,24 @@ dsh-excel-chat-doctor                                    # when installed global
 ~/.dsh/profiles/demo/node_modules/.bin/dsh-excel-chat-doctor
 ```
 
+### Switching language
+
+Output is Chinese by default — health reports, data insights, the capability menu, repair
+summaries, operation warnings, doctor output. Add an override to your profile's
+`cordis.patch.yml` to switch it to English:
+
+```yaml
+- id: vera
+  config:
+    language: en        # zh (default) | en
+```
+
+**Data inside the workbook is never translated.** Subtotal labels (`总计`), generated sheet
+names (`-汇总`) and preset names are artifacts written into the file, and code keys off
+them — `patterns.ts` identifies and skips summary rows by matching `总计`/`小计` — so
+translating them would silently change behaviour. Your own sheet names, column names and
+cell contents are of course left exactly as they are.
+
 ## Things you can say
 
 - "Turn report.xlsx into a report: margin in column D, totals in column E, bold the

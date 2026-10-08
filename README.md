@@ -94,6 +94,10 @@ dsh web --profile demo                             # 打开对话界面
 
 锁定版本：`dsh plugin --profile demo add dsh-excel-chat@0.39.9`（不写版本默认 latest）。
 
+切换输出语言（默认中文）：在 profile 的 `cordis.patch.yml` 里加一条覆盖——
+`- id: vera` / `config:` / `language: en`。注意**只翻译给人看的消息**，工作簿里的数据
+（汇总标签、生成的表名）不翻译，因为代码依赖它们。详见 [docs/usage.md](docs/usage.md)。
+
 ## 工具
 
 | 工具 | 作用 |

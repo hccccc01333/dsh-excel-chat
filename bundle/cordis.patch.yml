@@ -1,3 +1,19 @@
+# Distribution layer: mounted when a profile lists dsh-excel-chat.
 - insert:
     - id: vera
       name: dsh-excel-chat
+      config:
+        # Language for the text a person reads: health reports, data insights,
+        # the capability menu, repair summaries, operation warnings, doctor
+        # output. `zh` (default) or `en`.
+        #
+        # Workbook *data* is never translated — subtotal labels, generated sheet
+        # names and preset names are written into the file and other code keys
+        # off them, so translating them would silently change behaviour.
+        #
+        # Override it in your profile's cordis.patch.yml, which is applied after
+        # this layer:
+        #   - id: vera
+        #     config:
+        #       language: en
+        language: zh

@@ -1,8 +1,14 @@
 import { readFile } from 'node:fs/promises'
 import ExcelJS from 'exceljs'
+import { t } from './i18n.ts'
 import { validate } from './validator.ts'
 import { readWorkbookCells, stripPivotTableParts } from './workbook.ts'
 
+/**
+ * Sheet name is an identifier, not prose: it is written into the file, exported
+ * here, and skipped by `validator` through its `_dsh_` prefix. It therefore stays
+ * the same in every language — only the report's *content* is translated.
+ */
 export const HEALTH_REPORT_SHEET = '_dsh_体检报告'
 
 export interface HealthReportResult {
@@ -37,15 +43,15 @@ export async function writeWorkbookHealthReport(path: string, outPath?: string):
     report.getCell(cell).value = value
     if (font) report.getCell(cell).font = font
   }
-  set('A1', '公式健康报告', bold)
-  set('A2', `生成时间：${new Date().toISOString()}`)
-  set('A3', `文件：${path}`)
-  set('A4', `公式数：${formulaCount}`)
-  set('A5', `异常数：${anomalyCount}`)
-  set('A6', `健康分：${healthScore}`)
-  set('A8', '单元格', bold)
-  set('B8', '类型', bold)
-  set('C8', '说明', bold)
+  set('A1', t('公式健康报告'), bold)
+  set('A2', t('生成时间：{time}', { time: new Date().toISOString() }))
+  set('A3', t('文件：{path}', { path }))
+  set('A4', t('公式数：{count}', { count: formulaCount }))
+  set('A5', t('异常数：{count}', { count: anomalyCount }))
+  set('A6', t('健康分：{score}', { score: healthScore }))
+  set('A8', t('单元格'), bold)
+  set('B8', t('类型'), bold)
+  set('C8', t('说明'), bold)
   for (const [index, anomaly] of result.anomalies.slice(0, 200).entries()) {
     const row = 9 + index
     set(`A${row}`, anomaly.cell)
@@ -58,6 +64,12 @@ export async function writeWorkbookHealthReport(path: string, outPath?: string):
 
   const target = outPath ?? path
   await workbook.xlsx.writeFile(target)
-  const summary = `健康分 ${healthScore}：${formulaCount} 个公式，${anomalyCount} 个异常，报告已写入 ${target} 的「${HEALTH_REPORT_SHEET}」表`
+  const summary = t('健康分 {score}：{formulas} 个公式，{anomalies} 个异常，报告已写入 {path} 的「{sheet}」表', {
+    score: healthScore,
+    formulas: formulaCount,
+    anomalies: anomalyCount,
+    path: target,
+    sheet: HEALTH_REPORT_SHEET,
+  })
   return { path: target, healthScore, formulaCount, anomalyCount, reportSheet: HEALTH_REPORT_SHEET, summary }
 }

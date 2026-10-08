@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-system-prompt'
+import Schema from '@deepseek-ai/schemastery'
 import { readFile } from 'node:fs/promises'
 import { runAgentTask } from './agent.ts'
 import { EXCEL_ERROR_VALUES, findErrorCells } from './audit.ts'
@@ -18,6 +19,7 @@ import { readChartInfos } from './charts.ts'
 import { compileFormula } from './compiler.ts'
 import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.ts'
 import { buildDependencyGraph, traceDependencies } from './graph.ts'
+import { setLanguage } from './i18n.ts'
 import { runDoctorChecks } from './doctor.ts'
 import { buildWorkbookInsight } from './insight.ts'
 import { writeWorkbookHealthReport } from './health-report.ts'
@@ -50,7 +52,33 @@ type JsonRecord = Record<string, any>
 export const name = 'dsh-excel-chat'
 export const inject = ['tools', 'systemPrompt']
 
-export function apply(host: Context) {
+export interface ExcelChatConfig {
+  /**
+   * Language for the text a person reads: health reports, data insights, the
+   * capability menu, repair summaries, operation warnings, doctor output.
+   *
+   * Workbook *data* is deliberately not translated — subtotal labels, generated
+   * sheet names and preset names are written into the file and other code keys
+   * off them (`patterns.ts` skips summary rows by matching `总计`/`小计`), so
+   * translating them would silently change behaviour. The planner prompt is not
+   * translated either: it is model input with tuned few-shot examples.
+   */
+  language?: 'zh' | 'en'
+}
+
+/**
+ * dsh validates a plugin's config against this schema, so the option shows up
+ * in the config surface and a typo is rejected instead of silently ignored.
+ * Declared here because the loader reads `Config` from the plugin entry.
+ */
+export const Config = Schema.object({
+  language: Schema.union(['zh', 'en'] as const).default('zh'),
+})
+
+export function apply(host: Context, config?: ExcelChatConfig) {
+  // Read the config defensively: the loader passes whatever the entry declared,
+  // and an unrecognised value must fall back to Chinese rather than throw.
+  setLanguage(config?.language === 'en' ? 'en' : 'zh')
   const { ctx, report } = guardedContext(host)
   announce(host, 'info', '[dsh-excel-chat] plugin loaded')
   try {

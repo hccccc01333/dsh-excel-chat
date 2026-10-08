@@ -8,6 +8,7 @@ import {
   type RefPoint,
 } from './formula.ts'
 import { guardFormulaInjection, parseCsv, stringifyCsv, unguardFormulaInjection } from './csv.ts'
+import { t } from './i18n.ts'
 import { validate, type ValidationResult } from './validator.ts'
 import { cellContent, contentToCellValue, plainContent, readWorkbookCells, stripPivotTableParts } from './workbook.ts'
 import { diffCellMaps, writePatchLog, type PatchLog } from './diff.ts'
@@ -1099,8 +1100,8 @@ export async function applyOperationsToWorkbook(
         warnings.push({
           op: index,
           message: skipped > 0
-            ? `freezeFormulas 转换 ${frozen} 个公式，跳过 ${skipped} 个无缓存结果的（先在 Excel 中打开计算后可再转）`
-            : `freezeFormulas converted ${frozen} formula(s) to their cached values`,
+            ? t('freezeFormulas 转换 {frozen} 个公式，跳过 {skipped} 个无缓存结果的（先在 Excel 中打开计算后可再转）', { frozen, skipped })
+            : t('freezeFormulas 转换 {frozen} 个公式为缓存值', { frozen }),
         })
         break
       }
@@ -2385,7 +2386,7 @@ function copyRange(workbook: ExcelJS.Workbook, sourceRange: string, targetCell: 
               colDelta: destCol - col,
             }).slice(1),
           }
-          warnings?.push({ op: opIndex, message: 'copyRange valuesOnly：部分公式无缓存结果，已按公式复制' })
+          warnings?.push({ op: opIndex, message: t('copyRange valuesOnly：部分公式无缓存结果，已按公式复制') })
         } else {
           dest.value = result
         }

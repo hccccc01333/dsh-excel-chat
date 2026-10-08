@@ -1,5 +1,6 @@
 import { access, copyFile } from 'node:fs/promises';
 import { repairWorkbookFile } from './repair.js';
+import { t } from './i18n.js';
 import { writeWorkbookHealthReport } from './health-report.js';
 /** Collapse a validation result into counts the model can reason about. */
 export function summarizeValidation(result) {
@@ -27,19 +28,19 @@ export async function autofixWorkbookFile(path, options = {}) {
     const repairedPath = result.repairedPath;
     const fixed = result.repairs.length + result.llmRepairs.length;
     const lines = [
-        `体检：修复前 ${before.total} 个异常，修复后 ${after.total} 个。`,
+        t('体检：修复前 {before} 个异常，修复后 {after} 个。', { before: before.total, after: after.total }),
     ];
     if (fixed > 0) {
         const ids = [...result.repairs, ...result.llmRepairs].map((patch) => patch.id).join(', ');
-        lines.push(`已修复 ${fixed} 处：${ids}`);
+        lines.push(t('已修复 {count} 处：{ids}', { count: fixed, ids }));
     }
     else if (before.total > 0) {
-        lines.push(`未自动修复 ${before.total} 处；可提供表格结构后启用 LLM 修复，或人工核对。`);
+        lines.push(t('未自动修复 {count} 处；可提供表格结构后启用 LLM 修复，或人工核对。', { count: before.total }));
     }
     else {
-        lines.push('未发现公式异常，无需修复。');
+        lines.push(t('未发现公式异常，无需修复。'));
     }
-    lines.push(`输出文件：${repairedPath}`);
+    lines.push(t('输出文件：{path}', { path: repairedPath }));
     const outcome = { repairedPath, repairs: result.repairs, before, after, message: lines.join('\n') };
     if (includeHealthReport) {
         try {

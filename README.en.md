@@ -102,6 +102,11 @@ tables, chart PNG export and PDF export need Windows with a local Excel install.
 Pinning a version: `dsh plugin --profile demo add dsh-excel-chat@0.39.9` (omitting the
 version gets `latest`).
 
+Switching the output language (Chinese by default): add an override to your profile's
+`cordis.patch.yml` — `- id: vera` / `config:` / `language: en`. Only the *messages* are
+translated; data inside the workbook (subtotal labels, generated sheet names) is not,
+because code keys off it. See [docs/usage.md](docs/usage.md).
+
 ## Tools
 
 | Tool | What it does |

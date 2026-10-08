@@ -1,4 +1,5 @@
 import { defineTool } from '@deepseek-ai/dsh-tools';
+import Schema from '@deepseek-ai/schemastery';
 import { readFile } from 'node:fs/promises';
 import { runAgentTask } from './agent.js';
 import { EXCEL_ERROR_VALUES, findErrorCells } from './audit.js';
@@ -10,6 +11,7 @@ import { readChartInfos } from './charts.js';
 import { compileFormula } from './compiler.js';
 import { diffWorkbookFiles, readPatchLog, rollbackPatchLog } from './diff.js';
 import { buildDependencyGraph, traceDependencies } from './graph.js';
+import { setLanguage } from './i18n.js';
 import { runDoctorChecks } from './doctor.js';
 import { buildWorkbookInsight } from './insight.js';
 import { writeWorkbookHealthReport } from './health-report.js';
@@ -37,7 +39,18 @@ import { createVisionCritic } from './chart-visual.js';
 import { announce, describeError, guardedContext, registrationSummary, writeStatusReport } from './registration.js';
 export const name = 'dsh-excel-chat';
 export const inject = ['tools', 'systemPrompt'];
-export function apply(host) {
+/**
+ * dsh validates a plugin's config against this schema, so the option shows up
+ * in the config surface and a typo is rejected instead of silently ignored.
+ * Declared here because the loader reads `Config` from the plugin entry.
+ */
+export const Config = Schema.object({
+    language: Schema.union(['zh', 'en']).default('zh'),
+});
+export function apply(host, config) {
+    // Read the config defensively: the loader passes whatever the entry declared,
+    // and an unrecognised value must fall back to Chinese rather than throw.
+    setLanguage(config?.language === 'en' ? 'en' : 'zh');
     const { ctx, report } = guardedContext(host);
     announce(host, 'info', '[dsh-excel-chat] plugin loaded');
     try {
