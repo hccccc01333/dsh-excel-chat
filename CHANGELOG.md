@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **修复：模型把列名当列字母传入时会把进程打崩（OOM）。** `columnToNumber`
+  对任何字符串都不做校验，`columnToNumber('Sheet1')` 会算出 **229493717**
+  （S=19,H=8,E=5,E=5,T=20,1=−15 的进位结果）。`groupColumns` 只检查
+  `from < 1 || to < from`，这个值两个条件都通过，接着
+  `sheet.getColumn(229493717)` 让 exceljs 分配巨型数组——**Node 直接以 4GB
+  堆上限崩溃**。也就是说，一个把列名写进列字母字段的模型输出就能终结用户的会话。
+  （旁证：`numberToColumn(229493717)` 回绕出 6 个字母的 `SHEESK`，
+  之前那些 `Invalid column letter: SHEESK` 的乱码报错都是这条链的下游产物。）
+
+  现在 `columnToNumber` 要求 `/^[A-Z]{1,3}$/` 且结果不超过 16384（XFD），
+  否则抛出 `invalid column letter` / `column out of range`。它被 60 多处调用，
+  其中不少直接接收模型传入的列名（`groupColumn`、`targetKey`、`lookupKey`、
+  `from`/`to`…），所以在这一处收紧即可全线受益。
+
+- **修复：`parseCellId` 接受行号 0。** Excel 行号从 1 开始、到 1048576 结束，
+  但 `A0` 会被解析成 row 0，超界的大行号也照收——它们最终同样走到
+  `sheet.getCell` 的越界分配。现在行号必须落在 1..1048576。
+
 - **修复：CSV 导入会给每张表多写一整行空行。** `parseCsv` 把**末尾换行**当成了
   新记录的开始，而真实 CSV 文件都以换行结尾——所以一个 3 行的 CSV 导入后
   `sheet.rowCount` 是 4，第 4 行是 `A4=''`。更根本的是**往返不幂等**：
@@ -36,12 +54,15 @@
   此前被上面那句丢弃自环的代码掩盖了；修好构图后两个任务的完整性立刻从 1 掉到
   0.98，才把它暴露出来。按语义左移一列修正，原有的偏移错误与断言意图保持不变。
 
-- **新增 4 个测试文件 / 35 例**，补上此前没有直接测试的模块：
+- **新增 5 个测试文件 / 46 例**，补上此前没有直接测试的模块：
   `tests/csv.test.ts`（12 例，含端到端 `importCsv` 回归）、
-  `tests/graph.test.ts`（14 例）、`tests/charts.test.ts`（8 例），
-  以及 `tests/file-benchmark.test.ts` 的语料守卫
+  `tests/graph.test.ts`（14 例）、`tests/charts.test.ts`（8 例）、
+  `tests/formula.test.ts`（10 例，列字母与单元格 id 的边界校验）、
+  `tests/operations.test.ts` 的 `a column name where a column letter belongs is
+  rejected, not allocated`（端到端 OOM 回归），以及
+  `tests/file-benchmark.test.ts` 的语料守卫
   `no corpus fixture ships a circular formula`——遍历 100 个夹具断言无环，
-  这条守卫当初就能抓到那两处夹具缺陷。测试 350 → **385 通过**。
+  这条守卫当初就能抓到那两处夹具缺陷。测试 350 → **396 通过**。
 
 ## v0.39.8 — 2026-10-07
 
