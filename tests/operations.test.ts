@@ -1,4 +1,5 @@
 import { test } from 'node:test'
+import { excelOperationSchema } from '../src/operation-schema.ts'
 import assert from 'node:assert/strict'
 import ExcelJS from 'exceljs'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
@@ -2147,4 +2148,44 @@ test('a column name where a column letter belongs is rejected, not allocated', a
     }], outPath),
     /out of range/,
   )
+})
+
+/**
+ * The dispatcher and the schema have to describe the same set of operations.
+ *
+ * They are two hand-maintained lists of the same thing: `excelOperationSchema`
+ * decides what a caller may send, and the `switch` in `applyOperationsToWorkbook`
+ * decides what happens. A schema entry with no case is an operation that validates
+ * and then silently does nothing; a case with no schema entry is code no caller can
+ * reach. Neither shows up as a test failure on its own, which is exactly why this
+ * reads both lists and compares them.
+ */
+test('every schema operation has a dispatcher case, and nothing more', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const { fileURLToPath } = await import('node:url')
+  const source = await readFile(fileURLToPath(new URL('../src/operations.ts', import.meta.url)), 'utf8')
+
+  // Scope to the dispatcher, and take only its shallowest `case` lines: handlers
+  // contain switches of their own (criteria operators, sort directions), and
+  // matching those would compare operators against operations.
+  const start = source.indexOf('export async function applyOperationsToWorkbook')
+  assert.ok(start > 0, 'the dispatcher should be findable')
+  const end = source.indexOf('\n}', start)
+  const body = source.slice(start, end)
+
+  const indents = [...body.matchAll(/^( +)case '([A-Za-z]+)':/gm)].map((match) => ({ indent: match[1]!.length, op: match[2]! }))
+  assert.ok(indents.length > 0, 'the dispatcher should have cases')
+  const shallowest = Math.min(...indents.map((entry) => entry.indent))
+  const cases = indents.filter((entry) => entry.indent === shallowest).map((entry) => entry.op)
+
+  const handled = new Set(cases)
+  const declared = new Set(excelOperationSchema.oneOf.map((branch) => branch.properties.op.enum[0]!))
+
+  const unhandled = [...declared].filter((op) => !handled.has(op)).sort()
+  const unreachable = [...handled].filter((op) => !declared.has(op)).sort()
+  const duplicated = cases.filter((op, index) => cases.indexOf(op) !== index)
+
+  assert.deepEqual(unhandled, [], 'these operations validate but have no handler')
+  assert.deepEqual(unreachable, [], 'these cases handle operations the schema does not allow')
+  assert.deepEqual(duplicated, [], 'these operations have more than one case, so one is dead code')
 })

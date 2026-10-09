@@ -1,0 +1,365 @@
+/**
+ * The shape of an operation, and the vocabulary the rest of the plugin shares.
+ *
+ * Split out of , which had grown to hold the types, the dispatcher,
+ * the handlers and the file entry point in one 3273-line file. The types are the
+ * part everything else imports, so they move first:  re-exports
+ * them unchanged, and no caller has to be touched.
+ */
+import type { ValidationResult } from './validator.ts'
+/**
+ * Content accepted by `set`. Typed scalars keep their Excel type as-is; strings
+ * are inferred (`"=A1+1"` -> formula, `"100"` -> number, `"true"` -> boolean).
+ */
+export type CellContent = string | number | boolean | Date | null
+
+export type ExcelOperation =
+  | { op: 'set'; cells: Record<string, CellContent> }
+  | { op: 'fill'; source: string; target: string }
+  | { op: 'insertRows'; sheet: string; row: number; count: number }
+  | { op: 'deleteRows'; sheet: string; row: number; count: number }
+  | { op: 'insertColumns'; sheet: string; column: string; count: number }
+  | { op: 'deleteColumns'; sheet: string; column: string; count: number }
+  | { op: 'addSheet'; name: string }
+  | { op: 'renameSheet'; oldName: string; newName: string }
+  | { op: 'deleteSheet'; name: string }
+  | { op: 'clear'; cells: string[] }
+  | { op: 'merge'; range: string }
+  | { op: 'unmerge'; range: string }
+  | { op: 'copyRange'; source: string; target: string; move?: boolean; valuesOnly?: boolean }
+  | { op: 'fillSeries'; start: string; target: string; step?: number }
+  | { op: 'style'; range: string; style: ExcelStyle }
+  | { op: 'setColumnWidth'; sheet: string; column: string; width: number }
+  | { op: 'setRowHeight'; sheet: string; row: number; height: number }
+  | { op: 'freezePanes'; sheet: string; row: number; column: string }
+  | { op: 'findReplace'; find: string; replace: string; sheet?: string; matchCase?: boolean }
+  | { op: 'duplicateSheet'; name: string; newName: string }
+  | { op: 'hideSheet'; name: string; hidden?: boolean }
+  | { op: 'setTabColor'; name: string; color: string }
+  | { op: 'importCsv'; file: string; sheet?: string; delimiter?: string; firstRowHeaders?: boolean }
+  | { op: 'exportCsv'; file: string; sheet?: string; range?: string; delimiter?: string; guardFormulas?: boolean }
+  | {
+      op: 'sortRange'
+      range: string
+      keys: Array<{
+        column: string
+        direction?: 'asc' | 'desc'
+        /** Sort by cell value (default), fill colour, or font colour. */
+        by?: 'value' | 'fill' | 'font'
+        /** With `by: fill|font`: cells carrying this colour sort first (asc). */
+        color?: string
+        /** Explicit order for text, e.g. ["高","中","低"]; unlisted values sort after. */
+        customList?: string[]
+      }>
+      headerRows?: number
+    }
+  | {
+      op: 'report'
+      source: string
+      groupColumn: string
+      metrics: Array<{ column: string; function: 'sum' | 'average' | 'count' | 'counta' | 'max' | 'min' }>
+      sort?: boolean
+      subtotal?: boolean
+      autoFilter?: boolean
+      headerStyle?: boolean
+      freezeHeader?: boolean
+      numberFormat?: string
+      outputSheet?: string
+    }
+  | {
+      op: 'preset'
+      role: 'ops' | 'product' | 'data'
+      source: string
+      groupColumn: string
+      metrics: Array<{ column: string; function: 'sum' | 'average' | 'count' | 'counta' | 'max' | 'min' }>
+      filter?: { column: string; operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains'; value: string | number }
+    }
+  | {
+      op: 'dataValidation'
+      range: string
+      type: 'list' | 'whole' | 'decimal' | 'date' | 'textLength' | 'custom'
+      operator?: 'between' | 'notBetween' | 'equal' | 'notEqual' | 'greaterThan' | 'lessThan' | 'greaterThanOrEqual' | 'lessThanOrEqual'
+      formula1?: string
+      formula2?: string
+      allowBlank?: boolean
+      showInputMessage?: boolean
+      prompt?: string
+      showErrorMessage?: boolean
+      errorStyle?: 'stop' | 'warning' | 'information'
+      error?: string
+      errorTitle?: string
+    }
+  | {
+      op: 'conditionalFormatting'
+      range: string
+      rules: Array<{
+        type:
+          | 'cellIs'
+          | 'expression'
+          | 'containsText'
+          | 'notContainsText'
+          | 'blanks'
+          | 'noBlanks'
+          | 'errors'
+          | 'noErrors'
+          | 'duplicateValues'
+          | 'uniqueValues'
+          | 'aboveAverage'
+          | 'belowAverage'
+          | 'timePeriod'
+          | 'dataBar'
+          | 'colorScale'
+          | 'iconSet'
+          | 'top10'
+        operator?: string
+        formula?: string | number
+        formula2?: string | number
+        text?: string
+        timePeriod?: 'today' | 'yesterday' | 'tomorrow' | 'last7Days' | 'thisMonth' | 'lastMonth' | 'nextMonth' | 'thisWeek' | 'lastWeek' | 'nextWeek'
+        color?: string
+        minColor?: string
+        midColor?: string
+        maxColor?: string
+        iconSet?: string
+        rank?: number
+        percent?: boolean
+        bottom?: boolean
+        style?: ExcelStyle
+      }>
+    }
+  | { op: 'autoFilter'; range: string }
+  | { op: 'subtotal'; sheet: string; range: string; groupColumn: string; summaryColumns: Array<{ column: string; function: 'sum' | 'average' | 'count' | 'max' | 'min' }>; addGrandTotal?: boolean }
+  | { op: 'aggregateReport'; source: string; groupColumn: string; metrics: Array<{ column: string; function: 'sum' | 'average' | 'count' | 'counta' | 'max' | 'min' }>; outputSheet?: string }
+  | { op: 'filterToRange'; source: string; criteria: Array<{ column: string; operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains'; value: string | number }>; target: string; matchAll?: boolean }
+  | {
+      op: 'protectSheet'
+      sheet: string
+      password?: string
+      options?: {
+        selectLockedCells?: boolean
+        selectUnlockedCells?: boolean
+        formatCells?: boolean
+        formatColumns?: boolean
+        formatRows?: boolean
+        insertColumns?: boolean
+        insertRows?: boolean
+        deleteColumns?: boolean
+        deleteRows?: boolean
+        sort?: boolean
+        autoFilter?: boolean
+      }
+    }
+  | { op: 'unprotectSheet'; sheet: string; password?: string }
+  | {
+      op: 'pageSetup'
+      sheet: string
+      printArea?: string
+      orientation?: 'portrait' | 'landscape'
+      fitToPage?: boolean
+      fitToWidth?: number
+      fitToHeight?: number
+      margins?: { top?: number; right?: number; bottom?: number; left?: number; header?: number; footer?: number }
+      centerHorizontally?: boolean
+      centerVertically?: boolean
+    }
+  | { op: 'definedName'; name: string; ref: string }
+  | { op: 'mailMerge'; template: string; data: string; outputSheet?: string }
+  | {
+      op: 'addTable'
+      name: string
+      range: string
+      headerRow?: boolean
+      totalsRow?: boolean
+      showRowStripes?: boolean
+      showColumnStripes?: boolean
+    }
+  | { op: 'dedupeRows'; sheet: string; columns?: string[]; keep?: 'first' | 'last' }
+  | { op: 'fillMissing'; range: string; mode: 'value' | 'forward' | 'left'; value?: string | number }
+  | { op: 'removeEmptyRows'; range: string }
+  | { op: 'removeEmptyColumns'; range: string }
+  | { op: 'trimText'; range: string }
+  | { op: 'changeCase'; range: string; case: 'upper' | 'lower' | 'proper' }
+  | { op: 'normalizeText'; range: string }
+  | {
+      op: 'splitColumn'
+      sheet: string
+      column: string
+      /** Split on this delimiter — mutually exclusive with `widths`. */
+      delimiter?: string
+      /** Fixed-width split: character count per output column, e.g. [3, 5, 4]. */
+      widths?: number[]
+      startRow: number
+      endRow?: number
+    }
+  | {
+      op: 'highlightRows'
+      sheet: string
+      range: string
+      criteria: Array<{ column: string; operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains'; value: string | number }>
+      style?: ExcelStyle
+    }
+  | {
+      op: 'fuzzyMatch'
+      source: string
+      sourceKey: string
+      target: string
+      targetKey: string
+      valueColumn: string
+      outputColumn: string
+      threshold?: number
+      scoreColumn?: string
+    }
+  | { op: 'hideRows'; sheet: string; from: number; to: number; hidden?: boolean }
+  | { op: 'hideColumns'; sheet: string; columns: string[]; hidden?: boolean }
+  | { op: 'groupRows'; sheet: string; start: number; end: number; level?: number; collapse?: boolean }
+  | { op: 'groupColumns'; sheet: string; from: string; to: string; level?: number; collapse?: boolean }
+  | { op: 'autoFitColumnWidths'; sheet: string; columns?: string[]; minWidth?: number; maxWidth?: number }
+  | { op: 'unfreezePanes'; sheet: string }
+  | { op: 'transpose'; source: string; target: string }
+  | { op: 'clearRange'; range: string; mode?: 'contents' | 'formats' | 'all' }
+  | {
+      op: 'joinSheets'
+      source: string
+      sourceKey: string
+      lookup: string
+      lookupKey: string
+      valueColumns: string[]
+      outputColumns: string[]
+      missValue?: string | number
+    }
+  | {
+      op: 'crosstab'
+      source: string
+      rowColumn: string
+      columnColumn: string
+      metric: { column?: string; function: 'sum' | 'average' | 'count' | 'counta' | 'max' | 'min' }
+      outputSheet?: string
+      totals?: boolean
+    }
+  | { op: 'setHyperlink'; cell: string; url?: string; location?: string; text?: string }
+  | { op: 'printTitles'; sheet: string; rows?: string; columns?: string }
+  | { op: 'copyStyle'; source: string; target: string }
+  | { op: 'freezeFormulas'; range: string }
+  | { op: 'uniqueValues'; source: string; target: string; includeHeader?: boolean }
+  | { op: 'unmergeAll'; sheet: string }
+  | { op: 'setZoom'; sheet: string; zoom: number; normalZoom?: number }
+  | { op: 'showGridLines'; sheet: string; visible: boolean }
+  | {
+      op: 'headerFooter'
+      sheet: string
+      oddHeader?: string
+      oddFooter?: string
+      evenHeader?: string
+      evenFooter?: string
+      firstHeader?: string
+      firstFooter?: string
+      differentOddEven?: boolean
+      differentFirst?: boolean
+    }
+  | { op: 'moveSheet'; name: string; position: number }
+  | {
+      op: 'setWorkbookProperties'
+      creator?: string
+      lastModifiedBy?: string
+      title?: string
+      subject?: string
+      description?: string
+      keywords?: string
+      recalcOnOpen?: boolean
+    }
+  | {
+      op: 'rankColumn'
+      range: string
+      metricColumn: string
+      outputColumn: string
+      descending?: boolean
+      skipHeader?: boolean
+    }
+  | { op: 'rowPageBreaks'; sheet: string; rows: number[] }
+  | { op: 'clearPageBreaks'; sheet: string }
+  | {
+      op: 'addComment'
+      cell: string
+      text: string
+      author?: string
+      width?: number
+      height?: number
+    }
+  | {
+      op: 'addSparklines'
+      /** Data range with one row per sparkline, e.g. "Sheet1!B2:F31". */
+      dataRange: string
+      /** Location range with the same number of rows, e.g. "Sheet1!G2:G31". */
+      locationRange: string
+      type?: 'line' | 'column' | 'stacked'
+      color?: string
+      negativeColor?: string
+      markers?: boolean
+      highColor?: string
+      lowColor?: string
+    }
+  | {
+      op: 'insertImage'
+      /** Anchor cell, sheet-qualified, e.g. "Sheet1!B2". */
+      cell: string
+      /** Image file path — pass this or `base64`, not both. */
+      file?: string
+      /** Base64 payload, with or without a `data:image/png;base64,` prefix. */
+      base64?: string
+      /** Rendered size in pixels. Omit both to keep the image's own size. */
+      width?: number
+      height?: number
+    }
+  | {
+      op: 'showFormulas'
+      sheet: string
+      /** Default true; pass false to show results again. */
+      show?: boolean
+    }
+
+export interface ExcelStyle {
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  strikeThrough?: boolean
+  fontSize?: number
+  fontName?: string
+  fontColor?: string
+  fill?: string
+  numberFormat?: string
+  hAlign?: 'left' | 'center' | 'right'
+  vAlign?: 'top' | 'middle' | 'bottom'
+  wrapText?: boolean
+  textRotation?: number
+  shrinkToFit?: boolean
+  indent?: number
+  border?: BorderSpec
+}
+
+export interface BorderEdgeSpec {
+  style?: 'thin' | 'medium' | 'thick' | 'dashed' | 'dotted' | 'double' | 'hair' | 'mediumDashed' | 'dashDot' | 'mediumDashDot' | 'dashDotDot' | 'slantDashDot'
+  color?: string
+}
+
+export interface BorderSpec {
+  top?: BorderEdgeSpec
+  bottom?: BorderEdgeSpec
+  left?: BorderEdgeSpec
+  right?: BorderEdgeSpec
+}
+
+export interface OperationWarning {
+  op: number
+  message: string
+}
+
+export interface ApplyOperationsResult {
+  warnings: OperationWarning[]
+}
+
+export interface OperateResult extends ApplyOperationsResult {
+  outputPath: string
+  /** Path of the audit log (.patch.json) written next to the output file. */
+  patchLog: string
+  validation: ValidationResult
+}

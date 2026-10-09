@@ -10,6 +10,7 @@ import { cellContent, contentToCellValue, plainContent, readWorkbookCells, strip
 import { diffCellMaps, writePatchLog } from './diff.js';
 import { annotateWorkbookXml, emptyAnnotations } from './xml-postprocess.js';
 import { readFile, writeFile } from 'node:fs/promises';
+export * from './operation-types.js';
 const RANGE_LINE = /^([A-Za-z]{1,3})(\d+):([A-Za-z]{1,3})(\d+)$/;
 export function findSheet(workbook, name) {
     const normalized = normalizeSheet(name);
