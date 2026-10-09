@@ -216,7 +216,73 @@ export function sanitizeAssertions(
  * alias fields, cell values); unsalvageable issues throw so the agent loop
  * can feed the exact message back to the planner for a corrected plan.
  */
-export function sanitizePlan(steps: PlanStep[], sheetNames: string[]): SanitizedPlan {
+/**
+ * Sheet name → normalised header text → column letter.
+ *
+ * Built from the workbook profile, which is already in hand before planning, and
+ * only for headers that are unambiguous within their sheet: when two columns share
+ * a header the entry is dropped rather than picked, because guessing which one was
+ * meant is how a plausible-looking wrong answer gets written into someone's file.
+ */
+export type HeaderIndex = Record<string, Record<string, string>>
+
+/** Normalise a header the way a reader would: trim, collapse spaces, case-fold. */
+export function normalizeHeader(header: string): string {
+  return header.replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+export function buildHeaderIndex(sheets: Array<{ sheet: string; columns: Array<{ column: string; header: string | null }> }>): HeaderIndex {
+  const index: HeaderIndex = {}
+  for (const sheet of sheets) {
+    const table: Record<string, string> = {}
+    const ambiguous = new Set<string>()
+    for (const column of sheet.columns) {
+      if (!column.header) continue
+      const key = normalizeHeader(column.header)
+      if (!key) continue
+      if (ambiguous.has(key)) continue
+      if (table[key] !== undefined) {
+        // Seen twice: the name no longer identifies one column, so remove it.
+        delete table[key]
+        ambiguous.add(key)
+        continue
+      }
+      table[key] = column.column.toUpperCase()
+    }
+    index[sheet.sheet] = table
+  }
+  return index
+}
+
+/**
+ * The column a planner meant when it wrote a header name where a letter belongs.
+ *
+ * `groupColumn: "区域"` is the header the planner can see in the profile, and the
+ * schema wants `"B"`. That used to fail as an argument error — `invalid column
+ * letter: 区域` — even though the intent is unambiguous and the answer is sitting
+ * in the profile. Returns undefined when the value is already a letter, or when no
+ * header matches, so the failure stays exactly as loud as it was.
+ */
+function resolveColumnLetter(value: string, sheet: string | undefined, headers: HeaderIndex, fallbackSheet: string): string | undefined {
+  if (/^[A-Za-z]{1,3}$/.test(value)) return undefined
+  const table = headers[sheet ?? ''] ?? headers[fallbackSheet]
+  if (!table) return undefined
+  return table[normalizeHeader(value)]
+}
+
+/** Flat fields the schema documents as column letters. */
+const COLUMN_FIELDS = [
+  'column', 'groupColumn', 'valueColumn', 'outputColumn', 'scoreColumn',
+  'rowColumn', 'columnColumn', 'metricColumn', 'sourceKey', 'targetKey', 'lookupKey',
+] as const
+
+/** Fields holding a list of column letters. */
+const COLUMN_LIST_FIELDS = ['columns'] as const
+
+/** Nested arrays whose entries carry a `column` letter. */
+const NESTED_COLUMN_FIELDS = ['metrics', 'summaryColumns', 'keys', 'criteria'] as const
+
+export function sanitizePlan(steps: PlanStep[], sheetNames: string[], headers: HeaderIndex = {}): SanitizedPlan {
   const firstSheet = sheetNames[0] ?? 'Sheet1'
   const notes: string[] = []
   const prefix = (value: unknown): unknown => {
@@ -265,6 +331,45 @@ export function sanitizePlan(steps: PlanStep[], sheetNames: string[]): Sanitized
           raw.oldName = matched
           notes.push(t('renameSheet 的 oldName 已匹配为 {matched}', { matched }))
         }
+      }
+      // Header names where column letters belong. Runs after the sheet-name
+      // salvage so the lookup uses the sheet the operation actually targets.
+      const columnSheet = typeof raw.sheet === 'string' ? raw.sheet : firstSheet
+      for (const key of COLUMN_FIELDS) {
+        const value = raw[key]
+        if (typeof value !== 'string') continue
+        const letter = resolveColumnLetter(value, columnSheet, headers, firstSheet)
+        if (letter !== undefined) {
+          raw[key] = letter
+          notes.push(t('{op} 的 {key} 已按表头「{header}」解析为列 {letter}', { op: operation.op, key, header: value, letter }))
+        }
+      }
+      for (const key of COLUMN_LIST_FIELDS) {
+        const list = raw[key]
+        if (!Array.isArray(list)) continue
+        raw[key] = list.map((entry) => {
+          if (typeof entry !== 'string') return entry
+          const letter = resolveColumnLetter(entry, columnSheet, headers, firstSheet)
+          if (letter === undefined) return entry
+          notes.push(t('{op} 的 {key} 已按表头「{header}」解析为列 {letter}', { op: operation.op, key, header: entry, letter }))
+          return letter
+        })
+      }
+      for (const field of NESTED_COLUMN_FIELDS) {
+        const list = raw[field]
+        if (!Array.isArray(list)) continue
+        raw[field] = list.map((entry) => {
+          if (entry === null || typeof entry !== 'object') return entry
+          const record = { ...(entry as Record<string, unknown>) }
+          if (typeof record.column === 'string') {
+            const letter = resolveColumnLetter(record.column, columnSheet, headers, firstSheet)
+            if (letter !== undefined) {
+              notes.push(t('{op} 的 {field}[].column 已按表头「{header}」解析为列 {letter}', { op: operation.op, field, header: record.column, letter }))
+              record.column = letter
+            }
+          }
+          return record
+        })
       }
       for (const key of ['sheet', 'column', 'groupColumn', 'valueColumn', 'outputColumn', 'sourceKey', 'targetKey', 'name', 'oldName', 'newName', 'template', 'data', 'find', 'replace', 'delimiter'] as const) {
         const value = raw[key]
@@ -320,6 +425,13 @@ export function sanitizePlan(steps: PlanStep[], sheetNames: string[]): Sanitized
           if (metric.column !== undefined && typeof metric.column !== 'string') {
             metric.column = String(metric.column)
             notes.push(t('crosstab 的 metric.column 已转为字符串'))
+          }
+          if (typeof metric.column === 'string') {
+            const letter = resolveColumnLetter(metric.column, columnSheet, headers, firstSheet)
+            if (letter !== undefined) {
+              notes.push(t('crosstab 的 metric.column 已按表头「{header}」解析为列 {letter}', { header: metric.column, letter }))
+              metric.column = letter
+            }
           }
           raw.metric = metric
         }

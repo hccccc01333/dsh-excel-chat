@@ -227,6 +227,12 @@ const EN: Record<string, string> = {
   '，表头 {headers}': ', headers {headers}',
 
   // plan-schema.ts — salvage notes
+  '{op} 的 {key} 已按表头「{header}」解析为列 {letter}':
+    '{op}: {key} resolved header 「{header}」 to column {letter}',
+  '{op} 的 {field}[].column 已按表头「{header}」解析为列 {letter}':
+    '{op}: {field}[].column resolved header 「{header}」 to column {letter}',
+  'crosstab 的 metric.column 已按表头「{header}」解析为列 {letter}':
+    'crosstab: metric.column resolved header 「{header}」 to column {letter}',
   '断言不是数组，已丢弃': 'assertions is not an array; dropped',
   '断言[{index}] 不是对象，已丢弃': 'assertion[{index}] is not an object; dropped',
   '断言[{index}] 缺少 id，已丢弃': 'assertion[{index}] has no id; dropped',

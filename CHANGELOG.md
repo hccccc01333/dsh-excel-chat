@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **新增：表头名当作列字母时的确定性 salvage。** 规划器看到的是 profile 里的**表头**
+  （`区域`、`金额`），所以很自然会写 `groupColumn: "区域"`，而 schema 要的是 `"B"`。
+  这本来会以 `invalid column letter: 区域` 失败——**意图毫无歧义，答案就在已经拿到的 profile 里**。
+
+  现在按表头解析成列字母（`column` / `groupColumn` / `valueColumn` / `outputColumn` /
+  `scoreColumn` / `rowColumn` / `columnColumn` / `metricColumn` / `sourceKey` / `targetKey` /
+  `lookupKey` / `columns[]`，以及 `metrics[]` / `summaryColumns[]` / `keys[]` / `criteria[]`
+  里的 `column` 和 crosstab 的 `metric.column`）。
+
+  **两条自我约束**：① 已经是列字母的一律不动；② **表头在同一张表里出现两次就拒绝解析**
+  （名字不再唯一标识一列，猜一个就是在用户文件里写一个看起来合理的错答案）。找不到表头时
+  也原样保留，让失败和以前一样响。
+
+  接在规划器路径上——那里 profile 是现成的，**零额外开销**。工具调用路径保持原样（它们
+  本来就明确报错）。`tests/plan-schema.test.ts` 加 5 例；**停掉解析逻辑会让其中 3 例变红**。
+
+- 测试 460 → **465 通过**。
+
 - **修复：17 个任务的断言写死了任务描述里从没提过的输出表名。** 例如
   `preset 产品模板：报表+色阶。` 却断言一张叫 `订单-产品分析` 的表。**规划器把活干对了、
   只是把表叫了别的名字，就会被判失败**——成功率因此在惩罚「没猜中一个没说的名字」，

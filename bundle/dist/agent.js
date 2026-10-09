@@ -2,7 +2,7 @@ import { copyFile, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { t, listJoin, listSeparator } from './i18n.js';
-import { PlanSchemaError, sanitizeAssertions, sanitizePlan } from './plan-schema.js';
+import { PlanSchemaError, buildHeaderIndex, sanitizeAssertions, sanitizePlan } from './plan-schema.js';
 import { profileWorkbook } from './profile.js';
 import { buildWorkbookSemanticProfile } from './semantic.js';
 import { runExcelTask } from './task.js';
@@ -50,7 +50,10 @@ export async function runAgentTask(path, options) {
             const steps = Array.isArray(rawPlan) ? rawPlan : rawPlan.steps;
             if (!steps || steps.length === 0)
                 throw new Error('planner returned an empty plan');
-            plan = sanitizePlan(steps, planContext.sheetNames).steps;
+            // The profile is already in hand, so header→column salvage costs nothing
+            // extra here. Planners routinely write `groupColumn: "区域"` — the header
+            // they can see in the profile — where the schema wants `"B"`.
+            plan = sanitizePlan(steps, planContext.sheetNames, buildHeaderIndex(beforeProfile.sheets)).steps;
             if (!Array.isArray(rawPlan) && rawPlan.assertions !== undefined) {
                 const sanitized = sanitizeAssertions(rawPlan.assertions, planContext.sheetNames);
                 planAssertions = sanitized.assertions;

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { sanitizeAssertions, sanitizeOperations, sanitizePlan } from '../src/plan-schema.ts'
+import { buildHeaderIndex, sanitizeAssertions, sanitizeOperations, sanitizePlan } from '../src/plan-schema.ts'
 
 test('sanitizeOperations gives a tool call the same error the planner gets', () => {
   // `excel_operate` hands the model's array straight to the executor, which
@@ -192,4 +192,90 @@ test('sanitizeAssertions ignores a non-array field entirely', () => {
   const { assertions, notes } = sanitizeAssertions('nope', ['订单'])
   assert.deepEqual(assertions, [])
   assert.ok(notes.some((note) => note.includes('不是数组')))
+})
+
+/**
+ * Header names where column letters belong.
+ *
+ * A planner reading the profile sees `区域`, `金额` — the headers — so it writes
+ * `groupColumn: "区域"` where the schema wants `"B"`. That failed as
+ * `invalid column letter: 区域` even though the intent is unambiguous and the
+ * answer is in the profile the agent already holds. Resolving it is a pure
+ * salvage, so it belongs here rather than in a prompt the model may ignore.
+ */
+const HEADERS = buildHeaderIndex([
+  { sheet: '订单', columns: [
+    { column: 'A', header: '订单号' },
+    { column: 'B', header: '区域' },
+    { column: 'E', header: '数量' },
+    // `金额` appears twice on purpose: the name no longer identifies one column,
+    // so the resolver has to decline it rather than pick.
+    { column: 'F', header: '金额' },
+    { column: 'G', header: '  金额  ' },
+  ] },
+  { sheet: '价目表', columns: [
+    { column: 'A', header: '产品' },
+    { column: 'B', header: '单价' },
+  ] },
+])
+
+test('a header name is resolved to the column letter the schema wants', () => {
+  const { steps, notes } = sanitizePlan([{
+    operations: [
+      { op: 'subtotal', sheet: '订单', range: '订单!A1:F25', groupColumn: '区域', summaryColumns: [{ column: '数量', function: 'sum' }] },
+    ],
+  }] as never, ['订单', '价目表'], HEADERS)
+
+  const operation = steps[0]!.operations[0] as Record<string, unknown>
+  assert.equal(operation.groupColumn, 'B')
+  assert.deepEqual((operation.summaryColumns as Array<{ column: string }>)[0]!.column, 'E')
+  assert.ok(notes.some((note) => note.includes('区域')))
+})
+
+test('a column letter is left alone, and an unknown header is not invented', () => {
+  const { steps } = sanitizePlan([{
+    operations: [
+      { op: 'subtotal', sheet: '订单', range: '订单!A1:F25', groupColumn: 'B', summaryColumns: [{ column: 'F', function: 'sum' }] },
+      { op: 'subtotal', sheet: '订单', range: '订单!A1:F25', groupColumn: '不存在的列', summaryColumns: [{ column: 'F', function: 'sum' }] },
+    ],
+  }] as never, ['订单', '价目表'], HEADERS)
+
+  const [letter, unknown] = steps[0]!.operations as Array<Record<string, unknown>>
+  assert.equal(letter!.groupColumn, 'B', 'a valid letter must not be touched')
+  // Left as-is so the failure stays exactly as loud as it was.
+  assert.equal(unknown!.groupColumn, '不存在的列')
+})
+
+test('an ambiguous header is refused rather than guessed', () => {
+  // Two columns share the header `金额`, so the name no longer identifies one
+  // column. Picking either would write a plausible-looking wrong answer.
+  const { steps } = sanitizePlan([{
+    operations: [
+      { op: 'subtotal', sheet: '订单', range: '订单!A1:F25', groupColumn: '金额', summaryColumns: [{ column: 'F', function: 'sum' }] },
+    ],
+  }] as never, ['订单'], HEADERS)
+
+  assert.equal((steps[0]!.operations[0] as Record<string, unknown>).groupColumn, '金额')
+})
+
+test('a header resolves against the sheet the operation targets', () => {
+  // `单价` is column B on 价目表 and absent from 订单, so the sheet has to be
+  // honoured rather than looking everything up in the first sheet.
+  const { steps } = sanitizePlan([{
+    operations: [
+      { op: 'sortRange', sheet: '价目表', range: '价目表!A1:B9', keys: [{ column: '单价', ascending: true }] },
+    ],
+  }] as never, ['订单', '价目表'], HEADERS)
+
+  assert.equal((steps[0]!.operations[0] as Record<string, unknown> & { keys: Array<{ column: string }> }).keys[0]!.column, 'B')
+})
+
+test('header matching tolerates surrounding and repeated whitespace', () => {
+  const { steps } = sanitizePlan([{
+    operations: [
+      { op: 'subtotal', sheet: '订单', range: '订单!A1:F25', groupColumn: ' 区域 ', summaryColumns: [{ column: 'F', function: 'sum' }] },
+    ],
+  }] as never, ['订单'], HEADERS)
+
+  assert.equal((steps[0]!.operations[0] as Record<string, unknown>).groupColumn, 'B')
 })

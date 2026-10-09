@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import ExcelJS from 'exceljs'
 import type { ExcelOperation } from './operations.ts'
 import { t, listJoin, listSeparator } from './i18n.ts'
-import { PlanSchemaError, sanitizeAssertions, sanitizePlan } from './plan-schema.ts'
+import { PlanSchemaError, buildHeaderIndex, sanitizeAssertions, sanitizePlan } from './plan-schema.ts'
 import { profileWorkbook, type WorkbookProfile } from './profile.ts'
 import { buildWorkbookSemanticProfile } from './semantic.ts'
 import { runExcelTask, type TaskResult } from './task.ts'
@@ -122,7 +122,10 @@ export async function runAgentTask(
       const rawPlan = await options.planner.plan(planContext)
       const steps = Array.isArray(rawPlan) ? rawPlan : rawPlan.steps
       if (!steps || steps.length === 0) throw new Error('planner returned an empty plan')
-      plan = sanitizePlan(steps, planContext.sheetNames).steps
+      // The profile is already in hand, so header→column salvage costs nothing
+      // extra here. Planners routinely write `groupColumn: "区域"` — the header
+      // they can see in the profile — where the schema wants `"B"`.
+      plan = sanitizePlan(steps, planContext.sheetNames, buildHeaderIndex(beforeProfile.sheets)).steps
       if (!Array.isArray(rawPlan) && rawPlan.assertions !== undefined) {
         const sanitized = sanitizeAssertions(rawPlan.assertions, planContext.sheetNames)
         planAssertions = sanitized.assertions

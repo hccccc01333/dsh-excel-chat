@@ -31,7 +31,25 @@ export declare function sanitizeAssertions(assertions: unknown, sheetNames: stri
  * alias fields, cell values); unsalvageable issues throw so the agent loop
  * can feed the exact message back to the planner for a corrected plan.
  */
-export declare function sanitizePlan(steps: PlanStep[], sheetNames: string[]): SanitizedPlan;
+/**
+ * Sheet name → normalised header text → column letter.
+ *
+ * Built from the workbook profile, which is already in hand before planning, and
+ * only for headers that are unambiguous within their sheet: when two columns share
+ * a header the entry is dropped rather than picked, because guessing which one was
+ * meant is how a plausible-looking wrong answer gets written into someone's file.
+ */
+export type HeaderIndex = Record<string, Record<string, string>>;
+/** Normalise a header the way a reader would: trim, collapse spaces, case-fold. */
+export declare function normalizeHeader(header: string): string;
+export declare function buildHeaderIndex(sheets: Array<{
+    sheet: string;
+    columns: Array<{
+        column: string;
+        header: string | null;
+    }>;
+}>): HeaderIndex;
+export declare function sanitizePlan(steps: PlanStep[], sheetNames: string[], headers?: HeaderIndex): SanitizedPlan;
 /**
  * Run the same validation and salvage the planner path uses, for an operations
  * array that arrived straight from a tool call rather than from the planner.
