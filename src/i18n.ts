@@ -227,6 +227,7 @@ const EN: Record<string, string> = {
   '，表头 {headers}': ', headers {headers}',
 
   // plan-schema.ts — salvage notes
+  '{op} 的 {field} 已归一为 {value}': '{op}: {field} normalised to {value}',
   '{op} 的 {key} 已按表头「{header}」解析为列 {letter}':
     '{op}: {key} resolved header 「{header}」 to column {letter}',
   '{op} 的 {field}[].column 已按表头「{header}」解析为列 {letter}':

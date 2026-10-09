@@ -11,6 +11,13 @@ export declare class PlanSchemaError extends Error {
 import type { ExcelOperation } from './operations.ts';
 import type { PlanStep } from './agent.ts';
 import type { WorkbookAssertion } from './verifier.ts';
+/**
+ * Aliases for enum values that are not English, or that name the concept rather
+ * than the constant. Deliberately small and one-to-one: an alias that could mean
+ * two allowed values is not an alias, it is a guess, and a guess here writes a
+ * valid-looking wrong value into somebody's workbook.
+ */
+export declare const ENUM_ALIASES: Record<string, Record<string, string>>;
 export interface SanitizedPlan {
     steps: PlanStep[];
     notes: string[];

@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildHeaderIndex, sanitizeAssertions, sanitizeOperations, sanitizePlan } from '../src/plan-schema.ts'
+import { ENUM_ALIASES, buildHeaderIndex, sanitizeAssertions, sanitizeOperations, sanitizePlan } from '../src/plan-schema.ts'
+import { excelOperationSchema } from '../src/operation-schema.ts'
 
 test('sanitizeOperations gives a tool call the same error the planner gets', () => {
   // `excel_operate` hands the model's array straight to the executor, which
@@ -278,4 +279,121 @@ test('header matching tolerates surrounding and repeated whitespace', () => {
   }] as never, ['订单'], HEADERS)
 
   assert.equal((steps[0]!.operations[0] as Record<string, unknown>).groupColumn, 'B')
+})
+
+/**
+ * Enum and boolean values as the model actually writes them.
+ *
+ * `function: "SUM"`, `function: "求和"`, `keep: "FIRST"`, `bold: "true"` are the
+ * same constants as the schema's, spelled differently. Rejecting them is a
+ * pure argument failure, and the schema already knows every legal value — so the
+ * normalisation is derived from the schema rather than hand-listed, which is what
+ * keeps it from drifting when a field gains an option.
+ */
+test('an enum value is normalised regardless of case', () => {
+  const { steps, notes } = sanitizePlan([{
+    operations: [
+      { op: 'aggregateReport', source: '订单!A1:F9', groupColumn: 'B', metrics: [{ column: 'F', function: 'SUM' }] },
+      { op: 'conditionalFormatting', range: '订单!A1:F9', rules: [{ type: 'DataBar' }] },
+      { op: 'dedupeRows', sheet: '订单', keyColumns: ['A'], keep: 'FIRST' },
+    ],
+  }] as never, ['订单'])
+
+  const [aggregate, formatting, dedupe] = steps[0]!.operations as Array<Record<string, never>>
+  assert.equal((aggregate as { metrics: Array<{ function: string }> }).metrics[0]!.function, 'sum')
+  assert.equal((formatting as { rules: Array<{ type: string }> }).rules[0]!.type, 'dataBar')
+  assert.equal((dedupe as { keep: string }).keep, 'first')
+  assert.equal(notes.length, 3)
+})
+
+test('an enum value written in Chinese is normalised to the constant', () => {
+  const { steps } = sanitizePlan([{
+    operations: [
+      { op: 'aggregateReport', source: '订单!A1:F9', groupColumn: 'B', metrics: [{ column: 'F', function: '求和' }] },
+      { op: 'sortRange', range: '订单!A1:F9', keys: [{ column: 'F', direction: '降序' }] },
+      { op: 'style', range: '订单!A1', style: { hAlign: '居中', vAlign: '居中' } },
+    ],
+  }] as never, ['订单'])
+
+  const [aggregate, sort, style] = steps[0]!.operations as Array<Record<string, never>>
+  assert.equal((aggregate as { metrics: Array<{ function: string }> }).metrics[0]!.function, 'sum')
+  assert.equal((sort as { keys: Array<{ direction: string }> }).keys[0]!.direction, 'desc')
+  // The same word means different constants depending on the axis.
+  assert.deepEqual((style as { style: Record<string, string> }).style, { hAlign: 'center', vAlign: 'middle' })
+})
+
+test('a boolean written as a string becomes a boolean', () => {
+  const { steps } = sanitizePlan([{
+    operations: [
+      { op: 'report', source: '订单!A1:F9', groupColumn: 'B', metrics: [{ column: 'F', function: 'sum' }], autoFilter: 'false', freezeHeader: '是' },
+      { op: 'style', range: '订单!A1', style: { bold: 'true', italic: '否' } },
+    ],
+  }] as never, ['订单'])
+
+  const [report, style] = steps[0]!.operations as Array<Record<string, never>>
+  assert.equal((report as { autoFilter: unknown }).autoFilter, false)
+  assert.equal((report as { freezeHeader: unknown }).freezeHeader, true)
+  assert.deepEqual((style as { style: Record<string, unknown> }).style, { bold: true, italic: false })
+})
+
+test('a legal value is left alone and an unknown one is not guessed', () => {
+  const { steps, notes } = sanitizePlan([{
+    operations: [
+      { op: 'aggregateReport', source: '订单!A1:F9', groupColumn: 'B', metrics: [{ column: 'F', function: 'sum' }] },
+      // `中位数` is not an allowed function, and no alias claims it is. Inventing
+      // one would write a valid-looking wrong number into the workbook.
+      { op: 'aggregateReport', source: '订单!A1:F9', groupColumn: 'B', metrics: [{ column: 'F', function: '中位数' }] },
+    ],
+  }] as never, ['订单'])
+
+  const [legal, unknown] = steps[0]!.operations as Array<{ metrics: Array<{ function: string }> }>
+  assert.equal(legal!.metrics[0]!.function, 'sum')
+  assert.equal(unknown!.metrics[0]!.function, '中位数')
+  assert.equal(notes.length, 0, 'nothing should have been rewritten')
+})
+
+/**
+ * Every alias has to land on a value its field actually allows.
+ *
+ * The alias table is the one hand-written part of the normalisation, so it is the
+ * one part that can rot: a typo'd target would make the alias silently do nothing,
+ * and a target borrowed from the wrong field would rewrite a legal value into one
+ * the schema rejects. Checked against the schema rather than against the table.
+ */
+test('every enum alias targets a value its field allows', () => {
+  const allowedByOp = new Map<string, Map<string, Set<string>>>()
+  for (const branch of excelOperationSchema.oneOf as unknown as Array<Record<string, unknown>>) {
+    const properties = branch.properties as Record<string, Record<string, unknown>>
+    const op = (properties.op.enum as string[])[0]!
+    const fields = new Map<string, Set<string>>()
+    const walk = (spec: unknown, field: string): void => {
+      if (!spec || typeof spec !== 'object') return
+      const node = spec as Record<string, unknown>
+      if (Array.isArray(node.enum)) {
+        if (!fields.has(field)) fields.set(field, new Set(node.enum as string[]))
+      }
+      for (const [key, child] of Object.entries(node)) {
+        if (key === 'enum' || !child || typeof child !== 'object') continue
+        walk(child, key === 'properties' || key === 'items' ? field : key)
+      }
+    }
+    for (const [key, spec] of Object.entries(properties)) {
+      if (key !== 'op') walk(spec, key)
+    }
+    allowedByOp.set(op, fields)
+  }
+
+  const problems: string[] = []
+  for (const [field, aliases] of Object.entries(ENUM_ALIASES)) {
+    const allowedAnywhere = new Set<string>()
+    for (const fields of allowedByOp.values()) {
+      const values = fields.get(field)
+      if (values) for (const value of values) allowedAnywhere.add(value)
+    }
+    assert.ok(allowedAnywhere.size > 0, `alias table covers field ${field}, which is not an enum in the schema`)
+    for (const [alias, target] of Object.entries(aliases)) {
+      if (!allowedAnywhere.has(target)) problems.push(`${field}: 「${alias}」 -> 「${target}」, which is not an allowed value`)
+    }
+  }
+  assert.deepEqual(problems, [])
 })

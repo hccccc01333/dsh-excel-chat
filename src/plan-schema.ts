@@ -18,9 +18,152 @@ export class PlanSchemaError extends Error {
 }
 
 import { t } from './i18n.ts'
+import { excelOperationSchema } from './operation-schema.ts'
 import type { ExcelOperation } from './operations.ts'
 import type { PlanStep } from './agent.ts'
 import type { WorkbookAssertion } from './verifier.ts'
+
+/**
+ * Where the schema declares an enum or a boolean, walked out of the schema itself.
+ *
+ * Writing these paths by hand would drift the moment a field is added — the schema
+ * would gain an enum and the salvage would keep ignoring it, silently. Reading them
+ * from the same object the tool call is validated against means the two cannot
+ * disagree.
+ */
+interface TypedPath {
+  /** Segments to walk; `array: true` means every element of a list. */
+  segments: Array<{ key: string; array: boolean }>
+  /** Allowed values, present only for enums. */
+  values?: string[]
+}
+
+function buildTypedPaths(): Record<string, TypedPath[]> {
+  const index: Record<string, TypedPath[]> = {}
+  const walk = (spec: unknown, segments: TypedPath['segments'], op: string): void => {
+    if (!spec || typeof spec !== 'object') return
+    const node = spec as Record<string, unknown>
+    if (Array.isArray(node.enum)) {
+      ;(index[op] ??= []).push({ segments, values: node.enum as string[] })
+    } else if (node.type === 'boolean') {
+      ;(index[op] ??= []).push({ segments })
+    }
+    for (const [key, child] of Object.entries(node)) {
+      if (key === 'enum' || !child || typeof child !== 'object') continue
+      // `properties` and `items` describe the shape of the value we are already
+      // standing on, not a field of it, so they are stepped through without adding
+      // a segment — treating them as field names produced paths like
+      // `style.properties.hAlign` that never matched anything.
+      if (key === 'properties' || key === 'items') {
+        walk(child, segments, op)
+        continue
+      }
+      visitChild(key, child, segments, op)
+    }
+  }
+  // One place decides whether a field introduces a list, so the top level and the
+  // recursion cannot disagree — they did, and the array flag on `metrics` was lost.
+  const visitChild = (key: string, spec: unknown, segments: TypedPath['segments'], op: string): void => {
+    if (!spec || typeof spec !== 'object') return
+    const node = spec as Record<string, unknown>
+    if (node.type === 'array' && node.items && typeof node.items === 'object') {
+      walk(node.items, [...segments, { key, array: true }], op)
+    } else {
+      walk(node, [...segments, { key, array: false }], op)
+    }
+  }
+  const branches = excelOperationSchema.oneOf as unknown as ReadonlyArray<Record<string, unknown>>
+  for (const branch of branches) {
+    const properties = branch.properties as Record<string, Record<string, unknown>>
+    const op = (properties.op.enum as string[])[0]!
+    for (const [key, spec] of Object.entries(properties)) {
+      if (key === 'op') continue
+      visitChild(key, spec, [], op)
+    }
+  }
+  return index
+}
+
+const TYPED_PATHS = buildTypedPaths()
+
+/**
+ * Aliases for enum values that are not English, or that name the concept rather
+ * than the constant. Deliberately small and one-to-one: an alias that could mean
+ * two allowed values is not an alias, it is a guess, and a guess here writes a
+ * valid-looking wrong value into somebody's workbook.
+ */
+export const ENUM_ALIASES: Record<string, Record<string, string>> = {
+  function: {
+    求和: 'sum', 合计: 'sum', 总计: 'sum', 平均: 'average', 均值: 'average', 平均数: 'average',
+    计数: 'count', 个数: 'count', 最大值: 'max', 最大: 'max', 最小值: 'min', 最小: 'min',
+    非空计数: 'counta', 非空: 'counta',
+  },
+  role: { 运营: 'ops', 产品: 'product', 数分: 'data', 数据分析: 'data', 分析: 'data' },
+  hAlign: { 居中: 'center', 中间: 'center', centre: 'center', 左: 'left', 左对齐: 'left', 右: 'right', 右对齐: 'right' },
+  vAlign: { 居中: 'middle', 中间: 'middle', centre: 'middle', 上: 'top', 下: 'bottom' },
+  direction: { 升序: 'asc', 递增: 'asc', 降序: 'desc', 递减: 'desc', ascending: 'asc', descending: 'desc' },
+  orientation: { 横向: 'landscape', 纵向: 'portrait' },
+  mode: { 向下填充: 'forward', 向下: 'forward', 向左填充: 'left', 向左: 'left', 填充值: 'value' },
+  keep: { 保留第一个: 'first', 第一个: 'first', 保留最后一个: 'last', 最后一个: 'last' },
+}
+
+/**
+ * Normalise a value the schema declares as an enum or a boolean.
+ *
+ * Returns undefined when nothing needs changing, so the caller can leave an
+ * already-correct value exactly as it is and only report real edits.
+ */
+function normalizeTypedValue(value: unknown, typed: TypedPath): unknown {
+  if (typed.values) {
+    if (typeof value !== 'string') return undefined
+    const trimmed = value.trim()
+    if (typed.values.includes(trimmed)) return undefined
+    // Case-insensitive first: `SUM`, `First`, `DataBar` are the same constants.
+    const folded = typed.values.find((allowed) => allowed.toLowerCase() === trimmed.toLowerCase())
+    if (folded !== undefined) return folded
+    const alias = ENUM_ALIASES[typed.segments[typed.segments.length - 1]!.key]?.[trimmed]
+    return alias !== undefined && typed.values.includes(alias) ? alias : undefined
+  }
+  if (typeof value !== 'boolean') {
+    if (typeof value !== 'string') return undefined
+    const folded = value.trim().toLowerCase()
+    if (folded === 'true' || folded === '是' || folded === 'yes') return true
+    if (folded === 'false' || folded === '否' || folded === 'no') return false
+  }
+  return undefined
+}
+
+/** Apply the schema's typed paths to one operation, recording what changed. */
+function normalizeTypedFields(op: string, raw: Record<string, unknown>, notes: string[]): void {
+  const paths = TYPED_PATHS[op]
+  if (!paths) return
+  for (const typed of paths) {
+    const last = typed.segments[typed.segments.length - 1]!
+    const walk = (container: unknown, depth: number): void => {
+      if (depth === typed.segments.length - 1) {
+        if (!container || typeof container !== 'object' || Array.isArray(container)) return
+        const record = container as Record<string, unknown>
+        const replacement = normalizeTypedValue(record[last.key], typed)
+        if (replacement !== undefined) {
+          notes.push(t('{op} 的 {field} 已归一为 {value}', { op, field: last.key, value: String(replacement) }))
+          record[last.key] = replacement
+        }
+        return
+      }
+      const segment = typed.segments[depth]!
+      if (!container || typeof container !== 'object') return
+      const next = (container as Record<string, unknown>)[segment.key]
+      if (next === undefined) return
+      if (segment.array) {
+        if (!Array.isArray(next)) return
+        for (const entry of next) walk(entry, depth + 1)
+      } else {
+        walk(next, depth + 1)
+      }
+    }
+    walk(raw, 0)
+  }
+}
 
 const CELL_OR_RANGE = /^[A-Za-z]{1,3}\d+$|^[A-Za-z]{1,3}\d+:[A-Za-z]{1,3}\d+$/
 
@@ -521,6 +664,9 @@ export function sanitizePlan(steps: PlanStep[], sheetNames: string[], headers: H
         raw.target = `${raw.target}!A1`
         notes.push(t('filterToRange 的 target 已补 !A1'))
       }
+      // Last, so it sees the records the steps above rebuilt rather than the
+      // originals they replaced.
+      normalizeTypedFields(operation.op, raw, notes)
       return raw as unknown as ExcelOperation
     })
     out.push({ name: step.name, operations })
