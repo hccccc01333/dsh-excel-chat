@@ -272,3 +272,19 @@ export function similarity(a: string, b: string): number {
   }
   return 1 - (previous[a.length]! / b.length)
 }
+
+export function parseTargetCell(
+  workbook: ExcelJS.Workbook,
+  target: string,
+  defaultSheet: string,
+): { sheet: ExcelJS.Worksheet; col: number; row: number } {
+  const bang = target.lastIndexOf('!')
+  const sheetName = bang >= 0 ? target.slice(0, bang) : defaultSheet
+  const body = bang >= 0 ? target.slice(bang + 1) : target
+  const match = /^([A-Za-z]{1,3})(\d+)$/.exec(body)
+  if (!match) throw new Error(`invalid target cell: ${target}`)
+  const sheet = findSheet(workbook, sheetName)
+  if (!sheet) throw new Error(`sheet not found: ${sheetName}`)
+  return { sheet, col: columnToNumber(match[1]!), row: Number(match[2]!) }
+}
+

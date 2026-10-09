@@ -61,5 +61,10 @@ export declare function normalizeTextValue(text: string): string;
  * Callers normalize (trim/lowercase) before calling.
  */
 export declare function similarity(a: string, b: string): number;
+export declare function parseTargetCell(workbook: ExcelJS.Workbook, target: string, defaultSheet: string): {
+    sheet: ExcelJS.Worksheet;
+    col: number;
+    row: number;
+};
 export {};
 //# sourceMappingURL=core.d.ts.map
