@@ -184,3 +184,50 @@ test('Verifier 2.0: invalid planner assertions are dropped without breaking the 
   assert.equal(result.rounds[0]!.planAssertions!.achieved, true)
   assert.equal(result.achieved, true)
 })
+
+/**
+ * The feedback for a second round has to be specific enough to act on.
+ *
+ * "not achieved" tells the planner nothing it can fix. What it needs is which
+ * assertion failed and what was there instead — otherwise the next round is a
+ * guess, which is what the replan failure category describes ("第一轮失败后没有纠正").
+ * The verifier's failure detail carries the cell, the expectation and the actual
+ * value; this pins all three into the note the next round receives.
+ */
+test('a failing round tells the next round which assertion failed and why', async () => {
+  const path = await makeWorkbook()
+  const seen: AgentPlanContext[] = []
+  let calls = 0
+  const planner: AgentPlanner = {
+    async plan(context) {
+      calls++
+      seen.push(context)
+      // Round 1 asserts a value the workbook does not hold.
+      if (calls === 1) {
+        return {
+          steps: [{ name: 'fill', operations: [{ op: 'fillMissing', range: '订单!A2:B4', mode: 'value', value: 0 }] }],
+          assertions: [{ id: '订单!B3', expect: 999 }],
+        }
+      }
+      return {
+        steps: [
+          { name: 'fill', operations: [{ op: 'fillMissing', range: '订单!A2:B4', mode: 'value', value: 0 }] },
+          { name: 'assert', operations: [{ op: 'set', cells: { '订单!E1': '已补齐' } }] },
+        ],
+        assertions: [{ id: '订单!B3', expect: 0 }],
+      }
+    },
+    async verify() {
+      return { achieved: true, reason: 'LLM 认为完成' }
+    },
+  }
+
+  const result = await runAgentTask(path, { goal: '补空值', planner, maxRounds: 2 })
+  assert.ok(seen[1], 'the loop should have run a second round')
+  const feedback = seen[1]!.verifierNote ?? ''
+
+  assert.match(feedback, /订单!B3/, 'the next round must be told which cell failed')
+  assert.match(feedback, /999/, 'and what was expected')
+  assert.match(feedback, /0/, 'and what was actually there')
+  assert.equal(result.achieved, true)
+})
