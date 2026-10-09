@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **修复：规划器提示词里的示例自己就是非法的。** 5 个示例把占位符写进了枚举位置——
+  `"keep":"first|last"`、`"mode":"value|forward|left"`、`"role":"ops|product|data"`、
+  `"direction":"asc|desc"`、`"mode":"contents|formats|all"`。**模型照抄这个形状就会产出
+  非法值**，然后被 schema 当参数错误拒掉——提示词在自己制造它本该防止的失败。
+
+  改为「给一个具体合法值 + 用文字说明其他选项」：形状合法，信息不丢
+  （如 `"keep":"first"` 后附「keep 二选一：first 保留首个 / last 保留末个」）。
+
+  新增守卫：**把提示词里每个 JSON 示例抽出来跑一遍 schema**，逐项核对枚举值、布尔类型、
+  必填字段。实测把 `first|last` 放回去会立刻报
+  `dedupeRows: keep="first|last" is not one of first/last`。
+
+- 测试 470 → **471 通过**。
+
 - **新增：枚举值与布尔的确定性归一。** `function: "SUM"`、`function: "求和"`、
   `keep: "FIRST"`、`bold: "true"`、`direction: "降序"` 和 schema 里的常量是同一个东西，
   只是写法不同——以前一律当参数错误拒掉。
