@@ -288,3 +288,27 @@ export function parseTargetCell(
   return { sheet, col: columnToNumber(match[1]!), row: Number(match[2]!) }
 }
 
+export function splitByWidth(text: string, widths: number[]): string[] {
+  const parts: string[] = []
+  let offset = 0
+  for (const width of widths) {
+    parts.push(text.slice(offset, offset + width).trim())
+    offset += width
+  }
+  if (offset < text.length) parts.push(text.slice(offset).trim())
+  return parts
+}
+
+/** Turn "Sheet2!A1" / "#明细!B2" into the HYPERLINK target "#'Sheet 2'!A1". */
+/** Clone font/fill/border/alignment/number format from one cell onto every cell in the target range. */
+/** Replace formulas with their cached results ("paste values" in place). */
+/** Write the distinct values of a source column into a target column, first-seen order. */
+/**
+ * Dedup key that does not collapse distinct types: number 1, text "1" and
+ * boolean TRUE get separate keys; a formula with no cached result keys on its
+ * formula text instead of collapsing every such cell to "".
+ */
+/** Patch every existing sheet view without dropping frozen panes or other flags. */
+/** Reorder sheets by rewriting orderNo (worksheets getter sorts by it). */
+/** Append a live RANK column next to a metric column. */
+
