@@ -146,3 +146,62 @@ test('planner passes machine assertions through when the model emits them', asyn
   assert.ok(!Array.isArray(plan))
   assert.deepEqual(plan.assertions, [{ id: '汇总!B2', startsWith: '=SUMIFS(' }])
 })
+
+/**
+ * The examples in the planner prompt have to be valid themselves.
+ *
+ * They are the shape the model copies, so an example that fails its own schema
+ * teaches a failure: five of them wrote `"keep":"first|last"`, `"mode":"value|forward|left"`,
+ * `"role":"ops|product|data"` and friends — placeholder syntax a model can paste
+ * verbatim, and then the plan is rejected as an argument error. The prompt was
+ * causing the class of failure it was meant to prevent.
+ *
+ * The check is mechanical: pull every JSON object out of the prompt file, and
+ * require that each one already satisfies the schema it will be validated against.
+ */
+test('every example in the planner prompt satisfies the operation schema', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const { fileURLToPath } = await import('node:url')
+  const source = await readFile(fileURLToPath(new URL('../src/llm-planner.ts', import.meta.url)), 'utf8')
+
+  // Pull out the first balanced object after each `'name: ` in the examples block.
+  const examples = []
+  for (const match of source.matchAll(/^\s*'([A-Za-z]+(?:\/[A-Za-z]+)*):\s*(\{)/gm)) {
+    const start = match.index + match[0].length - 1
+    let depth = 0
+    let end = -1
+    for (let i = start; i < source.length; i++) {
+      if (source[i] === '{') depth++
+      else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break } }
+    }
+    if (end < 0) continue
+    try {
+      examples.push({ label: match[1], value: JSON.parse(source.slice(start, end + 1)) })
+    } catch {
+      // Not a JSON literal (a snippet with prose inside); the schema check below
+      // only applies to the ones that are.
+    }
+  }
+  assert.ok(examples.length >= 15, 'expected the prompt to carry worked examples, found ' + examples.length)
+
+  const problems = []
+  const branches = excelOperationSchema.oneOf
+  for (const example of examples) {
+    const op = example.value.op
+    const branch = branches.find((b) => b.properties.op.enum[0] === op)
+    if (!branch) { problems.push(example.label + ': op ' + JSON.stringify(op) + ' is not in the schema'); continue }
+    for (const [key, spec] of Object.entries(branch.properties)) {
+      if (key === 'op') continue
+      const present = example.value[key] !== undefined
+      if (spec.required === true && !present) { problems.push(example.label + ': missing required field ' + key); continue }
+      if (!present) continue
+      if (Array.isArray(spec.enum) && !spec.enum.includes(example.value[key])) {
+        problems.push(example.label + ': ' + key + '=' + JSON.stringify(example.value[key]) + ' is not one of ' + spec.enum.join('/'))
+      }
+      if (spec.type === 'boolean' && typeof example.value[key] !== 'boolean') {
+        problems.push(example.label + ': ' + key + '=' + JSON.stringify(example.value[key]) + ' should be a boolean')
+      }
+    }
+  }
+  assert.deepEqual(problems, [])
+})
