@@ -48,25 +48,34 @@ test('a failed write leaves the target exactly as it was', async () => {
 })
 
 test('content ExcelJS cannot round-trip is reported before it is lost', async () => {
-  const { unzipSync, zipSync, strToU8 } = await import('fflate')
+  const { zipSync, strToU8 } = await import('fflate')
   const dir = await tempDir()
 
   const plain = join(dir, 'plain.xlsx')
   await writeFile(plain, Buffer.from(zipSync({ 'xl/workbook.xml': strToU8('<workbook/>') })))
   assert.deepEqual(findUnpreservedParts(new Uint8Array(await readFile(plain))), [])
 
+  // Pivot tables are deliberately not in this list: preserve.ts carries them
+  // across a rewrite, so warning about them would be wrong.
   const withPivot = join(dir, 'pivot.xlsx')
   await writeFile(withPivot, Buffer.from(zipSync({
     'xl/workbook.xml': strToU8('<workbook/>'),
     'xl/pivotTables/pivotTable1.xml': strToU8('<pivotTableDefinition/>'),
     'xl/pivotCache/pivotCacheDefinition1.xml': strToU8('<pivotCacheDefinition/>'),
   })))
+  assert.deepEqual(findUnpreservedParts(new Uint8Array(await readFile(withPivot))), [])
+
+  const withMacros = join(dir, 'macro.xlsx')
+  await writeFile(withMacros, Buffer.from(zipSync({
+    'xl/workbook.xml': strToU8('<workbook/>'),
+    'xl/vbaProject.bin': strToU8('macro'),
+    'xl/slicers/slicer1.xml': strToU8('<slicers/>'),
+  })))
   assert.deepEqual(
-    findUnpreservedParts(new Uint8Array(await readFile(withPivot))).sort(),
-    ['pivot cache', 'pivot table'],
+    findUnpreservedParts(new Uint8Array(await readFile(withMacros))).sort(),
+    ['VBA macro project', 'slicer'],
   )
 
   // Not a zip at all: a warning path must not turn into a hard failure.
   assert.deepEqual(findUnpreservedParts(new Uint8Array([1, 2, 3])), [])
-  void unzipSync
 })

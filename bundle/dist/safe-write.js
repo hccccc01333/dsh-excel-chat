@@ -24,10 +24,14 @@ import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { unzipSync } from 'fflate';
-/** Content ExcelJS does not model, and therefore cannot write back. */
+/**
+ * Content ExcelJS does not model, and therefore cannot write back.
+ *
+ * Pivot tables and their caches are deliberately absent: `preserve.ts` carries
+ * those across a rewrite, so warning about them would be wrong. Everything listed
+ * here really is dropped.
+ */
 const UNPRESERVED = [
-    { pattern: /^xl\/pivotTables\//, feature: 'pivot table' },
-    { pattern: /^xl\/pivotCache\//, feature: 'pivot cache' },
     { pattern: /^xl\/slicers\//, feature: 'slicer' },
     { pattern: /^xl\/slicerCaches\//, feature: 'slicer cache' },
     { pattern: /^xl\/timelines\//, feature: 'timeline' },
@@ -36,6 +40,7 @@ const UNPRESERVED = [
     { pattern: /^xl\/customXml\//, feature: 'custom XML' },
     { pattern: /^xl\/ctrlProps\//, feature: 'form control' },
     { pattern: /^xl\/embeddings\//, feature: 'embedded object' },
+    { pattern: /^xl\/diagrams\//, feature: 'SmartArt diagram' },
 ];
 /**
  * Features present in the file that editing it would drop.

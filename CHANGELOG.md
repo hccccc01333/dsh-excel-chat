@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- **修复：编辑会静默销毁透视表。** ExcelJS 不建模透视表，重写时 `xl/pivotTables/*`
+  与 `xl/pivotCache/*` 连同所有引用一起消失。现在这些部件会**逐字节复制**回输出，
+  并把三处引用（sheet 的 pivotTable 关系、`workbook.xml` 的 `<pivotCaches>`、
+  workbook rels 的 pivotCacheDefinition 关系）与 `[Content_Types].xml` 的覆盖补回。
+
+  **注入的关系一律重新分配 r:id**：原文件的 `rId1` 在 ExcelJS 刚写完的文件里毫无意义，
+  沿用它会静默指向 ExcelJS 恰好放在那里的东西。实测原文件用 `rId3`、输出用 `rId6`
+  （因为 ExcelJS 占了 rId1–rId5），引用同步改写。
+
+  **本机用 Excel 实测确认**：编辑后的文件 `Workbooks.Open` 无修复提示，
+  `PivotTables().Count` 为 1——透视表真的还在。
+
+- **新增：写入前的结构校验 + 拒绝写入。** 合并要交叉修改四个文件的引用，改错就是
+  产生 Excel 打不开的包——比丢透视表更糟。所以合并后先校验
+  （每个 rels 的 Target 都能解析到实际部件、每个 `r:id` 都有声明、
+  Content_Types 覆盖有对应部件、**有 pivot 部件就必须能追溯到 workbook**），
+  **不过就抛错拒绝写入**。配合原子写，原文件完好。
+  校验是结构级的、不需要 Excel，所以 CI 能跑。
+
+  *这条护栏当场生效过一次*：校验器自身有个 `_rels/.rels` 的路径解析 bug，
+  于是第一次端到端跑就被拦下——没有写出损坏文件。
+
+- **新增：原子写 + 覆盖前备份。** `writeFile` 先截断再写，崩溃/磁盘满/被杀会在原位置
+  留下截断的 xlsx。改为**同目录临时文件 + rename 覆盖**（同目录才同文件系统，
+  rename 才是原子的）；失败清临时文件并抛错，**目标保持原样**。覆盖已存在文件时
+  自动备份到 `<path>.bak`。接入 `operations.ts` / `patch.ts` / `health-report.ts`。
+
+- **丢失预警不再包含透视表**（现在会保留），改为只报告真正会丢的：
+  切片器、时间线、VBA、宏表、customXml、表单控件、嵌入对象、SmartArt。
+
+- 测试 446 → **452 通过**。新增 `tests/preserve.test.ts`（含用真实 Excel 生成的
+  透视表夹具做端到端，CI 无需 Excel）与 `tests/safe-write.test.ts`。
+
 - **修复：`report` 的汇总表把总额算成 3 倍。** `report` 会先往源表插小计行，再把
   **含小计行的整块区间**交给 `aggregateReport`；而后者把分组列里**每个不同的值**都当成
   一个分组——小计行的标签（`华东 汇总`）和总计行的标签（`总计`）都是「不同的值」，

@@ -2,6 +2,8 @@ import ExcelJS from 'exceljs';
 import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula, } from './formula.js';
 import { guardFormulaInjection, parseCsv, stringifyCsv, unguardFormulaInjection } from './csv.js';
 import { listJoin, t } from './i18n.js';
+import { applyPreserved, capturePreserved, isEmpty } from './preserve.js';
+import { validateStructure } from './package-check.js';
 import { findUnpreservedParts, writeWorkbookSafely } from './safe-write.js';
 import { validate } from './validator.js';
 import { cellContent, contentToCellValue, plainContent, readWorkbookCells, stripPivotTableParts } from './workbook.js';
@@ -243,10 +245,11 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
     await workbook.xlsx.load(stripPivotTableParts(original));
     const warnings = [];
     const annotations = emptyAnnotations();
-    // Rewriting goes through ExcelJS, which does not model pivot tables, slicers,
-    // VBA and friends — so they disappear from the output. Say so up front rather
-    // than letting the user discover it in the file. `op: -1` marks a warning about
-    // the workbook itself rather than about one operation in the list.
+    // Pivot tables are carried across the rewrite (see preserve.ts). Everything
+    // else ExcelJS cannot round-trip is reported, because it really is lost.
+    // `op: -1` marks a warning about the workbook itself rather than about one
+    // operation in the list.
+    const preserved = capturePreserved(original);
     const unpreserved = findUnpreservedParts(original);
     if (unpreserved.length > 0) {
         warnings.push({
@@ -1069,18 +1072,30 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
         }
     }
     const buffer = await workbook.xlsx.writeBuffer();
+    const sheetFileOf = new Map();
     if (annotations.comments.size > 0 || annotations.sparklines.size > 0 || annotations.showFormulas.size > 0) {
-        // ExcelJS cannot write comments or sparklines; inject the XML parts now.
-        const sheetFileOf = new Map();
         workbook.eachSheet((sheet) => {
             sheetFileOf.set(sheet.name, `xl/worksheets/sheet${sheet.id}.xml`);
         });
-        const annotated = annotateWorkbookXml(new Uint8Array(buffer), annotations, sheetFileOf);
-        await writeWorkbookSafely(outputPath, annotated);
     }
-    else {
-        await writeWorkbookSafely(outputPath, new Uint8Array(buffer));
+    const written = annotations.comments.size > 0 || annotations.sparklines.size > 0 || annotations.showFormulas.size > 0
+        // ExcelJS cannot write comments or sparklines; inject the XML parts now.
+        ? annotateWorkbookXml(new Uint8Array(buffer), annotations, sheetFileOf)
+        : new Uint8Array(buffer);
+    const merged = applyPreserved(written, preserved);
+    if (!isEmpty(preserved)) {
+        // The merge edits relationships across several files, and a mistake there
+        // produces a package Excel will not open — worse than the pivot table it was
+        // saving. Check before the write, and refuse rather than corrupt: nothing has
+        // touched the target yet, so refusing costs the user an error message.
+        const problems = validateStructure(merged);
+        if (problems.length > 0) {
+            throw new Error(t('保留原有内容时生成的表格未通过完整性校验，已放弃写入以免损坏文件：{problems}', {
+                problems: listJoin(problems.slice(0, 3), 'semicolon'),
+            }));
+        }
     }
+    await writeWorkbookSafely(outputPath, merged);
     return { warnings };
 }
 function applyFill(workbook, sourceId, targetRange) {
