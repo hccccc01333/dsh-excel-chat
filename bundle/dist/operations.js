@@ -2825,11 +2825,13 @@ function applyRankColumn(workbook, options) {
     }
 }
 export async function operateWorkbookFile(path, operations, outputPath) {
+    // Read the "before" state first. Reading it after the write only works when the
+    // output is a different file; for an in-place edit (`outputPath === path`) both
+    // reads returned the edited workbook, so the audit log came out empty and the
+    // patch-log rollback had nothing to replay.
+    const before = await readWorkbookCells(await readFile(path));
     const result = await applyOperationsToWorkbook(path, operations, outputPath);
-    const [before, after] = await Promise.all([
-        readWorkbookCells(await readFile(path)),
-        readWorkbookCells(await readFile(outputPath)),
-    ]);
+    const after = await readWorkbookCells(await readFile(outputPath));
     const patchLogPath = `${outputPath}.patch.json`;
     const log = {
         version: 1,

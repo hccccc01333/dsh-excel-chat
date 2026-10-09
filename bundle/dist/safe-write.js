@@ -19,7 +19,7 @@
  * A backup is taken whenever the target already exists, so "the write went wrong"
  * is always recoverable rather than final.
  */
-import { copyFile, rename, rm, writeFile } from 'node:fs/promises';
+import { copyFile, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -89,4 +89,30 @@ export async function writeWorkbookSafely(path, data) {
         await rm(temp, { force: true }).catch(() => { });
         throw error;
     }
+}
+/** Where the pre-edit copy of `path` lives, when one was taken. */
+export function snapshotPath(path) {
+    return `${path}.bak`;
+}
+/**
+ * Restore the pre-edit snapshot over `path`.
+ *
+ * Undo has to work at the file level, not the cell level. A workbook is rewritten
+ * wholesale through ExcelJS on every edit, so an operation changes far more than
+ * the cell values a diff can see: styles, merges, row and column structure, sheet
+ * order, pivot anchors. Replaying value diffs therefore cannot undo a formatting
+ * change — there is nothing in the diff to replay — and it silently reports
+ * success. The bytes taken before the write can undo all of it.
+ *
+ * Returns `restored: false` when no snapshot was taken, which is the caller's cue
+ * to fall back to the partial path and say so.
+ */
+export async function restoreSnapshot(path, outPath = path) {
+    const snapshot = snapshotPath(path);
+    if (!existsSync(snapshot))
+        return { restored: false, snapshotPath: snapshot };
+    // Going through the safe write keeps the property that a failed restore leaves
+    // the current file alone rather than half-replacing it.
+    await writeWorkbookSafely(outPath, new Uint8Array(await readFile(snapshot)));
+    return { restored: true, snapshotPath: snapshot };
 }

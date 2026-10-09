@@ -25,6 +25,7 @@ import { buildWorkbookInsight } from './insight.ts'
 import { writeWorkbookHealthReport } from './health-report.ts'
 import { explainFormula, readCellContent } from './explain.ts'
 import { applyInPlaceEdit, revertInPlaceEdit } from './live-edit.ts'
+import { restoreSnapshot } from './safe-write.ts'
 import { createLlmPlanner } from './llm-planner.ts'
 import { formulaIrSchema } from './ir-schema.ts'
 import type { ColumnTable } from './ir.ts'
@@ -253,7 +254,7 @@ function registerAll(ctx: Context) {
   })), 'tool:excel_create_pivot')
   ctx.effect(() => ctx.tools.register(defineTool({
     name: 'excel_undo',
-    description: 'Roll back an excel_operate edit using its .patch.json audit log: every changed cell is restored to the pre-edit state. Content-level undo (inserted/deleted rows and columns are not removed, but their cells are restored).',
+    description: 'Undo an excel_operate edit. Restores the workbook from the snapshot taken before that edit, so everything comes back: values, formulas, styles, merged cells, row/column structure, sheet order and pivot tables. If no snapshot exists (the edit wrote a new file rather than overwriting one) it falls back to replaying the .patch.json audit log, which only restores cell content — the result says which path was used.',
     parameters: {
       path: {
         type: 'string',
@@ -275,10 +276,29 @@ function registerAll(ctx: Context) {
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     },
     async execute(args) {
+      const path = args.path as string
       const log = await readPatchLog(args.patchPath as string)
-      const target = typeof args.outPath === 'string' && args.outPath ? args.outPath : (args.path as string)
-      await rollbackPatchLog(args.path as string, log, target)
-      return { rolledBack: target, patches: log.patches.length } as unknown as JsonRecord
+      const target = typeof args.outPath === 'string' && args.outPath ? args.outPath : path
+
+      // Prefer the file-level snapshot: an edit rewrites the whole package, so a
+      // value-level replay cannot undo a formatting or structural change — it just
+      // reports success having done nothing.
+      const { restored } = await restoreSnapshot(path, target)
+      if (restored) {
+        return {
+          rolledBack: target,
+          method: 'snapshot',
+          patches: log.patches.length,
+          note: t('已按编辑前的完整快照恢复：单元格内容、公式、格式、合并、行列结构与透视表一并还原。'),
+        } as unknown as JsonRecord
+      }
+      await rollbackPatchLog(path, log, target)
+      return {
+        rolledBack: target,
+        method: 'patch-log',
+        patches: log.patches.length,
+        note: t('没有找到编辑前的快照（该次编辑是写出新文件而非覆盖），只能按审计日志还原单元格内容；格式与行列结构不在日志里，无法撤销。'),
+      } as unknown as JsonRecord
     },
   })), 'tool:excel_undo')
   ctx.effect(() => ctx.tools.register(defineTool({

@@ -159,6 +159,14 @@ const EN: Record<string, string> = {
 
   // live-edit.ts
   '没有可回滚的编辑记录': 'No edit record to roll back',
+  '已按编辑前的完整快照恢复（{count} 处改动，含格式与结构）':
+    'Restored from the pre-edit snapshot ({count} change(s), including formatting and structure)',
+  '没有编辑前的快照，只能按审计日志还原 {count} 处单元格内容（格式与结构不在日志里）':
+    'No pre-edit snapshot was available, so only {count} cell value(s) were restored from the audit log — formatting and structure are not in that log',
+  '已按编辑前的完整快照恢复：单元格内容、公式、格式、合并、行列结构与透视表一并还原。':
+    'Restored from the pre-edit snapshot: cell content, formulas, formatting, merges, row/column structure and pivot tables all came back.',
+  '没有找到编辑前的快照（该次编辑是写出新文件而非覆盖），只能按审计日志还原单元格内容；格式与行列结构不在日志里，无法撤销。':
+    'No pre-edit snapshot exists (that edit wrote a new file rather than overwriting one), so only cell content could be restored from the audit log. Formatting and row/column structure are not in the log and cannot be undone.',
   '已回滚 {count} 处修改': 'Rolled back {count} change(s)',
 
   // llm-benchmark.ts
