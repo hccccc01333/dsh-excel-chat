@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { runFileBenchmark } from '../src/file-benchmark.ts'
+import { runFileBenchmark, runFileBenchmarkTask } from '../src/file-benchmark.ts'
 import { corpusTasks } from '../src/corpus/index.ts'
 import { buildDependencyGraph } from '../src/graph.ts'
 import { readWorkbookCells } from '../src/workbook.ts'
@@ -47,5 +47,40 @@ test('every canonical plan passes its checks with clean workbook integrity', asy
     assert.ok(entry, `missing category ${category}`)
     assert.ok(entry.total > 0)
     assert.equal(entry.success, entry.total, `category ${category} not fully green`)
+  }
+})
+
+/**
+ * An assertion nobody can fail is not an assertion.
+ *
+ * The corpus only ever asserts that a correct plan passes, so a *lenient* verifier
+ * — one that checks fewer conditions than an assertion declares — cannot show up
+ * here at all. What can show up is a vacuous assertion: one that keeps passing when
+ * the work it describes is not done. These mutations drop the operation each
+ * assertion is about and require the task to fail, which is what gives the style
+ * assertions (and the conjunctive ones added alongside them) their teeth.
+ */
+test('dropping the operation a style assertion describes makes the task fail', async () => {
+  const { runFileBenchmarkTask } = await import('../src/file-benchmark.ts')
+  const styleTasks = ['format-header-bold', 'format-number-format', 'format-fill-color', 'format-wrap-align']
+
+  for (const id of styleTasks) {
+    const task = corpusTasks.find((entry) => entry.id === id)!
+    assert.ok(task, `missing corpus task ${id}`)
+
+    const intact = await runFileBenchmarkTask(task, await mkdtemp(join(tmpdir(), `vera-mutation-${id}-`)))
+    assert.equal(intact.success, true, `${id}: the canonical plan should pass`)
+
+    // Remove the styling the assertion is about; the assertion must notice.
+    const stripped = {
+      ...task,
+      operations: task.operations.filter((operation) => operation.op !== 'style'),
+    }
+    const mutated = await runFileBenchmarkTask(stripped, await mkdtemp(join(tmpdir(), `vera-mutation-${id}-`)))
+    assert.equal(mutated.success, false, `${id}: dropping the style operation still passed — the assertion is vacuous`)
+    assert.ok(
+      mutated.checksPassed < mutated.checksTotal,
+      `${id}: expected at least one assertion to fail after the mutation`,
+    )
   }
 })

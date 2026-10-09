@@ -29,60 +29,64 @@ export async function verifyWorkbookAssertions(path, assertions) {
             });
     return { achieved, passed, total: results.length, failures, assertions: results, reason };
 }
+/**
+ * Evaluate every condition an assertion declares and require all of them.
+ *
+ * The earlier version returned as soon as one kind of condition matched, so
+ * `{ expect, bold }` verified the value and silently ignored the style, and
+ * `{ startsWith, fill }` ignored the fill. An assertion that names several
+ * conditions is a conjunction — that is the whole point of naming them — and
+ * checking only the first one produced exactly the false "achieved" this verifier
+ * exists to prevent.
+ */
 function evaluateAssertion(assertion, cells, styleCells) {
     const normalized = normalizeCellId(assertion.id);
     const actual = cells[normalized] ?? cells[findKey(cells, normalized) ?? ''];
+    const cell = styleCells?.get(normalized);
+    const checks = [];
     if (assertion.expect !== undefined) {
-        const matches = assertion.expect === null
-            ? actual === undefined || actual === ''
-            : actual === assertion.expect;
-        return {
-            id: assertion.id,
-            passed: matches,
-            detail: matches
-                ? t('{id} 已满足期望值', { id: assertion.id })
-                : t('{id} 期望 {expected}，实际 {actual}', {
-                    id: assertion.id,
-                    expected: formatValue(assertion.expect),
-                    actual: formatValue(actual),
-                }),
-        };
+        checks.push({
+            label: t('值 期望 {expected} 实际 {actual}', {
+                expected: formatValue(assertion.expect),
+                actual: formatValue(actual),
+            }),
+            passed: assertion.expect === null
+                ? actual === undefined || actual === ''
+                : actual === assertion.expect,
+        });
     }
     if (assertion.startsWith !== undefined) {
-        const matches = typeof actual === 'string' && actual.startsWith(assertion.startsWith);
-        return {
-            id: assertion.id,
-            passed: matches,
-            detail: matches
-                ? t('{id} 已满足前缀要求', { id: assertion.id })
-                : t('{id} 期望以 {expected} 开头，实际 {actual}', {
-                    id: assertion.id,
-                    expected: formatValue(assertion.startsWith),
-                    actual: formatValue(actual),
-                }),
-        };
+        checks.push({
+            label: t('前缀 期望 {expected} 实际 {actual}', {
+                expected: formatValue(assertion.startsWith),
+                actual: formatValue(actual),
+            }),
+            passed: typeof actual === 'string' && actual.startsWith(assertion.startsWith),
+        });
     }
-    const cell = styleCells?.get(normalized);
-    const checks = [
-        ...(assertion.fill !== undefined ? [{ label: t('填充色={value}', { value: assertion.fill }), passed: colorMatches(cell, assertion.fill) }] : []),
-        ...(assertion.bold !== undefined ? [{ label: t('加粗={value}', { value: assertion.bold }), passed: (cell?.font?.bold ?? false) === assertion.bold }] : []),
-        ...(assertion.numberFormat !== undefined ? [{ label: t('数字格式={value}', { value: assertion.numberFormat }), passed: cell?.numFmt === assertion.numberFormat }] : []),
-        ...(assertion.wrapText !== undefined ? [{ label: t('自动换行={value}', { value: assertion.wrapText }), passed: (cell?.alignment?.wrapText ?? false) === assertion.wrapText }] : []),
-        ...(assertion.hAlign !== undefined ? [{ label: t('水平对齐={value}', { value: assertion.hAlign }), passed: cell?.alignment?.horizontal === assertion.hAlign }] : []),
-    ];
-    const passed = checks.length > 0 && checks.every((check) => check.passed);
-    const failedChecks = checks.filter((check) => !check.passed).map((check) => check.label);
+    if (assertion.fill !== undefined) {
+        checks.push({ label: t('填充色 期望 {value}', { value: assertion.fill }), passed: colorMatches(cell, assertion.fill) });
+    }
+    if (assertion.bold !== undefined) {
+        checks.push({ label: t('加粗 期望 {value}', { value: assertion.bold }), passed: (cell?.font?.bold ?? false) === assertion.bold });
+    }
+    if (assertion.numberFormat !== undefined) {
+        checks.push({ label: t('数字格式 期望 {value}', { value: assertion.numberFormat }), passed: cell?.numFmt === assertion.numberFormat });
+    }
+    if (assertion.wrapText !== undefined) {
+        checks.push({ label: t('自动换行 期望 {value}', { value: assertion.wrapText }), passed: (cell?.alignment?.wrapText ?? false) === assertion.wrapText });
+    }
+    if (assertion.hAlign !== undefined) {
+        checks.push({ label: t('水平对齐 期望 {value}', { value: assertion.hAlign }), passed: cell?.alignment?.horizontal === assertion.hAlign });
+    }
+    const failed = checks.filter((check) => !check.passed);
+    const passed = checks.length > 0 && failed.length === 0;
     return {
         id: assertion.id,
         passed,
         detail: passed
-            ? t('{id} 已满足样式要求', { id: assertion.id })
-            : t('{id} {detail}', {
-                id: assertion.id,
-                detail: cell
-                    ? t('样式不符合：{checks}', { checks: listJoin(failedChecks) })
-                    : t('不存在或没有可检查的样式'),
-            }),
+            ? t('{id} 已满足全部 {count} 项要求', { id: assertion.id, count: checks.length })
+            : t('{id} 未满足：{checks}', { id: assertion.id, checks: listJoin(failed.map((check) => check.label), 'semicolon') }),
     };
 }
 function hasStyleAssertion(assertion) {

@@ -9,12 +9,23 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 /**
  * The published table is generated from the run artifacts, so the failure mode to
- * guard is a table that no longer matches its data — the same drift the images had.
+ * guard is a table whose *content* no longer matches its data.
+ *
+ * Whitespace is collapsed before comparing, on purpose: markdown formatters align
+ * table pipes and add trailing double spaces (a hard line break) on save, and a
+ * guard that fires on that teaches people to ignore it — worse than no guard.
+ * Text and numbers still have to match exactly, so dropping a sentence from a
+ * provenance note still fails.
  */
 test('the committed results table matches the run artifacts', () => {
   const { markdown } = build()
   const committed = readFileSync(join(ROOT, 'docs', 'benchmark-results.md'), 'utf8')
-  assert.equal(committed, markdown, 'docs/benchmark-results.md is stale; run `npm run bench:report`')
+  const normalise = (text: string) => text.split('\n').map((line) => line.replace(/\s+/g, ' ').trim()).join('\n')
+  assert.equal(
+    normalise(committed),
+    normalise(markdown),
+    'docs/benchmark-results.md is stale; run `npm run bench:report`',
+  )
 })
 
 test('every run artifact is comparable: it names a model and a date', () => {

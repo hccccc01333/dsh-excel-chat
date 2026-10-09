@@ -140,7 +140,11 @@ export const editingTasks: FileBenchmarkTask[] = [
       ['苹果', 10], ['香蕉', 5],
     ])]),
     operations: [{ op: 'style', range: '订单!A1:B1', style: { bold: true } }],
-    checks: [{ id: '订单!A1', bold: true }],
+    // Value *and* style in one assertion on purpose: a conjunction is the shape
+    // that catches a verifier returning after the first condition matches. With
+    // every assertion in this corpus naming a single condition, that class of bug
+    // was invisible to all 100 tasks — which is how it survived.
+    checks: [{ id: '订单!A1', expect: '产品', bold: true }],
   },
   {
     id: 'format-number-format',
@@ -151,7 +155,7 @@ export const editingTasks: FileBenchmarkTask[] = [
       ['苹果', 1000], ['香蕉', 2500],
     ])]),
     operations: [{ op: 'style', range: '订单!B2:B3', style: { numberFormat: '#,##0.00' } }],
-    checks: [{ id: '订单!B2', numberFormat: '#,##0.00' }],
+    checks: [{ id: '订单!B2', expect: '1000', numberFormat: '#,##0.00' }],
   },
   {
     id: 'format-fill-color',
@@ -162,7 +166,7 @@ export const editingTasks: FileBenchmarkTask[] = [
       ['苹果', 10], ['香蕉', 5],
     ])]),
     operations: [{ op: 'style', range: '订单!A2:B2', style: { fill: 'FFFF00' } }],
-    checks: [{ id: '订单!A2', fill: 'FFFF00' }],
+    checks: [{ id: '订单!A2', expect: '苹果', fill: 'FFFF00' }],
   },
   {
     id: 'format-wrap-align',
@@ -174,8 +178,8 @@ export const editingTasks: FileBenchmarkTask[] = [
     ])]),
     operations: [{ op: 'style', range: '订单!A1:B1', style: { wrapText: true, hAlign: 'center' } }],
     checks: [
-      { id: '订单!A1', wrapText: true },
-      { id: '订单!B1', hAlign: 'center' },
+      { id: '订单!A1', expect: '产品', wrapText: true },
+      { id: '订单!B1', expect: '数量', hAlign: 'center' },
     ],
   },
   {
