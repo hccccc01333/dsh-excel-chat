@@ -98,8 +98,11 @@ export async function runFileBenchmarkTask(
     name: task.name,
     checksPassed,
     checksTotal,
-    success: checksPassed === checksTotal && integrityAfter === 0,
-    accuracy: checksTotal === 0 ? 1 : checksPassed / checksTotal,
+    // `checksTotal > 0` is not redundant: without it a task that asserts nothing
+    // satisfies `0 === 0` and scores a free success, which would quietly inflate
+    // every rate computed from these results.
+    success: checksTotal > 0 && checksPassed === checksTotal && integrityAfter === 0,
+    accuracy: checksTotal === 0 ? 0 : checksPassed / checksTotal,
     integrityBefore,
     integrityAfter,
     repaired,

@@ -93,7 +93,9 @@ export async function runLlmTask(
     })
     const { passed, total } = await evaluateTaskChecks(task, agent.outputPath)
     const integrity = (await validateWorkbookFile(agent.outputPath)).anomalies.length
-    const success = passed === total && integrity === 0
+    // Same rule as the offline runner: a task that asserts nothing must not count
+    // as a success, or a corpus typo silently lifts the reported rate.
+    const success = total > 0 && passed === total && integrity === 0
     const executed = flattenExecutedOps(agent)
     const failure = success
       ? null
@@ -246,7 +248,7 @@ export async function runLlmBenchmark(
     if (options.interTaskDelayMs) await sleep(options.interTaskDelayMs)
   }
   const success = results.filter((result) => result.success).length
-  const accuracySum = results.reduce((sum, result) => sum + (result.checksTotal === 0 ? 1 : result.checksPassed / result.checksTotal), 0)
+  const accuracySum = results.reduce((sum, result) => sum + (result.checksTotal === 0 ? 0 : result.checksPassed / result.checksTotal), 0)
   const categories: Record<string, { total: number; success: number; successRate: number }> = {}
   for (const result of results) {
     const entry = (categories[result.category] ??= { total: 0, success: 0, successRate: 0 })

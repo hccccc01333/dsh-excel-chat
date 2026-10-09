@@ -84,3 +84,57 @@ test('dropping the operation a style assertion describes makes the task fail', a
     )
   }
 })
+
+/**
+ * A task that asserts nothing must not be able to score a success.
+ *
+ * `success` used to be `checksPassed === checksTotal`, which a task with no checks
+ * satisfies as `0 === 0` — a free pass that quietly lifts the reported rate. The
+ * runner now requires `checksTotal > 0`; this makes sure the corpus can never
+ * reach the case in the first place, so a typo in a `checks` field is a test
+ * failure rather than a better-looking number.
+ */
+test('every corpus task asserts something', () => {
+  const silent = corpusTasks.filter((task) => !task.checks || task.checks.length === 0)
+  assert.deepEqual(silent.map((task) => task.id), [], 'these tasks assert nothing and would score a free success')
+
+  for (const task of corpusTasks) {
+    for (const check of task.checks) {
+      const conditions = ['expect', 'startsWith', 'fill', 'bold', 'numberFormat', 'wrapText', 'hAlign']
+        .filter((key) => (check as Record<string, unknown>)[key] !== undefined)
+      assert.ok(conditions.length > 0, `${task.id}/${check.id} declares no condition to check`)
+    }
+  }
+})
+
+/**
+ * A task must not be scored against a requirement it never states.
+ *
+ * 17 of the 100 tasks asserted a specific output-sheet name that the description
+ * never mentioned — `preset 产品模板：报表+色阶。` was checked against a sheet called
+ * `订单-产品分析`. A plan that did the work correctly but named the sheet something
+ * else failed, so the success rate charged the agent for not guessing an unstated
+ * name. That is not a capability worth measuring. The names are now in the
+ * descriptions; this keeps them there.
+ */
+test('every sheet an assertion names is named in the task description', async () => {
+  const ExcelJS = (await import('exceljs')).default
+  const dir = await mkdtemp(join(tmpdir(), 'vera-sheet-spec-'))
+  const unstated: string[] = []
+
+  for (const task of corpusTasks) {
+    const input = await task.buildInput(dir)
+    const inputWorkbook = new ExcelJS.Workbook()
+    await inputWorkbook.xlsx.load(await readFile(input))
+    const inputSheets = new Set(inputWorkbook.worksheets.map((sheet) => sheet.name))
+
+    for (const sheet of new Set(task.checks.map((check) => check.id.split('!')[0]!))) {
+      // Sheets that already exist are context; a sheet the plan creates is a
+      // requirement, and the description has to say so.
+      if (inputSheets.has(sheet)) continue
+      if (!task.description.includes(sheet)) unstated.push(`${task.id} asserts sheet 「${sheet}」 but the description never names it`)
+    }
+  }
+
+  assert.deepEqual(unstated, [])
+})

@@ -55,7 +55,7 @@ export const analysisTasks: FileBenchmarkTask[] = [
     id: 'analysis-report-template',
     category: 'analysis',
     name: '一键经营报表',
-    description: 'report 模板：排序+小计+动态汇总+筛选+样式+冻结。',
+    description: 'report 模板：排序+小计+动态汇总+筛选+样式+冻结，输出表名为「经营报表」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'analysis-report-template', [{
       name: '订单',
       headers: ['区域', '产品', '金额'],
@@ -78,7 +78,7 @@ export const analysisTasks: FileBenchmarkTask[] = [
     id: 'analysis-preset-ops',
     category: 'analysis',
     name: '运营岗位模板',
-    description: 'preset 运营模板：报表+数据条。',
+    description: 'preset 运营模板：报表+数据条，输出表名为「订单-运营报表」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'analysis-preset-ops', [{
       name: '订单',
       headers: ['区域', '产品', '金额'],
@@ -97,7 +97,7 @@ export const analysisTasks: FileBenchmarkTask[] = [
     id: 'analysis-topn',
     category: 'analysis',
     name: 'Top 3 金额',
-    description: '按金额降序取前三名。',
+    description: '按金额降序取前三名，输出表名为「Top3」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'analysis-topn', [{
       name: '订单',
       headers: ['产品', '金额'],
@@ -185,7 +185,7 @@ export const analysisTasks: FileBenchmarkTask[] = [
     id: 'analysis-aggregate-count',
     category: 'analysis',
     name: '按区域计数',
-    description: '按区域统计订单数。',
+    description: '按区域统计订单数，输出表名为「汇总」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'analysis-aggregate-count', [{
       name: '订单',
       headers: ['区域', '数量'],
@@ -207,7 +207,7 @@ export const analysisTasks: FileBenchmarkTask[] = [
     id: 'analysis-aggregate-average',
     category: 'analysis',
     name: '按区域求平均',
-    description: '按区域求金额平均。',
+    description: '按区域求金额平均，输出表名为「汇总」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'analysis-aggregate-average', [{
       name: '订单',
       headers: ['区域', '金额'],
@@ -226,7 +226,7 @@ export const analysisTasks: FileBenchmarkTask[] = [
     id: 'analysis-aggregate-max',
     category: 'analysis',
     name: '按区域取最大',
-    description: '按区域取金额最大值。',
+    description: '按区域取金额最大值，输出表名为「汇总」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'analysis-aggregate-max', [{
       name: '订单',
       headers: ['区域', '金额'],
@@ -245,7 +245,7 @@ export const analysisTasks: FileBenchmarkTask[] = [
     id: 'analysis-aggregate-counta',
     category: 'analysis',
     name: '按区域非空计数',
-    description: '按区域统计非空数量。',
+    description: '按区域统计非空数量，输出表名为「汇总」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'analysis-aggregate-counta', [{
       name: '订单',
       headers: ['区域', '数量'],
@@ -310,7 +310,7 @@ export const analysisTasks: FileBenchmarkTask[] = [
     id: 'analysis-preset-product',
     category: 'analysis',
     name: '产品岗位模板',
-    description: 'preset 产品模板：报表+色阶。',
+    description: 'preset 产品模板：报表+色阶，输出表名为「订单-产品分析」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'analysis-preset-product', [{
       name: '订单',
       headers: ['区域', '金额'],
@@ -329,7 +329,7 @@ export const analysisTasks: FileBenchmarkTask[] = [
     id: 'analysis-preset-data',
     category: 'analysis',
     name: '数分岗位模板',
-    description: 'preset 数分模板：报表+色阶+筛选副本。',
+    description: 'preset 数分模板：报表+色阶+筛选副本，输出表名为「订单-数据分析」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'analysis-preset-data', [{
       name: '订单',
       headers: ['区域', '金额'],

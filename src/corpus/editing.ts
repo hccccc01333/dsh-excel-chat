@@ -272,7 +272,7 @@ export const editingTasks: FileBenchmarkTask[] = [
     id: 'edit-sheet-duplicate',
     category: 'editing',
     name: '复制工作表',
-    description: '复制订单表并修改副本数据。',
+    description: '复制订单表并修改副本数据，副本表名为「订单副本」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'edit-sheet-duplicate', [order([
       ['苹果', 10], ['香蕉', 5],
     ])]),
@@ -481,7 +481,7 @@ export const editingTasks: FileBenchmarkTask[] = [
     id: 'edit-filter-contains',
     category: 'editing',
     name: '包含筛选',
-    description: '筛选产品名包含“苹”的行。',
+    description: '筛选产品名包含“苹”的行，输出表名为「匹配」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'edit-filter-contains', [{
       name: '订单',
       headers: ['产品', '数量'],

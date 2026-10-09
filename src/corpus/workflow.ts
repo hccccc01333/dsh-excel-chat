@@ -125,7 +125,7 @@ export const workflowTasks: FileBenchmarkTask[] = [
     id: 'workflow-clean-then-pivot',
     category: 'workflow',
     name: '清洗后做透视',
-    description: '去重后按区域透视，再美化表头。',
+    description: '去重后按区域透视（输出表名「汇总」），再美化表头。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'workflow-clean-then-pivot', [{
       name: '订单',
       headers: ['区域', '金额'],
@@ -187,7 +187,7 @@ export const workflowTasks: FileBenchmarkTask[] = [
     id: 'workflow-dedupe-then-topn',
     category: 'workflow',
     name: '去重后取 TopN',
-    description: '先去重，再按金额降序取前几。',
+    description: '先去重，再按金额降序取前几，输出表名为「Top3」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'workflow-dedupe-then-topn', [{
       name: '订单',
       headers: ['产品', '金额'],
@@ -209,7 +209,7 @@ export const workflowTasks: FileBenchmarkTask[] = [
     id: 'workflow-normalize-dedupe-aggregate',
     category: 'workflow',
     name: '标准化去重透视',
-    description: '全角转半角、去重、再透视。',
+    description: '全角转半角、去重、再透视，输出表名为「汇总」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'workflow-normalize-dedupe-aggregate', [{
       name: '订单',
       headers: ['区域', '金额'],
@@ -230,7 +230,7 @@ export const workflowTasks: FileBenchmarkTask[] = [
     id: 'workflow-sort-filter-report',
     category: 'workflow',
     name: '排序筛选再报表',
-    description: '排序、筛选后按区域出报表。',
+    description: '排序、筛选后按区域出报表：筛选结果输出到「大单」，报表输出到「经营报表」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'workflow-sort-filter-report', [{
       name: '订单',
       headers: ['区域', '金额'],
@@ -252,7 +252,7 @@ export const workflowTasks: FileBenchmarkTask[] = [
     id: 'workflow-highlight-then-report',
     category: 'workflow',
     name: '高亮后出报表',
-    description: '先高亮重点产品再出报表。',
+    description: '先高亮重点产品再出报表，报表输出表名为「经营报表」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'workflow-highlight-then-report', [{
       name: '订单',
       headers: ['产品', '金额'],
@@ -271,7 +271,7 @@ export const workflowTasks: FileBenchmarkTask[] = [
     id: 'workflow-rename-then-report',
     category: 'workflow',
     name: '改名后出报表',
-    description: '工作表改名后按新表出报表。',
+    description: '工作表改名后按新表出报表，报表输出表名为「经营报表」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'workflow-rename-then-report', [{
       name: '订单',
       headers: ['区域', '金额'],
