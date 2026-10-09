@@ -22,7 +22,11 @@ test('bundle manifest points at an existing patch and entry', async () => {
   const patch = await readFile(join(bundleDir, 'cordis.patch.yml'), 'utf8')
   assert.match(patch, new RegExp(manifest.name))
   const entry = await readFile(join(bundleDir, 'dist/index.js'), 'utf8')
-  assert.match(entry, /excel_validate_formulas/)
+  // The tool definitions live in dist/tools/*.js now, so the entry proves itself by
+  // importing them rather than by containing one inline. The tools themselves are
+  // exercised by the registration tests below.
+  assert.match(entry, /tools\/formulas\.js/)
+  assert.match(entry, /tools\/write\.js/)
 })
 
 test('plugin identity matches the package name (issue #2)', async () => {

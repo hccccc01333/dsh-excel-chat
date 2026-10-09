@@ -1,5 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis';
 import Schema from '@deepseek-ai/schemastery';
+export type JsonRecord = Record<string, any>;
 export declare const name = "dsh-excel-chat";
 export declare const inject: string[];
 export interface ExcelChatConfig {

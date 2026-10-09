@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { excelOperationSchema } from '../src/operation-schema.ts'
 
@@ -33,8 +34,16 @@ function namesInTables(markdown: string): Set<string> {
 }
 
 async function registeredTools(): Promise<string[]> {
-  const source = await read('../src/index.ts')
-  return [...source.matchAll(/name: '(excel_\w+)'/g)].map((match) => match[1]!)
+  // The registrations live in src/tools/*.ts; scanning only src/index.ts reported
+  // every tool as missing the moment they were split out, which is the guard doing
+  // its job — it fails loudly when the layout it assumes changes.
+  const dir = fileURLToPath(new URL('../src/tools/', import.meta.url))
+  const files = (await readdir(dir)).filter((name) => name.endsWith('.ts'))
+  const found = new Set<string>()
+  for (const file of files) {
+    for (const match of (await readFile(join(dir, file), 'utf8')).matchAll(/name: '(excel_\w+)'/g)) found.add(match[1]!)
+  }
+  return [...found]
 }
 
 test('every registered tool appears in the README table', async () => {
