@@ -52,7 +52,8 @@ export function applyConditionalFormatting(
 ): void {
   const parsed = parseRange(workbook, range)
   const mapped = rules.map((rule) => {
-    const style = rule.style ? excelStyleToWorkbookStyle(rule.style) : undefined
+    // A dxf paints the background, not the foreground — see excelStylePatch.
+    const style = rule.style ? excelStylePatch(rule.style, {}, 'bgColor') : undefined
     if (rule.type === 'cellIs') {
       if (!rule.operator || rule.formula === undefined) {
         throw new Error('cellIs conditional formatting requires operator and formula')
@@ -150,20 +151,90 @@ export function applyConditionalFormatting(
   parsed.sheet.addConditionalFormatting({ ref, rules: mapped as ExcelJS.ConditionalFormattingRule[] })
 }
 
-export function excelStyleToWorkbookStyle(style: ExcelStyle): ExcelJS.Style {
+/**
+ * Map the plugin's style vocabulary onto an ExcelJS style, merged over what is there.
+ *
+ * One mapper for both callers: `applyStyle` and the `style` of a conditional-formatting
+ * rule. They used to have a version each, and the rule's version handled five of the
+ * seventeen fields — so a rule asking for `numberFormat`, `hAlign`, `wrapText` or a
+ * border silently produced an empty `<dxf/>` and the user's formatting vanished.
+ *
+ * `fillTarget` is not a wart, it is OOXML: a conditional-format `dxf` paints the
+ * background (`bgColor`) while a normal cell fill paints the foreground (`fgColor`).
+ * Writing `fgColor` in a rule renders nothing, and the plugin's own test caught exactly
+ * that when this mapper briefly used one target for both.
+ *
+ * Unspecified properties are left as `current` has them rather than cleared, so a
+ * partial style adds to a cell instead of replacing its appearance.
+ */
+export function excelStylePatch(
+  style: ExcelStyle,
+  current: Partial<ExcelJS.Style> = {},
+  fillTarget: 'fgColor' | 'bgColor' = 'fgColor',
+): Partial<ExcelJS.Style> {
   const result: Partial<ExcelJS.Style> = {}
-  if (style.bold !== undefined || style.italic !== undefined || style.underline !== undefined || style.fontColor !== undefined) {
+  const font = current.font ?? {}
+  if (
+    style.bold !== undefined ||
+    style.italic !== undefined ||
+    style.underline !== undefined ||
+    style.strikeThrough !== undefined ||
+    style.fontColor !== undefined ||
+    style.fontSize !== undefined ||
+    style.fontName !== undefined
+  ) {
     result.font = {
-      bold: style.bold,
-      italic: style.italic,
-      underline: style.underline,
-      color: style.fontColor ? { argb: normalizeColor(style.fontColor) } : undefined,
+      ...font,
+      bold: style.bold ?? font.bold,
+      italic: style.italic ?? font.italic,
+      underline: style.underline ?? font.underline,
+      strike: style.strikeThrough ?? font.strike,
+      size: style.fontSize ?? font.size,
+      name: style.fontName ?? font.name,
+      color: style.fontColor ? { argb: normalizeColor(style.fontColor) } : font.color,
     }
   }
   if (style.fill !== undefined) {
-    result.fill = { type: 'pattern', pattern: 'solid', bgColor: { argb: normalizeColor(style.fill) } }
+    result.fill = { type: 'pattern', pattern: 'solid', [fillTarget]: { argb: normalizeColor(style.fill) } }
   }
-  return result as ExcelJS.Style
+  if (style.numberFormat !== undefined) result.numFmt = style.numberFormat
+  const alignment = current.alignment ?? {}
+  if (
+    style.hAlign !== undefined ||
+    style.vAlign !== undefined ||
+    style.wrapText !== undefined ||
+    style.textRotation !== undefined ||
+    style.shrinkToFit !== undefined ||
+    style.indent !== undefined
+  ) {
+    result.alignment = {
+      ...alignment,
+      horizontal: style.hAlign ?? alignment.horizontal,
+      vertical: style.vAlign ?? alignment.vertical,
+      wrapText: style.wrapText ?? alignment.wrapText,
+      textRotation: style.textRotation ?? alignment.textRotation,
+      shrinkToFit: style.shrinkToFit ?? alignment.shrinkToFit,
+      indent: style.indent ?? alignment.indent,
+    }
+  }
+  if (style.border) {
+    const border: Record<string, ExcelJS.Border> = {}
+    for (const side of ['top', 'bottom', 'left', 'right'] as const) {
+      const edge = style.border[side]
+      if (edge) {
+        border[side] = {
+          style: edge.style ?? 'thin',
+          color: edge.color ? { argb: normalizeColor(edge.color) } : undefined,
+        }
+      }
+    }
+    result.border = border as unknown as ExcelJS.Borders
+  }
+  return result
+}
+
+export function excelStyleToWorkbookStyle(style: ExcelStyle): ExcelJS.Style {
+  return excelStylePatch(style) as ExcelJS.Style
 }
 
 export function addTable(
@@ -210,68 +281,13 @@ export function applyStyle(workbook: ExcelJS.Workbook, range: string, style: Exc
   for (let row = parsed.startRow; row <= parsed.endRow; row++) {
     for (let col = parsed.startCol; col <= parsed.endCol; col++) {
       const cell = parsed.sheet.getCell(`${numberToColumn(col)}${row}`)
-      const font = cell.font ?? {}
-      if (
-        style.bold !== undefined ||
-        style.italic !== undefined ||
-        style.underline !== undefined ||
-        style.strikeThrough !== undefined ||
-        style.fontColor !== undefined ||
-        style.fontSize !== undefined ||
-        style.fontName !== undefined
-      ) {
-        cell.font = {
-          ...font,
-          bold: style.bold ?? font.bold,
-          italic: style.italic ?? font.italic,
-          underline: style.underline ?? font.underline,
-          strike: style.strikeThrough ?? font.strike,
-          size: style.fontSize ?? font.size,
-          name: style.fontName ?? font.name,
-          color: style.fontColor ? { argb: normalizeColor(style.fontColor) } : font.color,
-        }
-      }
-      if (style.fill !== undefined) {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: normalizeColor(style.fill) } }
-      }
-      if (style.numberFormat !== undefined) cell.numFmt = style.numberFormat
-      const alignment = cell.alignment ?? {}
-      if (
-        style.hAlign !== undefined ||
-        style.vAlign !== undefined ||
-        style.wrapText !== undefined ||
-        style.textRotation !== undefined ||
-        style.shrinkToFit !== undefined ||
-        style.indent !== undefined
-      ) {
-        cell.alignment = {
-          ...alignment,
-          horizontal: style.hAlign ?? alignment.horizontal,
-          vertical: style.vAlign ?? alignment.vertical,
-          wrapText: style.wrapText ?? alignment.wrapText,
-          textRotation: style.textRotation ?? alignment.textRotation,
-          shrinkToFit: style.shrinkToFit ?? alignment.shrinkToFit,
-          indent: style.indent ?? alignment.indent,
-        }
-      }
-      if (style.border) {
-        const border: Record<string, ExcelJS.Border> = {}
-        for (const side of ['top', 'bottom', 'left', 'right'] as const) {
-          const edge = style.border[side]
-          if (edge) {
-            border[side] = {
-              style: edge.style ?? 'thin',
-              color: edge.color ? { argb: normalizeColor(edge.color) } : undefined,
-            }
-          }
-        }
-        cell.border = border
-      }
+      // Merged over the cell's own style, so a partial style adds rather than
+      // replaces — and mapped by the same function the conditional-formatting
+      // rules use, so the two cannot disagree about what a field means.
+      cell.style = excelStylePatch(style, cell)
     }
   }
 }
-
-
 export function normalizeColor(color: string): string {
   const hex = color.replace('#', '').trim()
   if (/^[0-9A-Fa-f]{6}$/.test(hex)) return `FF${hex.toUpperCase()}`

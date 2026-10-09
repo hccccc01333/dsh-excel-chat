@@ -2189,3 +2189,45 @@ test('every schema operation has a dispatcher case, and nothing more', async () 
   assert.deepEqual(unreachable, [], 'these cases handle operations the schema does not allow')
   assert.deepEqual(duplicated, [], 'these operations have more than one case, so one is dead code')
 })
+
+/**
+ * A conditional-format rule has to carry every style field it declares.
+ *
+ * The conversion used for rules handled five of the seventeen fields in `ExcelStyle`,
+ * so a rule asking for a number format, an alignment or a border produced an empty
+ * `<dxf/>` — the rule applied, and the formatting the user asked for was not there.
+ * Nothing failed; the rule just did less than it said. `applyStyle` had its own,
+ * complete copy of the same mapping, which is how the two came to disagree.
+ *
+ * Read from the XML rather than through ExcelJS: a round-trip would report what the
+ * reader reconstructs, and the point is what got written.
+ */
+test('conditionalFormatting writes every style field a rule declares', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('订单')
+    sheet.getCell('A1').value = '金额'
+    sheet.getCell('A2').value = 100
+    sheet.getCell('A3').value = 5
+  })
+  const outPath = join(join(path, '..'), 'cf-style.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'conditionalFormatting',
+    range: '订单!A2:A3',
+    rules: [{
+      type: 'cellIs',
+      operator: 'greaterThan',
+      formula: ['10'],
+      style: { numberFormat: '#,##0.00', hAlign: 'center', wrapText: true, border: { bottom: { style: 'thin' } } },
+    }],
+  }], outPath)
+
+  const { unzipSync, strFromU8 } = await import('fflate')
+  const files = unzipSync(new Uint8Array(await readFile(outPath)))
+  const dxf = /<dxfs[\s\S]*?<\/dxfs>/.exec(strFromU8(files['xl/styles.xml']!))![0]
+
+  assert.match(dxf, /formatCode="#,##0\.00"/, 'the number format is missing from the rule')
+  assert.match(dxf, /horizontal="center"/, 'the alignment is missing from the rule')
+  assert.match(dxf, /wrapText="1"/, 'wrap text is missing from the rule')
+  assert.match(dxf, /bottom style="thin"/, 'the border is missing from the rule')
+  assert.ok(!/<dxf\/>/.test(dxf), 'the rule wrote an empty style')
+})
