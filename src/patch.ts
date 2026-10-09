@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import { readFile } from 'node:fs/promises'
 import { cellContent, contentToCellValue, stripPivotTableParts } from './workbook.ts'
+import { writeWorkbookSafely } from './safe-write.ts'
 
 export interface CellPatch {
   id: string
@@ -60,5 +61,5 @@ export async function applyPatchesToWorkbook(
     // looked wrong.
     target.value = patch.newValue === '' ? null : contentToCellValue(patch.newValue)
   }
-  await workbook.xlsx.writeFile(outputPath)
+  await writeWorkbookSafely(outputPath, new Uint8Array(await workbook.xlsx.writeBuffer()))
 }

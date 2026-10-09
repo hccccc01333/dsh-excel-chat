@@ -74,6 +74,7 @@ const EN = {
     '临时工作簿读取+公式体检正常（公式 {formulas} 个，异常 {anomalies} 个）': 'Temp workbook read + formula check OK ({formulas} formulas, {anomalies} anomalies)',
     '引擎冒烟失败：{error}': 'Engine smoke test failed: {error}',
     // operations.ts (messages only — labels written into the workbook stay as they are)
+    '这个文件含有本插件无法保留的内容，编辑后会丢失：{features}。需要保留请先另存一份副本，或改用原生 Excel 操作。': 'This file contains content this plugin cannot preserve, so editing it will drop: {features}. Keep a copy first if you need it, or make the change in Excel itself.',
     'freezeFormulas 转换 {frozen} 个公式，跳过 {skipped} 个无缓存结果的（先在 Excel 中打开计算后可再转）': 'freezeFormulas converted {frozen} formulas and skipped {skipped} with no cached result (open the file in Excel to calculate, then convert)',
     'freezeFormulas 转换 {frozen} 个公式为缓存值': 'freezeFormulas converted {frozen} formula(s) to their cached values',
     'copyRange valuesOnly：部分公式无缓存结果，已按公式复制': 'copyRange valuesOnly: some formulas had no cached result and were copied as formulas',

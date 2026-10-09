@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { readFile } from 'node:fs/promises';
 import { cellContent, contentToCellValue, stripPivotTableParts } from './workbook.js';
+import { writeWorkbookSafely } from './safe-write.js';
 export function applyPatches(cells, patches) {
     const result = { ...cells };
     for (const patch of patches) {
@@ -46,5 +47,5 @@ export async function applyPatchesToWorkbook(inputPath, patches, outputPath = in
         // looked wrong.
         target.value = patch.newValue === '' ? null : contentToCellValue(patch.newValue);
     }
-    await workbook.xlsx.writeFile(outputPath);
+    await writeWorkbookSafely(outputPath, new Uint8Array(await workbook.xlsx.writeBuffer()));
 }

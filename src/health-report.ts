@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs'
 import { t } from './i18n.ts'
 import { validate } from './validator.ts'
 import { readWorkbookCells, stripPivotTableParts } from './workbook.ts'
+import { writeWorkbookSafely } from './safe-write.ts'
 
 /**
  * Sheet name is an identifier, not prose: it is written into the file, exported
@@ -63,7 +64,7 @@ export async function writeWorkbookHealthReport(path: string, outPath?: string):
   report.getColumn(3).width = 80
 
   const target = outPath ?? path
-  await workbook.xlsx.writeFile(target)
+  await writeWorkbookSafely(target, new Uint8Array(await workbook.xlsx.writeBuffer()))
   const summary = t('健康分 {score}：{formulas} 个公式，{anomalies} 个异常，报告已写入 {path} 的「{sheet}」表', {
     score: healthScore,
     formulas: formulaCount,

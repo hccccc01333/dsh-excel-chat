@@ -8,7 +8,8 @@ import {
   type RefPoint,
 } from './formula.ts'
 import { guardFormulaInjection, parseCsv, stringifyCsv, unguardFormulaInjection } from './csv.ts'
-import { t } from './i18n.ts'
+import { listJoin, t } from './i18n.ts'
+import { findUnpreservedParts, writeWorkbookSafely } from './safe-write.ts'
 import { validate, type ValidationResult } from './validator.ts'
 import { cellContent, contentToCellValue, plainContent, readWorkbookCells, stripPivotTableParts } from './workbook.ts'
 import { diffCellMaps, writePatchLog, type PatchLog } from './diff.ts'
@@ -682,10 +683,25 @@ export async function applyOperationsToWorkbook(
   operations: ExcelOperation[],
   outputPath: string,
 ): Promise<ApplyOperationsResult> {
+  const original = await readFile(inputPath)
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(stripPivotTableParts(await readFile(inputPath)) as any)
+  await workbook.xlsx.load(stripPivotTableParts(original) as any)
   const warnings: OperationWarning[] = []
   const annotations = emptyAnnotations()
+
+  // Rewriting goes through ExcelJS, which does not model pivot tables, slicers,
+  // VBA and friends — so they disappear from the output. Say so up front rather
+  // than letting the user discover it in the file. `op: -1` marks a warning about
+  // the workbook itself rather than about one operation in the list.
+  const unpreserved = findUnpreservedParts(original)
+  if (unpreserved.length > 0) {
+    warnings.push({
+      op: -1,
+      message: t('这个文件含有本插件无法保留的内容，编辑后会丢失：{features}。需要保留请先另存一份副本，或改用原生 Excel 操作。', {
+        features: listJoin(unpreserved),
+      }),
+    })
+  }
 
   for (const [index, operation] of operations.entries()) {
     switch (operation.op) {
@@ -1434,9 +1450,9 @@ export async function applyOperationsToWorkbook(
       sheetFileOf.set(sheet.name, `xl/worksheets/sheet${sheet.id}.xml`)
     })
     const annotated = annotateWorkbookXml(new Uint8Array(buffer as ArrayBuffer), annotations, sheetFileOf)
-    await writeFile(outputPath, annotated)
+    await writeWorkbookSafely(outputPath, annotated)
   } else {
-    await writeFile(outputPath, Buffer.from(buffer as ArrayBuffer))
+    await writeWorkbookSafely(outputPath, new Uint8Array(buffer as ArrayBuffer))
   }
   return { warnings }
 }

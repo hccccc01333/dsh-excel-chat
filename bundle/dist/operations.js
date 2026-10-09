@@ -1,7 +1,8 @@
 import ExcelJS from 'exceljs';
 import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula, } from './formula.js';
 import { guardFormulaInjection, parseCsv, stringifyCsv, unguardFormulaInjection } from './csv.js';
-import { t } from './i18n.js';
+import { listJoin, t } from './i18n.js';
+import { findUnpreservedParts, writeWorkbookSafely } from './safe-write.js';
 import { validate } from './validator.js';
 import { cellContent, contentToCellValue, plainContent, readWorkbookCells, stripPivotTableParts } from './workbook.js';
 import { diffCellMaps, writePatchLog } from './diff.js';
@@ -237,10 +238,24 @@ function similarity(a, b) {
     return 1 - (previous[a.length] / b.length);
 }
 export async function applyOperationsToWorkbook(inputPath, operations, outputPath) {
+    const original = await readFile(inputPath);
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(stripPivotTableParts(await readFile(inputPath)));
+    await workbook.xlsx.load(stripPivotTableParts(original));
     const warnings = [];
     const annotations = emptyAnnotations();
+    // Rewriting goes through ExcelJS, which does not model pivot tables, slicers,
+    // VBA and friends — so they disappear from the output. Say so up front rather
+    // than letting the user discover it in the file. `op: -1` marks a warning about
+    // the workbook itself rather than about one operation in the list.
+    const unpreserved = findUnpreservedParts(original);
+    if (unpreserved.length > 0) {
+        warnings.push({
+            op: -1,
+            message: t('这个文件含有本插件无法保留的内容，编辑后会丢失：{features}。需要保留请先另存一份副本，或改用原生 Excel 操作。', {
+                features: listJoin(unpreserved),
+            }),
+        });
+    }
     for (const [index, operation] of operations.entries()) {
         switch (operation.op) {
             case 'set': {
@@ -1061,10 +1076,10 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             sheetFileOf.set(sheet.name, `xl/worksheets/sheet${sheet.id}.xml`);
         });
         const annotated = annotateWorkbookXml(new Uint8Array(buffer), annotations, sheetFileOf);
-        await writeFile(outputPath, annotated);
+        await writeWorkbookSafely(outputPath, annotated);
     }
     else {
-        await writeFile(outputPath, Buffer.from(buffer));
+        await writeWorkbookSafely(outputPath, new Uint8Array(buffer));
     }
     return { warnings };
 }
