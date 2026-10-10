@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- **README 重构（中英文）**：照着高星仓库的做法改的（对比了 cline/cline、microsoft/markitdown、
+  modelcontextprotocol/servers、awesome-mcp-servers 的结构）。
+
+  | 之前 | 之后 |
+  | --- | --- |
+  | 25 个工具**平铺**成一张表，`excel_operate` 一格 **1500+ 字符** | 按**你想做什么**分四组；那格收进折叠块（默认隐藏） |
+  | `Modules` 段 50 行开发者文件清单 | 移到 [docs/modules.md](docs/modules.md) / [docs/modules.en.md](docs/modules.en.md) |
+  | 没有目录 | 加了目录，**14 + 10 个锚点全部校验过** |
+  | 没有「为什么用它」 | 加了（照 markitdown 的 "Why Markdown?" 那段） |
+  | 数字过时（423 项测试、100 个任务） | 483 → 489、100 → 113 |
+  | 两个重复的安装段 | 合并成「安装与上手」 |
+
+- **新增：README 的「最近更新」块由发版脚本生成**，不再手工维护。
+  手写的摘要块在下一个版本发布时就过时了，而且没人会发现 —— 所以交给
+  `scripts/readme-notes.mjs`，发版时从 CHANGELOG 的对应小节生成。
+
+  **它只放版本号、日期和链接，不引用正文**：试过抽「前两条摘要」，结果不成立 ——
+  有些条目第一行是完整摘要，有些写到一半才换行，抽出来是「…而语料任务的」这种半句；
+  英文版还会引用中文（CHANGELOG 只有中文）。完整说明在 Release 页，GitHub 侧栏也会自动显示。
+
+- **新增守卫 2 条**：
+  - `readme-anchors.test.ts` —— 两份 README 的**每个页内链接都要指向存在的标题**。
+    改标题是寻常编辑，没有别的东西会发现链接断了。实测把 `## 架构` 改名会立刻变红。
+  - `readme-notes.test.ts` —— 生成器本身。第一版的正则要求标题**恰好等于 tag**，
+    而实际标题带日期（`## v0.42.0 — 2026-10-10`）→ **匹配不到任何东西**，
+    会安静地写出一个空块。
+
+- 测试 483 → **489 通过**。
+
 - **修复：GitHub Release 页面不写改了什么。** 发布 workflow 用的是
   `generate_release_notes: true`，而它生成的就一行 ——
   「Full Changelog: compare v0.41.0...v0.42.0」。于是**发布页对「改了什么」只字未提**，

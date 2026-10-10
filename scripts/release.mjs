@@ -21,6 +21,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { readmeNotes } from './readme-notes.mjs'
+
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const BUNDLE_MANIFEST = join(ROOT, 'bundle', 'package.json')
 const ROOT_MANIFEST = join(ROOT, 'package.json')
@@ -87,6 +89,24 @@ run('npm', ['version', version, '--no-git-tag-version', '--allow-same-version'],
 const today = new Date()
 const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 writeFileSync(CHANGELOG, changelog.replace(/^## Unreleased[ \t]*$/m, `## ${tag} — ${stamp}`))
+
+// 2b. Refresh the "latest release" block in both READMEs.
+//
+// A hand-written block goes stale the moment the next version ships and nothing would
+// notice, so it is generated. The builder lives in `readme-notes.mjs` rather than here
+// because this script cannot run in every environment (its `spawnSync git` fails in the
+// sandbox), and something that silently writes the wrong prose should be testable.
+for (const [file, heading, linkLabel] of [
+  ['README.md', '最近更新', '完整更新日志'],
+  ['README.en.md', "What's new", 'Full changelog'],
+]) {
+  const block = readmeNotes({ changelogPath: CHANGELOG, tag, date: stamp, heading, linkLabel })
+  if (block === undefined) fail(`CHANGELOG.md has no '## ${tag}' section to summarise`)
+  const text = readFileSync(file, 'utf8')
+  const pattern = new RegExp(`^## ${heading}[ \\t]*$[\\s\\S]*?(?=^## )`, 'm')
+  if (!pattern.test(text)) fail(`${file} has no '## ${heading}' section to refresh`)
+  writeFileSync(file, text.replace(pattern, block))
+}
 
 // 3. The published bundle must match the tag, so rebuild before testing.
 run('npm', ['run', 'build:bundle'])

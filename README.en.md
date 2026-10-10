@@ -22,6 +22,34 @@ are on [Releases](https://github.com/hccccc01333/dsh-excel-chat/releases).
 
 ![dsh-excel-chat live demo (DeepSeek Harness Web, recorded with a real model)](assets/demo.gif)
 
+## Why this exists
+
+Most "let an AI edit my spreadsheet" setups stop at **doing the thing** — they write the
+formula and report success. This one has two more steps after that, and those are the
+reason it exists:
+
+1. **It checks whether it broke anything.** Every operation is followed by a validation
+   pass: column-pattern drift, hardcoded cells where the rest of the column has
+   formulas, dead references, circular references. **It tells you, instead of leaving you
+   to find out when you open Excel.**
+2. **It shows you the evidence.** Cell-level diffs, an audit log you can roll back, and a
+   health report written into the workbook itself.
+
+A third thing is easy to miss: **the core does not need Excel.** Formula validation and
+repair, reading and writing cells, styles, summaries, joins and pivot tables are written
+as plain XML and JavaScript, so they run on macOS and Linux too. Only the features that
+genuinely drive Excel — charts, native pivot tables, PDF export — require Windows.
+
+## What's new
+
+**v0.42.0**（2026-10-10）· [Full changelog](CHANGELOG.md) · [Releases](https://github.com/hccccc01333/dsh-excel-chat/releases)
+## Contents
+
+- [Why this exists](#why-this-exists) · [What's new](#whats-new)
+- [In action](#in-action-real-screenshots-from-the-conversation) · [Architecture](#architecture) · [Install and first steps](#install-and-first-steps)
+- [Tools](#tools) · [Benchmarks and reliability](#benchmarks-and-reliability)
+- [Development](#development) · [Known limitations](#known-limitations) · [Links](#links)
+
 ## In action (real screenshots from the conversation)
 
 | Capability menu: hand it a file, get options | Data insight: problems found for you |
@@ -62,34 +90,7 @@ The core loop is **understand → operate → verify → repair → re-verify �
 `excel_task`'s goal mode turns that loop into a **Plan → Act → Observe → Verify → Replan**
 agent cycle.
 
-## Install
-
-```sh
-dsh plugin --profile demo add dsh-excel-chat          # from npm
-dsh plugin --profile demo add ./bundle                # or a local bundle directory
-```
-
-Run the self-check once after installing, to confirm the host package isolation and the
-engine are fine:
-
-```sh
-dsh-excel-chat-doctor                                  # when installed globally / via npx
-# or from inside the profile:
-# ~/.dsh/profiles/demo/node_modules/.bin/dsh-excel-chat-doctor
-```
-
-Then just talk to it, for example:
-
-> Turn report.xlsx into a report: column D is margin (revenue minus cost), add totals in
-> column E, bold the header and fill it light grey, freeze the first row, add a filter.
-
-> Check whether every row of column D in sales.xlsx is "revenue - cost", and fix the ones
-> that aren't.
-
-The full guide is in [docs/usage.md](docs/usage.md); role-specific recipes (operations,
-product, data analysis) are in [docs/roles.md](docs/roles.md).
-
-## For users: one-minute start
+## Install and first steps
 
 Requires DeepSeek Harness (the `dsh` CLI or the desktop app).
 
@@ -97,59 +98,102 @@ Requires DeepSeek Harness (the `dsh` CLI or the desktop app).
 dsh plugin --profile demo add dsh-excel-chat      # from npm
 # or from GitHub:
 # dsh plugin --profile demo add github:hccccc01333/dsh-excel-chat
+# or a local bundle directory:
+# dsh plugin --profile demo add ./bundle
 dsh web --profile demo                             # open the conversation UI
 ```
 
-Then say:
+Run the self-check once after installing, to confirm the host package isolation and the
+engine are fine:
+
+```sh
+dsh-excel-chat-doctor                              # when installed globally / via npx
+# or from inside the profile:
+# ~/.dsh/profiles/demo/node_modules/.bin/dsh-excel-chat-doctor
+```
+
+Then just talk to it:
 
 - "Turn report.xlsx into a report: margin in column D, totals in column E, bold the header, freeze the first row, add a filter"
 - "Check the formulas in column D of sales.xlsx and fix the wrong ones"
 - "Build a pivot table by region summing the amount, then a bar chart"
 
-Platform notes: formula checking and repair, reading and writing cells, styling, subtotals,
-merges and mail merge work across platforms. Chart creation and editing, native pivot
-tables, chart PNG export and PDF export need Windows with a local Excel install.
+**Platform notes**: formula checking and repair, reading and writing cells, styling,
+subtotals, merges and mail merge work across platforms. Chart creation and editing,
+native pivot tables, chart PNG export and PDF export need Windows with a local Excel
+install.
 
-Pinning a version: `dsh plugin --profile demo add dsh-excel-chat@0.39.9` (omitting the
-version gets `latest`).
+**Pinning a version**: `dsh plugin --profile demo add dsh-excel-chat@0.42.0` (omitting
+the version gets `latest`).
 
-Switching the output language (Chinese by default): every user-facing message follows it —
-add an override to your profile's
+**Switching the output language** (Chinese by default): add an override to your profile's
 `cordis.patch.yml` — `- id: vera` / `config:` / `language: en`. Only the *messages* are
 translated; data inside the workbook (subtotal labels, generated sheet names) is not,
 because code keys off it. See [docs/usage.md](docs/usage.md).
 
+The full guide is in [docs/usage.md](docs/usage.md); role-specific recipes (operations,
+product, data analysis) are in [docs/roles.md](docs/roles.md).
+
 ## Tools
+
+Grouped by **what you want to do**, not by source module.
+
+### Look at the file first
+
+| Tool | What it does |
+|---|---|
+| `excel_profile` | Quick look at a big sheet: detects the header, per-column type / missing / uniques / numeric range / frequent values / samples, and suggests a read range; together with `excel_read`'s `maxRows` paging it keeps a whole sheet from flooding the conversation with tokens |
+| `excel_semantic_profile` | Semantic profile: classifies each column as time / dimension / measure / identifier, detects granularity, derived measures (formulas) and cross-sheet join keys; run it first for analysis tasks so the agent stops guessing "is region column B?" |
+| `excel_read` | Exact reads: value / formula / type / number format / font / fill / alignment / merges / data validation, so you can see the cell state before editing |
+| `excel_preview` | Table preview: renders the requested sheet or range as a Markdown table (visible inline) plus an HTML preview file. Answers "what does this table look like" |
+| `excel_menu` | Can't describe what you want? Hand it a file and get a menu — a one-line summary of what's inside, then options for cleaning, filling blanks, reports, pivots, charts, health checks, notifications and role templates, each with example wording you can just pick |
+| `excel_insight` | Data insight: a one-line summary plus heuristic checks for missing values, duplicates, outliers, negatives, stray whitespace and formulas, plus next-step suggestions. Answers "what's wrong with this sheet" and "summarise it for me" |
+
+### Change the file
+
+| Tool | What it does |
+|---|---|
+| `excel_operate` | Fine-grained Excel operations — **77 kinds**: values, row and column edits, sorting, report templates, pivot tables, joins, conditional formatting, and most other formatting and structure operations. The full inventory is in the fold below. |
+
+<details>
+<summary><b><code>excel_operate</code>: the 77 operations (click)</b></summary>
+
+Fine-grained Excel operations: set values, fill / series, insert and delete rows and columns, copy / move / transpose / values-only paste, format painter (copyStyle), formula-to-value (freezeFormulas), unique values (uniqueValues), rank column (rankColumn), sorting (multi-key / by fill or font colour / custom list), the `report` one-shot template (sort + subtotals + dynamic SUMIFS + filter + style + freeze + number format), subtotals, dynamic pivot-style summaries, two-dimensional crosstabs (crosstab), exact keyed backfill from a second table (joinSheets — VLOOKUP without formulas), advanced filters, styling (size / font / border / strikethrough / rotation / indent), data validation, conditional formatting (data bars / colour scales / icon sets), autofilter, structured tables, page setup, headers and footers (headerFooter), manual page breaks (rowPageBreaks), print titles (printTitles), defined names, freeze and unfreeze panes, zoom (setZoom), gridline toggle (showGridLines), formula view (showFormulas), hidden rows and columns (hideRows/hideColumns), row and column grouping (groupRows/groupColumns), content-based column widths (autoFitColumnWidths), hyperlinks (internal and external URLs), cell comments (addComment), per-row trend sparklines (addSparklines), embedded images (insertImage — png/jpeg/gif with explicit pixel size, implemented at the XML layer and cross-platform without Excel), CSV import and export (importCsv/exportCsv, export guards against formula injection by default), find and replace, sheet protection (fine-grained permissions), mail merge, sheet management (add / rename / delete / duplicate / hide / tab colour / reorder via moveSheet), document properties and recalculate-on-open (setWorkbookProperties), merge, unmerge all (unmergeAll), data cleaning (dedupe / fill missing / remove empty rows and columns / trim / case conversion / fullwidth-to-halfwidth / split columns by delimiter or fixed width / range clearing via clearRange), whole-row conditional highlighting (highlightRows) and two-table fuzzy matching (fuzzyMatch); formulas are re-validated afterwards and an audit log is written
+
+</details>
+
+| `excel_task` | Two modes: `steps` multi-step orchestration (each step validates and auto-repairs formulas); `goal` agent loop (LLM plans steps → executes → verifies → replans when not achieved, up to maxRounds) |
+| `excel_undo` | Rolls back an edit using the `.patch.json` audit log `excel_operate` writes |
+
+### Formula checks and repair (the point of this project)
 
 | Tool | What it does |
 |---|---|
 | `excel_validate_formulas` | Silent formula error detection: column pattern drift, structure mismatches, hardcoded cells, empty gaps, circular references, and error values such as `#REF!` / `#DIV/0!` |
-| `excel_compile_formula` | Formula IR (binary / ratio / aggregate / function: VLOOKUP, IF, XLOOKUP, statistics, dates, …) → a deterministic Excel formula |
-| `excel_read` | Exact reads: value / formula / type / number format / font / fill / alignment / merges / data validation, so you can see the cell state before editing |
-| `excel_profile` | Quick look at a big sheet: detects the header, per-column type / missing / uniques / numeric range / frequent values / samples, and suggests a read range; together with `excel_read`'s `maxRows` paging it keeps a whole sheet from flooding the conversation with tokens |
-| `excel_semantic_profile` | Semantic profile: classifies each column as time / dimension / measure / identifier, detects granularity, derived measures (formulas) and cross-sheet join keys; run it first for analysis tasks so the agent stops guessing "is region column B?" |
-| `excel_menu` | Can't describe what you want? Hand it a file and get a menu — a one-line summary of what's inside, then options for cleaning, filling blanks, reports, pivots, charts, health checks, notifications and role templates, each with example wording you can just pick |
-| `excel_insight` | Data insight: a one-line summary plus heuristic checks for missing values, duplicates, outliers, negatives, stray whitespace and formulas, plus next-step suggestions. Answers "what's wrong with this sheet" and "summarise it for me" |
-| `excel_preview` | Table preview: renders the requested sheet or range as a Markdown table (visible inline) plus an HTML preview file. Answers "what does this table look like" |
-| `excel_task` | Two modes: `steps` multi-step orchestration (each step validates and auto-repairs formulas); `goal` agent loop (LLM plans steps → executes → verifies → replans when not achieved, up to maxRounds) |
-| `excel_explain_formula` | Plain-language formula explanation: parsed functions (SUMIFS/VLOOKUP/IF/date/text/statistics), referenced ranges, cross-sheet references. Answers "what does this formula mean" |
-| `excel_undo` | Rolls back an edit using the `.patch.json` audit log `excel_operate` writes |
-| `excel_repair_formulas` | Deterministic repair plus optional LLM repair (`useLlm` / `autoTable` / `oraclePath` / `outPath`), writing a repaired copy and re-validating |
 | `excel_autofix` | One-call self-healing loop: check → deterministic repair (optionally LLM) → re-check → plain-language report, writing a repaired copy with a hidden health-report sheet (disable with `healthReport:false`) |
+| `excel_repair_formulas` | Deterministic repair plus optional LLM repair (`useLlm` / `autoTable` / `oraclePath` / `outPath`), writing a repaired copy and re-validating |
 | `excel_health_report` | Writes the formula health check into the workbook itself: a hidden `_dsh_体检报告` sheet with a score, the anomaly list and a timestamp, so the report travels with the file |
-| `excel_diff_workbook` | Cell-level diff between two workbooks |
-| `excel_trace` | Traces a cell's formula dependency chain: precedents (what it reads) and dependents (what reads it), with a configurable depth. Excel's trace arrows are UI state that is never written to the file, so the chain is returned as data, with each cell's current value and depth, and circular references reported |
 | `excel_find_errors` | Lists every **error-value** cell (`#DIV/0!` / `#N/A` / `#NAME?` / `#NULL!` / `#NUM!` / `#REF!` / `#VALUE!` / `#GETTING_DATA`) with the formula that produced it and a count per error code. Distinguishes real error values from text that happens to read the same way, and can be limited to one sheet |
-| `excel_operate` | Fine-grained Excel operations: set values, fill / series, insert and delete rows and columns, copy / move / transpose / values-only paste, format painter (copyStyle), formula-to-value (freezeFormulas), unique values (uniqueValues), rank column (rankColumn), sorting (multi-key / by fill or font colour / custom list), the `report` one-shot template (sort + subtotals + dynamic SUMIFS + filter + style + freeze + number format), subtotals, dynamic pivot-style summaries, two-dimensional crosstabs (crosstab), exact keyed backfill from a second table (joinSheets — VLOOKUP without formulas), advanced filters, styling (size / font / border / strikethrough / rotation / indent), data validation, conditional formatting (data bars / colour scales / icon sets), autofilter, structured tables, page setup, headers and footers (headerFooter), manual page breaks (rowPageBreaks), print titles (printTitles), defined names, freeze and unfreeze panes, zoom (setZoom), gridline toggle (showGridLines), formula view (showFormulas), hidden rows and columns (hideRows/hideColumns), row and column grouping (groupRows/groupColumns), content-based column widths (autoFitColumnWidths), hyperlinks (internal and external URLs), cell comments (addComment), per-row trend sparklines (addSparklines), embedded images (insertImage — png/jpeg/gif with explicit pixel size, implemented at the XML layer and cross-platform without Excel), CSV import and export (importCsv/exportCsv, export guards against formula injection by default), find and replace, sheet protection (fine-grained permissions), mail merge, sheet management (add / rename / delete / duplicate / hide / tab colour / reorder via moveSheet), document properties and recalculate-on-open (setWorkbookProperties), merge, unmerge all (unmergeAll), data cleaning (dedupe / fill missing / remove empty rows and columns / trim / case conversion / fullwidth-to-halfwidth / split columns by delimiter or fixed width / range clearing via clearRange), whole-row conditional highlighting (highlightRows) and two-table fuzzy matching (fuzzyMatch); formulas are re-validated afterwards and an audit log is written |
+| `excel_explain_formula` | Plain-language formula explanation: parsed functions (SUMIFS/VLOOKUP/IF/date/text/statistics), referenced ranges, cross-sheet references. Answers "what does this formula mean" |
+| `excel_compile_formula` | Formula IR (binary / ratio / aggregate / function: VLOOKUP, IF, XLOOKUP, statistics, dates, …) → a deterministic Excel formula |
+| `excel_trace` | Traces a cell's formula dependency chain: precedents (what it reads) and dependents (what reads it), with a configurable depth. Excel's trace arrows are UI state that is never written to the file, so the chain is returned as data, with each cell's current value and depth, and circular references reported |
+
+### Diff, charts and export
+
+| Tool | What it does |
+|---|---|
+| `excel_diff_workbook` | Cell-level diff between two workbooks |
 | `excel_validate_charts` | Chart structure validation: type, series, missing cells, two-dimensional ranges, date ordering |
 | `excel_validate_charts_visual` | Excel PNG export plus a visual LLM review |
-| `excel_export_charts` | Export charts to PNG with local Excel (Windows) |
 | `excel_create_chart` | Create a chart with local Excel: data range, type, title (Windows) |
 | `excel_modify_chart` | Modify chart parameters: type, title, legend, axes (Windows) |
+| `excel_export_charts` | Export charts to PNG with local Excel (Windows) |
 | `excel_create_pivot` | Native pivot table (pivotCache + pivotTable): multiple row fields, column fields, report filters and value fields (sum / count / average / max / min), generated by Excel and refreshable (Windows) |
 | `excel_export_pdf` | Export a workbook or a single sheet to PDF through Excel COM (Windows; opens read-only and leaves the source file untouched) |
 
-Depth and reliability: on a self-built evaluation corpus of 100 workplace tasks (ExcelBench
+## Benchmarks and reliability
+
+Depth and reliability: on a self-built evaluation corpus of 113 workplace tasks (ExcelBench
 lite), goal mode with glm-5.3-flash reaches a measured task success rate of 86% (DeepSeek
 baseline 52%). **The per-run results table is [docs/benchmark-results.md](docs/benchmark-results.md)**
 — generated from raw run output, and you can run a row yourself. The metrics and failure
@@ -157,43 +201,14 @@ attribution are in
 [docs/benchmark.md](docs/benchmark.md). The design and measurements of the editable Excel
 panel are in [docs/web-panel.md](docs/web-panel.md).
 
-## Modules
+## Source modules
 
-- `src/formula.ts` — A1 reference parser (cell, range, cross-sheet, whole-column), canonical cell ids, column helpers.
-- `src/graph.ts` — dependency graph with bounded range expansion and cycle detection.
-- `src/patterns.ts` — per-column reference-pattern analysis: offset anomalies, structure mismatches, hardcode breaks, empty gaps.
-- `src/validator.ts` — `validate(cells)` entry point returning the graph, column reports and anomalies.
-- `src/ir.ts` — Formula IR types (binary / ratio / aggregate).
-- `src/ir-schema.ts` — the dsh tool-DSL schema for Formula IR (strict oneOf validation).
-- `src/compiler.ts` — `compileFormula(ir, { baseCell, table })` compiles to an Excel formula.
-- `src/advisor.ts` — LLM repair advisor: anomalies + table structure → prompt → IR repair → Patch.
-- `src/llm.ts` — `llmTextFromContext`: wires the `ctx.llm` streaming service into the repair advisor (optional injection).
-- `src/diff.ts` — workbook diff and patch log: diff / apply / rollback.
-- `src/charts.ts` / `src/chart-validator.ts` — xlsx chart XML parsing and structure validation.
-- `src/chart-visual.ts` — Excel COM chart creation / parameter edits / export, plus an injectable visual review (VLM interface).
-- `src/vision.ts` — `visionTextFromContext`: wires `ctx.attachments` + `ctx.llm` into a visual review.
-- `src/deepseek.ts` — DeepSeek chat completions client (reads `DEEPSEEK_API_KEY`), used by the repair advisor.
-- `src/patch.ts` — minimal patch abstraction: apply / revert / write back to a workbook.
-- `src/repair.ts` — turns validation results into deterministic repairs (reference offsets and empty-row fills), writes `.repaired.xlsx` and re-validates; optionally takes oracle cells and returns `oracleScore`.
-- `src/workbook.ts` — ExcelJS-based workbook reader: `.xlsx` → cell-content map, plus `validateWorkbookFile(path)`.
-- `src/tables.ts` — `detectTableFromCells`: infers `{ sheet, columns }` from cell contents, backing `excel_repair_formulas`' `autoTable` header detection.
-- `src/score.ts` — `scoreWorkbookAgainstOracle`: oracle scoring at cell level, tolerating formula case/whitespace and number-format differences, returning accuracy and mismatch details.
-- `src/read.ts` — `readWorkbookDetail`: exact cell reads (value / formula / type / format / merges / data validation), used by the `excel_read` tool.
-- `src/profile.ts` — `profileWorkbook`: structured table encoding, producing a compact per-sheet, per-column profile and a suggested read range for the `excel_profile` tool.
-- `src/autofix.ts` — `autofixWorkbookFile`: the check → repair → re-check → plain-language summary self-healing loop behind `excel_autofix`.
-- `src/pivot.ts` — `createPivotTable`: drives Excel COM to generate a native pivot table (pivotCache + pivotTable) that always opens cleanly.
-- `src/operation-schema.ts` — the strict discriminated-union schema for `excel_operate`'s 77 operations, so the model emits the right shape straight from the `op` field.
-- `src/operations.ts` — the Excel operation DSL: set (type inference) / fill / fillSeries / insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel, including across sheets, and deleted cells become `#REF!`) / sortRange (multi-key) / copyRange / moveRange / style / dataValidation (dropdowns and numeric checks) / conditionalFormatting / setColumnWidth / autoFilter / addTable (structured tables) / setRowHeight / freezePanes / findReplace / addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor / clear / merge / unmerge.
-- `src/benchmark.ts` — Pass@1 benchmark: deterministic repair → LLM repair, scored against an oracle.
-- `src/benchmark-cases.ts` — 11 benchmark tasks: range endpoints, absolute references, empty rows, cross-sheet, multi-sheet, aggregate structure, hardcode and more.
-- `src/file-benchmark.ts` + `src/corpus/` — ExcelBench lite: 100 file-level real workplace tasks (editing / analysis / formulas / workflows); see [docs/benchmark.md](docs/benchmark.md).
-- `src/index.ts` — the dsh plugin entry exposing 25 tools (understanding a file / formula checks and repair / operations and orchestration / charts and export; the full list is in the Tools table above).
-- `bundle/` — the publishable dsh bundle: manifest + cordis.patch.yml + compiled output.
+What each source file does: [docs/modules.en.md](docs/modules.en.md).
 
-## Run tests
+## Development
 
 ```sh
-node --test tests/*.test.ts        # everything (423 tests)
+node --test tests/*.test.ts        # everything (483 tests)
 ```
 
 Real-model end to end:
@@ -226,11 +241,11 @@ cd bundle && npm pack
 Release (one command):
 
 ```sh
-node scripts/release.mjs 0.40.0      # or npm run release -- 0.40.0
+node scripts/release.mjs X.Y.Z        # or npm run release -- X.Y.Z
 ```
 
 It bumps the version in `bundle/package.json` and the root `package.json`, stamps the
-CHANGELOG's `## Unreleased` section as `## v0.40.0 — <date>`, rebuilds `bundle/dist`, runs
+CHANGELOG's `## Unreleased` section as `## vX.Y.Z — <date>`, rebuilds `bundle/dist`, runs
 the full test suite, commits, tags `v0.40.0` and pushes. **Pushing the tag triggers
 `.github/workflows/publish.yml`**, where CI tests, builds, checks with `npm pack` that the
 tag matches the version, publishes to npm, and attaches the tarball to a GitHub Release.
@@ -285,7 +300,7 @@ The tool accepts either `cells` (a map) or `path` (an absolute `.xlsx` path) —
 - GitHub: <https://github.com/hccccc01333/dsh-excel-chat>
 - Community listing: [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 
-## Known limitations (P0)
+## Known limitations
 
 - Formula parsing is a lightweight scanner, not a full grammar: quoted strings are stripped,
   cell-like tokens followed by `(` are treated as function names, and exotic constructs

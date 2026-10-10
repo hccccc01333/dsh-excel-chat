@@ -13,8 +13,28 @@
 调用 `excel_operate` 完成；每次编辑后自动体检公式有没有被弄坏，也可以让它
 “检查这个表哪里算错了”并自动修复。所有工作都在对话里完成，不需要记 Excel 操作。
 
-每个版本的改动写在 [CHANGELOG](CHANGELOG.md)，发布说明见
-[Releases](https://github.com/hccccc01333/dsh-excel-chat/releases)。
+## 为什么用它
+
+大多数“让 AI 改表格”的方案到**执行**就结束了——它把公式写下去，然后告诉你“已完成”。
+这个项目在**执行之后**还有两步，那两步才是它存在的理由：
+
+1. **它验证自己有没有改坏。** 每次操作后自动体检：列内公式模式是否偏移、有没有
+   hardcode、引用是否失效、有没有循环引用。**改坏了它会说，而不是等你打开 Excel 才发现。**
+2. **它给出改前改后的证据。** 单元格级 diff、可回滚的审计日志、写进文件本身的健康报告。
+
+第三件不太显眼但同样重要：**核心能力不依赖 Excel**。公式校验与修复、读写单元格、
+样式、汇总、关联、透视表（写 XML）都是纯 JavaScript 实现的，**macOS 和 Linux 上一样能跑**；
+只有需要真正调用 Excel 的功能（图表、原生透视表、PDF 导出）才要求 Windows。
+
+## 最近更新
+
+**v0.42.0**（2026-10-10）· [完整更新日志](CHANGELOG.md) · [Releases](https://github.com/hccccc01333/dsh-excel-chat/releases)
+## 目录
+
+- [为什么用它](#为什么用它) · [最近更新](#最近更新)
+- [功能实录](#功能实录对话内真实截图) · [架构](#架构) · [安装与上手](#安装与上手)
+- [工具](#工具)（[先看懂文件](#先看懂文件) · [动手改文件](#动手改文件) · [公式体检与修复](#公式体检与修复这个项目的核心) · [对比与图表](#对比与图表)）
+- [评测与可靠性](#评测与可靠性) · [开发](#开发) · [已知限制](#已知限制) · [相关链接](#相关链接)
 
 ![dsh-excel-chat 能力一览](assets/feature-grid.png)
 
@@ -57,32 +77,7 @@ flowchart LR
 核心闭环：**理解 → 操作 → 验证 → 修复 → 复验 → 输出**；`excel_task` 的 goal 模式
 把这条闭环升级为 **Plan → Act → Observe → Verify → Replan** 的 Agent 循环。
 
-## 安装
-
-```sh
-dsh plugin --profile demo add dsh-excel-chat          # 从 npm 安装
-dsh plugin --profile demo add ./bundle                # 或本地 bundle 目录
-```
-
-装完先自检一次，确认宿主包隔离和引擎都正常：
-
-```sh
-dsh-excel-chat-doctor                                  # npm 全局/npx 可用时
-# 或 profile 内直接跑：
-# ~/.dsh/profiles/demo/node_modules/.bin/dsh-excel-chat-doctor
-```
-
-装完直接聊，例如：
-
-> 帮我把 report.xlsx 做成报表：D 列是毛利（收入减成本），E 列加合计，
-> 表头加粗填浅灰，冻结第一行，加筛选。
-
-> 检查 sales.xlsx 里 D 列公式是不是每行都是“收入-成本”，不对的帮我修掉。
-
-完整使用指南见 [docs/usage.md](docs/usage.md)，岗位用法（运营/产品/数分）见
-[docs/roles.md](docs/roles.md)。
-
-## 给使用者：一分钟上手
+## 安装与上手
 
 前提：已安装 DeepSeek Harness（`dsh` CLI 或桌面端）。
 
@@ -90,7 +85,17 @@ dsh-excel-chat-doctor                                  # npm 全局/npx 可用�
 dsh plugin --profile demo add dsh-excel-chat      # 从 npm 安装
 # 或从 GitHub 安装：
 # dsh plugin --profile demo add github:hccccc01333/dsh-excel-chat
+# 或本地 bundle 目录：
+# dsh plugin --profile demo add ./bundle
 dsh web --profile demo                             # 打开对话界面
+```
+
+装完先自检一次，确认宿主包隔离和引擎都正常：
+
+```sh
+dsh-excel-chat-doctor                              # npm 全局/npx 可用时
+# 或 profile 内直接跑：
+# ~/.dsh/profiles/demo/node_modules/.bin/dsh-excel-chat-doctor
 ```
 
 然后在对话里直接说：
@@ -99,105 +104,91 @@ dsh web --profile demo                             # 打开对话界面
 - “检查 sales.xlsx 的 D 列公式有没有错，不对的修掉”
 - “按区域生成透视表，金额合计，再生成柱状图”
 
-平台说明：公式校验/修复、读写单元格、样式、汇总、合并、邮件合并等功能跨平台；
+**平台说明**：公式校验/修复、读写单元格、样式、汇总、合并、邮件合并等功能跨平台；
 图表创建/改参、原生透视表、图表 PNG 导出、PDF 导出需要 Windows + 本机安装 Excel。
 
-锁定版本：`dsh plugin --profile demo add dsh-excel-chat@0.39.9`（不写版本默认 latest）。
+**锁定版本**：`dsh plugin --profile demo add dsh-excel-chat@0.42.0`（不写版本默认 latest）。
 
-切换输出语言（默认中文）：在 profile 的 `cordis.patch.yml` 里加一条覆盖——
+**切换输出语言**（默认中文）：在 profile 的 `cordis.patch.yml` 里加一条覆盖——
 `- id: vera` / `config:` / `language: en`。注意**只翻译给人看的消息**，工作簿里的数据
 （汇总标签、生成的表名）不翻译，因为代码依赖它们。详见 [docs/usage.md](docs/usage.md)。
 
+完整使用指南见 [docs/usage.md](docs/usage.md)，岗位用法（运营/产品/数分）见
+[docs/roles.md](docs/roles.md)。
+
 ## 工具
+
+按**你想做什么**分组，不是按代码模块。
+
+### 先看懂文件
+
+| 工具 | 作用 |
+|---|---|
+| `excel_profile` | 大表速览：识别表头、每列类型/缺失/唯一值/数值区间/高频值/样例，给出建议读取范围；配合 `excel_read` 的 `maxRows` 分页，避免整表灌入对话爆 token |
+| `excel_semantic_profile` | 语义画像：把每列分类为 时间/维度/指标/标识，识别数据粒度、派生指标（公式）和跨表关联键；分析类任务先跑它，agent 不再猜“地区是不是 B 列” |
+| `excel_read` | 精确读取：值/公式/类型/数字格式/字体/填充/对齐/合并/数据有效性，编辑前看清单元格状态 |
+| `excel_preview` | 表格预览：把指定表/区域渲染成 Markdown 表格（对话内直接看到）+ HTML 预览文件，回答“看看这个表长什么样” |
+| `excel_menu` | 不会描述也没关系：给文件就能拿到菜单——一句话总结表里有什么，再列出清洗/补空值/报表/透视/图表/体检/通知/岗位模板等可选方案，每个带示例话术，直接选就行 |
+| `excel_insight` | 数据洞察：一句话摘要 + 缺失/重复/异常值/负值/空格/公式等启发式体检 + 下一步建议，回答“这表有什么问题”“帮我总结一下” |
+
+### 动手改文件
+
+| 工具 | 作用 |
+|---|---|
+| `excel_operate` | 精细化 Excel 操作，**77 种**（写值、增删行列、排序、报表模板、透视、关联、条件格式、图表之外的绝大多数格式与结构操作）——完整清单见下方折叠块 |
+| `excel_task` | 两种模式：`steps` 多步编排（每步自动体检公式、坏了自动修）；`goal` Agent 闭环（LLM 规划步骤 → 执行 → 验证 → 未达成自动重规划，最多 maxRounds 轮） |
+| `excel_undo` | 按 `excel_operate` 自动生成的 `.patch.json` 审计日志回滚编辑 |
+
+<details>
+<summary><b><code>excel_operate</code> 的 77 种操作（点开）</b></summary>
+
+写值、填充/序列、行列增删、复制/移动/转置/仅粘贴值、格式刷（copyStyle）、公式转值（freezeFormulas）、唯一值提取（uniqueValues）、排名列（rankColumn）、排序（多键 / 按填充色或字体色 / 自定义序列）、`report` 一键报表模板（排序+汇总+动态透视+筛选+样式+冻结+格式）、分类汇总、动态透视报表、二维交叉透视表（crosstab）、两表精确关联回填（joinSheets，无公式 VLOOKUP）、高级筛选、样式（字号/字体/边框/删除线/旋转/缩进）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、页眉页脚（headerFooter）、打印分页符（rowPageBreaks）、打印标题行/列（printTitles）、命名区域、冻结/取消冻结窗格、缩放（setZoom）、网格线开关（showGridLines）、显示公式视图（showFormulas）、隐藏行列（hideRows/hideColumns）、行列分组折叠（groupRows/groupColumns）、自适应列宽（autoFitColumnWidths）、超链接（站内跳转与外部 URL）、单元格批注（addComment）、每行趋势迷你图（addSparklines）、嵌入图片（insertImage，png/jpeg/gif，可指定像素尺寸，纯 XML 层实现、跨平台不依赖 Excel）、导入/导出 CSV（importCsv/exportCsv，导出默认加公式注入防护）、查找替换、工作表保护（细化权限）、邮件合并、工作表管理（增删改名复制隐藏标签色/重排 moveSheet）、文档属性与打开时重算（setWorkbookProperties）、合并、取消全部合并（unmergeAll）、数据清洗（去重/填充缺失/删空行空列/去空格/大小写转换/全角半角标准化/分列（分隔符或固定宽度）/区域清除 clearRange）、整行条件高亮（highlightRows）、两表模糊匹配（fuzzyMatch）。
+
+**每次操作后自动复验公式并写审计日志**，所以改坏了能查出来、也能回滚。
+
+</details>
+
+### 公式体检与修复（这个项目的核心）
 
 | 工具 | 作用 |
 |---|---|
 | `excel_validate_formulas` | 静默公式错误检测：列 pattern 偏移、结构不匹配、hardcode、空行、循环引用、`#REF!`/`#DIV/0!` 等错误值 |
-| `excel_compile_formula` | Formula IR（binary / ratio / aggregate / function：VLOOKUP、IF、XLOOKUP、统计、日期等）→ 确定性 Excel 公式 |
-| `excel_read` | 精确读取：值/公式/类型/数字格式/字体/填充/对齐/合并/数据有效性，编辑前看清单元格状态 |
-| `excel_profile` | 大表速览：识别表头、每列类型/缺失/唯一值/数值区间/高频值/样例，给出建议读取范围；配合 `excel_read` 的 `maxRows` 分页，避免整表灌入对话爆 token |
-| `excel_semantic_profile` | 语义画像：把每列分类为 时间/维度/指标/标识，识别数据粒度、派生指标（公式）和跨表关联键；分析类任务先跑它，agent 不再猜“地区是不是 B 列” |
-| `excel_menu` | 不会描述也没关系：给文件就能拿到菜单——一句话总结表里有什么，再列出清洗/补空值/报表/透视/图表/体检/通知/岗位模板等可选方案，每个带示例话术，直接选就行 |
-| `excel_insight` | 数据洞察：一句话摘要 + 缺失/重复/异常值/负值/空格/公式等启发式体检 + 下一步建议，回答“这表有什么问题”“帮我总结一下” |
-| `excel_preview` | 表格预览：把指定表/区域渲染成 Markdown 表格（对话内直接看到）+ HTML 预览文件，回答“看看这个表长什么样” |
-| `excel_task` | 两种模式：`steps` 多步编排（每步自动体检公式、坏了自动修）；`goal` Agent 闭环（LLM 规划步骤 → 执行 → 验证 → 未达成自动重规划，最多 maxRounds 轮） |
-| `excel_explain_formula` | 公式白话解释：解析函数（SUMIFS/VLOOKUP/IF/日期/文本/统计）、引用区域、跨表引用，回答“这个公式是什么意思” |
-| `excel_undo` | 按 `excel_operate` 自动生成的 `.patch.json` 审计日志回滚编辑 |
-| `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复（`useLlm` / `autoTable` / `oraclePath` / `outPath`），输出修复副本并复验 |
 | `excel_autofix` | 一键自愈闭环：体检 → 确定性修复（可选 LLM）→ 复检 → 人话汇报，输出修复副本（自动附带隐藏健康报告表，可 `healthReport:false` 关闭） |
+| `excel_repair_formulas` | 确定性修复 + 可选 LLM 修复（`useLlm` / `autoTable` / `oraclePath` / `outPath`），输出修复副本并复验 |
 | `excel_health_report` | 把公式体检报告写进工作簿本身：隐藏「_dsh_体检报告」表，含健康分、异常清单、生成时间，报告跟着文件走 |
-| `excel_diff_workbook` | 两个 workbook 的单元格级 diff |
+| `excel_find_errors` | 列出所有**错误值**单元格（`#DIV/0!` / `#N/A` / `#NAME?` / `#NULL!` / `#NUM!` / `#REF!` / `#VALUE!` / `#GETTING_DATA`），附上产生它的公式与按错误码的计数。能区分「真错误值」和「内容恰好长成这样的文本」，避免误报 |
+| `excel_explain_formula` | 公式白话解释：解析函数（SUMIFS/VLOOKUP/IF/日期/文本/统计）、引用区域、跨表引用，回答“这个公式是什么意思” |
+| `excel_compile_formula` | Formula IR（binary / ratio / aggregate / function：VLOOKUP、IF、XLOOKUP、统计、日期等）→ 确定性 Excel 公式 |
 | `excel_trace` | 追踪单元格的公式依赖链路：引用（它读了谁）/ 从属（谁读了它），可指定层数。Excel 的追踪箭头是界面状态、不写进文件，所以这里以数据形式给出链路，每格附带当前值与深度，并报告循环引用 |
-| `excel_find_errors` | 列出所有**错误值**单元格（`#DIV/0!` / `#N/A` / `#NAME?` / `#NULL!` / `#NUM!` / `#REF!` / `#VALUE!` / `#GETTING_DATA`），附上产生它的公式与按错误码的计数。能区分「真错误值」和「内容恰好长成这样的文本」，避免误报；可按工作表限定范围 |
-| `excel_operate` | 精细化 Excel 操作：写值、填充/序列、行列增删、复制/移动/转置/仅粘贴值、格式刷（copyStyle）、公式转值（freezeFormulas）、唯一值提取（uniqueValues）、排名列（rankColumn）、排序（多键 / 按填充色或字体色 / 自定义序列）、`report` 一键报表模板（排序+汇总+动态透视+筛选+样式+冻结+格式）、分类汇总、动态透视报表、二维交叉透视表（crosstab）、两表精确关联回填（joinSheets，无公式 VLOOKUP）、高级筛选、样式（字号/字体/边框/删除线/旋转/缩进）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、页眉页脚（headerFooter）、打印分页符（rowPageBreaks）、打印标题行/列（printTitles）、命名区域、冻结/取消冻结窗格、缩放（setZoom）、网格线开关（showGridLines）、显示公式视图（showFormulas）、隐藏行列（hideRows/hideColumns）、行列分组折叠（groupRows/groupColumns）、自适应列宽（autoFitColumnWidths）、超链接（站内跳转与外部 URL）、单元格批注（addComment）、每行趋势迷你图（addSparklines）、嵌入图片（insertImage，png/jpeg/gif，可指定像素尺寸，纯 XML 层实现、跨平台不依赖 Excel）、导入/导出 CSV（importCsv/exportCsv，导出默认加公式注入防护）、查找替换、工作表保护（细化权限）、邮件合并、工作表管理（增删改名复制隐藏标签色/重排 moveSheet）、文档属性与打开时重算（setWorkbookProperties）、合并、取消全部合并（unmergeAll）、数据清洗（去重/填充缺失/删空行空列/去空格/大小写转换/全角半角标准化/分列（分隔符或固定宽度）/区域清除 clearRange）、整行条件高亮（highlightRows）、两表模糊匹配（fuzzyMatch）；操作后自动复验公式并写审计日志 |
+
+### 对比与图表
+
+| 工具 | 作用 |
+|---|---|
+| `excel_diff_workbook` | 两个 workbook 的单元格级 diff |
 | `excel_validate_charts` | 图表结构校验：类型、系列、缺失单元格、二维范围、日期排序 |
 | `excel_validate_charts_visual` | Excel 导出 PNG + 视觉 LLM 评审 |
+| `excel_create_chart` / `excel_modify_chart` | 用本地 Excel 创建图表、修改类型/标题/图例/坐标轴（Windows） |
 | `excel_export_charts` | 用本地 Excel 把图表导出为 PNG（Windows） |
-| `excel_create_chart` | 用本地 Excel 创建图表：数据范围、类型、标题（Windows） |
-| `excel_modify_chart` | 修改图表参数：类型、标题、图例、坐标轴（Windows） |
-| `excel_create_pivot` | 原生数据透视表（pivotCache + pivotTable）：多行字段、列字段、报表筛选器 + 值字段（求和/计数/平均/最大/最小），Excel 生成、可刷新（Windows） |
+| `excel_create_pivot` | 原生数据透视表（pivotCache + pivotTable）：多行字段、列字段、报表筛选器 + 值字段，Excel 生成、可刷新（Windows） |
 | `excel_export_pdf` | 用本机 Excel COM 把工作簿或单个工作表导出为 PDF（Windows，只读打开不动源文件） |
 
-能力深度与可靠性进展：100 个职场任务的自建评测语料（ExcelBench lite），
+## 评测与可靠性
+
+能力深度与可靠性进展：113 个职场任务的自建评测语料（ExcelBench lite），
 goal 模式 + glm-5.3-flash 全量实测成功率 86%（DeepSeek 基线 52%）。
 **逐次跑分的公开结果表见 [docs/benchmark-results.md](docs/benchmark-results.md)**
 （由原始输出生成，你可以自己跑一行加进去）；指标与失败归因见 [docs/benchmark.md](docs/benchmark.md)；右侧可编辑 Excel
 面板的设计与实测见 [docs/web-panel.md](docs/web-panel.md)。
 
-## Modules
+## 源码模块
 
-- `src/formula.ts` — A1 reference parser (cell, range, cross-sheet, whole-column), canonical cell ids, column helpers.
-- `src/graph.ts` — dependency graph with bounded range expansion and cycle detection.
-- `src/patterns.ts` — per-column reference-pattern analysis: offset anomalies, structure mismatches, hardcode breaks, empty gaps.
-- `src/validator.ts` — `validate(cells)` entry point returning graph + column reports + anomalies.
-- `src/ir.ts` — Formula IR 类型（binary / ratio / aggregate）。
-- `src/ir-schema.ts` — Formula IR 的 dsh 工具 DSL schema（严格 oneOf 校验）。
-- `src/compiler.ts` — `compileFormula(ir, { baseCell, table })` 编译为 Excel 公式。
-- `src/advisor.ts` — LLM 修复顾问：异常 + 表结构 → prompt → IR 修复 → Patch。
-- `src/llm.ts` — `llmTextFromContext`：把 `ctx.llm` 流式服务接入修复顾问（可选注入）。
-- `src/diff.ts` — Workbook Diff 与 Patch Log：diff / apply / rollback。
-- `src/charts.ts` / `src/chart-validator.ts` — xlsx 图表 XML 解析与结构校验。
-- `src/chart-visual.ts` — Excel COM 图表创建/参数修改/导出 + 可注入视觉评审（VLM 接口）。
-- `src/vision.ts` — `visionTextFromContext`：把 `ctx.attachments` + `ctx.llm` 接成视觉评审。
-- `src/deepseek.ts` — DeepSeek chat completions 客户端（读 `DEEPSEEK_API_KEY`），接修复顾问。
-- `src/patch.ts` — 最小补丁抽象：apply / revert / 写回 workbook。
-- `src/repair.ts` — 从验证结果生成确定性修复（引用偏移 + 空行填充），写出
-  `.repaired.xlsx` 并复验；可选传入 oracle cells 返回 `oracleScore`。
-- `src/workbook.ts` — ExcelJS-based workbook reader: `.xlsx` → cell-content map, and `validateWorkbookFile(path)`.
-- `src/tables.ts` — `detectTableFromCells`：从单元格内容推断 `{ sheet, columns }`，
-  供 `excel_repair_formulas` 的 `autoTable` 自动识别表头。
-- `src/score.ts` — `scoreWorkbookAgainstOracle`：oracle 单元格级判分，容忍公式
-  大小写/空白与数字格式差异，输出准确率与 mismatch 明细。
-- `src/read.ts` — `readWorkbookDetail`：精确读取单元格（值/公式/类型/格式/合并/
-  数据有效性），供 `excel_read` 工具使用。
-- `src/profile.ts` — `profileWorkbook`：结构化表格编码，输出每表/每列的
-  紧凑画像与建议读取范围，供 `excel_profile` 工具使用。
-- `src/autofix.ts` — `autofixWorkbookFile`：体检 → 修复 → 复检 → 人话总结的
-  一键自愈闭环，供 `excel_autofix` 工具使用。
-- `src/pivot.ts` — `createPivotTable`：驱动 Excel COM 生成原生数据透视表
-  （pivotCache + pivotTable），保证文件始终合法可打开。
-- `src/operation-schema.ts` — `excel_operate` 的 77 操作严格判别联合 schema，
-  让模型按 `op` 字段直接生成正确结构。
-- `src/operations.ts` — Excel 操作 DSL：set（自动类型识别）/ fill / fillSeries /
-  insertRows / deleteRows / insertColumns / deleteColumns（公式引用联动，含跨表，
-  被删单元格引用转 `#REF!`）/ sortRange（多键排序）/ copyRange / moveRange /
-  style / dataValidation（下拉与数值校验）/ conditionalFormatting / setColumnWidth /
-  autoFilter / addTable（结构化表格）/ setRowHeight / freezePanes / findReplace /
-  addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor /
-  clear / merge / unmerge。
-- `src/benchmark.ts` — Pass@1 benchmark：确定性修复 → LLM 修复，与 oracle 对比判分。
-- `src/benchmark-cases.ts` — 11 个 benchmark 任务：范围端点、绝对引用、空行、
-  跨表、多表、聚合结构、hardcode 等场景。
-- `src/file-benchmark.ts` + `src/corpus/` — ExcelBench lite：100 个文件级真实
-  职场任务（编辑/分析/公式/工作流），运行与指标见 [docs/benchmark.md](docs/benchmark.md)。
-- `src/index.ts` — dsh plugin entry exposing 25 tools（理解文件 / 公式体检与修复 /
-  操作与编排 / 图表与导出，完整清单见上面的「工具」表）。
-- `bundle/` — 可发布 dsh bundle：manifest + cordis.patch.yml + 编译产物。
+每个源文件做什么，见 [docs/modules.md](docs/modules.md)。
 
-## Run tests
+## 开发
 
 ```sh
-node --test tests/*.test.ts        # 全量（423 项）
+node --test tests/*.test.ts        # 全量（483 项）
 ```
 
 真实模型端到端：
@@ -230,12 +221,12 @@ cd bundle && npm pack
 发版（一条命令）：
 
 ```sh
-node scripts/release.mjs 0.40.0      # 或 npm run release -- 0.40.0
+node scripts/release.mjs X.Y.Z        # 或 npm run release -- X.Y.Z
 ```
 
 它会：改 `bundle/package.json` 与根 `package.json` 的版本 → 把 CHANGELOG 的
-`## Unreleased` 段定版为 `## v0.40.0 — 日期` → 重新构建 `bundle/dist` → 跑全量测试
-→ 提交 → 打 tag `v0.40.0` → 推送。**推 tag 会触发 `.github/workflows/publish.yml`**，
+`## Unreleased` 段定版为 `## vX.Y.Z — 日期` → 重新构建 `bundle/dist` → 跑全量测试
+→ 提交 → 打 tag `vX.Y.Z` → 推送。**推 tag 会触发 `.github/workflows/publish.yml`**，
 由 CI 完成测试、构建、`npm pack` 校验 tag 与版本一致、发布 npm（并在 GitHub Release
 上附带 tarball）。
 
@@ -274,20 +265,22 @@ npx dsh web --patch /path/to/dsh-excel-chat/cordis.yml
 Windows 上 `cordis.yml` 的入口路径必须是 URL 形式（如
 `file:///d:/projects/dsh-excel-chat/src/index.ts`），不能用相对路径。
 
-## Example
+## 一个例子：它怎么发现问题
 
-`D4 = B4-C3` inside a column where every other row is `=B[row]-C[row]` is reported as a
-`reference-offset` anomaly with confidence = majority support fraction (e.g. 3/4 = 0.75).
+同一列里其他行都是 `=B[行]-C[行]`，而 `D4` 写成了 `=B4-C3`（引用偏了一行）——
+`excel_validate_formulas` 会把它报成 `reference-offset` 异常，**置信度 = 多数派占比**
+（比如 4 行里 3 行一致，就是 0.75）。它不是「猜哪里可疑」，而是拿**同一列的模式**去比。
 
-The tool accepts either `cells` (a map) or `path` (an absolute `.xlsx` path) — exactly one.
+工具接受 `cells`（单元格映射）或 `path`（`.xlsx` 绝对路径），**二者给且只给一个**。
 
 ## 相关链接
 
 - npm：<https://www.npmjs.com/package/dsh-excel-chat>
 - GitHub：<https://github.com/hccccc01333/dsh-excel-chat>
+- 版本说明：[Releases](https://github.com/hccccc01333/dsh-excel-chat/releases) · [CHANGELOG](CHANGELOG.md)
 - 社区收录：[awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 
-## Known limitations (P0)
+## 已知限制
 
 - Formula parsing is a lightweight scanner, not a full grammar: quoted strings are stripped,
   cell-like tokens followed by `(` are treated as function names, and exotic constructs
