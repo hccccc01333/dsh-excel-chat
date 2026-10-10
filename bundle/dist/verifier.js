@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { strFromU8, unzipSync } from 'fflate';
 import ExcelJS from 'exceljs';
 import { t, listJoin } from './i18n.js';
 import { normalizeCellId } from './score.js';
@@ -16,10 +17,13 @@ export async function verifyWorkbookAssertions(path, assertions) {
     // it asks about presentation. Narrow first, so `hasStyleAssertion` sees a cell.
     const needsWorkbook = assertions.some((assertion) => isWorkbookAssertion(assertion) || isSheetAssertion(assertion) || hasStyleAssertion(assertion));
     const workbook = needsWorkbook ? await loadWorkbook(path) : null;
+    // Only page breaks need the raw XML — ExcelJS writes them but cannot read them back.
+    const needsXml = assertions.some((assertion) => isSheetAssertion(assertion) && assertion.rowPageBreaks !== undefined);
+    const sheetXml = needsXml ? await readSheetXml(path) : null;
     const results = assertions.map((assertion) => isWorkbookAssertion(assertion)
         ? evaluateWorkbookAssertion(assertion, workbook)
         : isSheetAssertion(assertion)
-            ? evaluateSheetAssertion(assertion, workbook)
+            ? evaluateSheetAssertion(assertion, workbook, sheetXml)
             : evaluateAssertion(assertion, cells, workbook ? styleCellsOf(workbook) : null));
     const failures = results.filter((result) => !result.passed).map((result) => result.detail);
     const passed = results.length - failures.length;
@@ -48,7 +52,7 @@ function isWorkbookAssertion(assertion) {
  * Every condition named is required, same as the cell path: an assertion that asks for a
  * frozen pane *and* hidden rows has to find both, or it reports what it actually saw.
  */
-function evaluateSheetAssertion(assertion, workbook) {
+function evaluateSheetAssertion(assertion, workbook, sheetXml) {
     const sheet = workbook.getWorksheet(assertion.sheet);
     if (!sheet) {
         return {
@@ -229,6 +233,26 @@ function evaluateSheetAssertion(assertion, workbook) {
             passed: actual === assertion.pageOrientation,
         });
     }
+    if (assertion.printTitlesRow !== undefined) {
+        const actual = sheet.pageSetup?.printTitlesRow ?? null;
+        checks.push({
+            label: t('重复标题行 期望 {expected} 实际 {actual}', {
+                expected: assertion.printTitlesRow,
+                actual: actual ?? t('无'),
+            }),
+            passed: actual === assertion.printTitlesRow,
+        });
+    }
+    if (assertion.printTitlesColumn !== undefined) {
+        const actual = sheet.pageSetup?.printTitlesColumn ?? null;
+        checks.push({
+            label: t('重复标题列 期望 {expected} 实际 {actual}', {
+                expected: assertion.printTitlesColumn,
+                actual: actual ?? t('无'),
+            }),
+            passed: actual === assertion.printTitlesColumn,
+        });
+    }
     if (assertion.oddHeader !== undefined) {
         const actual = sheet.headerFooter?.oddHeader ?? null;
         checks.push({
@@ -288,6 +312,33 @@ function evaluateSheetAssertion(assertion, workbook) {
             checks.push({
                 label: t('条件格式 {range} {type} 存在 期望是', { range: wanted.range, type: wanted.type }),
                 passed: found,
+            });
+        }
+    }
+    if (assertion.rowPageBreaks !== undefined) {
+        const xml = sheetXml?.get(assertion.sheet);
+        if (xml === undefined) {
+            checks.push({
+                label: t('手动分页符 期望 {expected} 实际 {actual}', {
+                    expected: assertion.rowPageBreaks.join(' ') || t('无'),
+                    actual: t('读不到工作表 XML'),
+                }),
+                passed: false,
+            });
+        }
+        else {
+            // `<brk id>` is zero-based, so a break above 1-based row N is id N-1. The
+            // assertion speaks in the same 1-based rows the operation takes.
+            const actual = [...xml.matchAll(/<brk[^>]*\bid="(\d+)"/g)]
+                .map((match) => Number(match[1]) + 1)
+                .sort((a, b) => a - b);
+            const wanted = [...assertion.rowPageBreaks].sort((a, b) => a - b);
+            checks.push({
+                label: t('手动分页符 期望 {expected} 实际 {actual}', {
+                    expected: wanted.join(' ') || t('无'),
+                    actual: actual.join(' ') || t('无'),
+                }),
+                passed: actual.length === wanted.length && actual.every((row, index) => row === wanted[index]),
             });
         }
     }
@@ -451,6 +502,40 @@ function evaluateWorkbookAssertion(assertion, workbook) {
  */
 function normalizeRef(ref) {
     return ref.replace(/\$/g, '').replace(/'/g, '').replace(/\s+/g, '').toUpperCase();
+}
+/**
+ * Read every sheet's XML, keyed by sheet name.
+ *
+ * The sheet part is resolved through `workbook.xml` and its rels rather than assumed to
+ * be `sheet1.xml`: the numbers follow creation order, not tab order, so assuming would
+ * silently read the wrong sheet's XML and report a confident wrong answer.
+ */
+async function readSheetXml(path) {
+    const files = unzipSync(new Uint8Array(await readFile(path)));
+    const text = (name) => (files[name] ? strFromU8(files[name]) : '');
+    const targets = new Map();
+    for (const match of text('xl/_rels/workbook.xml.rels').matchAll(/<Relationship\b[^>]*>/g)) {
+        const id = /\bId="([^"]+)"/.exec(match[0])?.[1];
+        const target = /\bTarget="([^"]+)"/.exec(match[0])?.[1];
+        if (id && target)
+            targets.set(id, target);
+    }
+    const result = new Map();
+    for (const match of text('xl/workbook.xml').matchAll(/<sheet\b[^>]*>/g)) {
+        const tag = match[0];
+        const name = /\bname="([^"]*)"/.exec(tag)?.[1];
+        const rid = /\br:id="([^"]+)"/.exec(tag)?.[1];
+        if (!name || !rid)
+            continue;
+        const target = targets.get(rid);
+        if (!target)
+            continue;
+        const file = target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`;
+        const xml = files[file];
+        if (xml)
+            result.set(name.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'), strFromU8(xml));
+    }
+    return result;
 }
 /** Resolve `A2` or `订单!A2` against an already-loaded sheet. */
 function cellIn(sheet, cellId) {

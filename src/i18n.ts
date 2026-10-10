@@ -83,6 +83,10 @@ const EN: Record<string, string> = {
   '名称 {name} 期望 {expected} 实际 {actual}': 'name {name}: expected {expected}, found {actual}',
   '未定义': 'not defined',
   '条件格式 {range} {type} 存在 期望是': 'conditional format {range} of type {type}: expected present',
+  '重复标题行 期望 {expected} 实际 {actual}': 'repeating title rows: expected {expected}, found {actual}',
+  '重复标题列 期望 {expected} 实际 {actual}': 'repeating title columns: expected {expected}, found {actual}',
+  '手动分页符 期望 {expected} 实际 {actual}': 'manual row page breaks: expected {expected}, found {actual}',
+  '读不到工作表 XML': 'the sheet XML could not be read',
   // analysis.ts
   '{sheet} 的 {measure} 按 {time} 呈{direction}趋势：从 {first} 的 {from} 到 {last} 的 {to}（{change}），{consistent}/{steps} 期同向。':
     '{sheet}: {measure} trends {direction} by {time} — from {from} in {first} to {to} in {last} ({change}), {consistent} of {steps} steps in the same direction.',

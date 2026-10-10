@@ -64,6 +64,10 @@ export interface SheetAssertion {
     dataValidation?: Record<string, string>;
     /** Required page orientation, e.g. `landscape`. */
     pageOrientation?: string;
+    /** Required repeat-on-every-page rows, as Excel writes them (`1:1`). */
+    printTitlesRow?: string;
+    /** Required repeat-on-every-page columns, as Excel writes them (`A:A`). */
+    printTitlesColumn?: string;
     /** Required odd-page header string, as written (Excel codes and all). */
     oddHeader?: string;
     /** Required gridline visibility. */
@@ -87,6 +91,17 @@ export interface SheetAssertion {
         type: string;
         operator?: string;
     }>;
+    /**
+     * Required manual row page breaks, by 1-based row number — a break *above* that row.
+     *
+     * Exact match, so `[]` means "no manual breaks", the same rule `merged` follows.
+     *
+     * This is the one condition read from the sheet's XML rather than through ExcelJS.
+     * ExcelJS writes `<rowBreaks>` but does not load it back — the operation works, the
+     * file is right, and `worksheet.rowBreaks` still comes back empty on reload. Reading
+     * the XML is how the rest of this project handles what ExcelJS cannot see.
+     */
+    rowPageBreaks?: number[];
 }
 /**
  * A deterministic assertion over the workbook itself: sheet order and document

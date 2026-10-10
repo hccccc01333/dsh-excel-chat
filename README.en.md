@@ -193,7 +193,7 @@ Fine-grained Excel operations: set values, fill / series, insert and delete rows
 
 ## Benchmarks and reliability
 
-Depth and reliability: on a self-built evaluation corpus of 141 workplace tasks (ExcelBench
+Depth and reliability: on a self-built evaluation corpus of 144 workplace tasks (ExcelBench
 lite), goal mode with glm-5.3-flash reaches a measured task success rate of 86% (DeepSeek
 baseline 52%). **The per-run results table is [docs/benchmark-results.md](docs/benchmark-results.md)**
 — generated from raw run output, and you can run a row yourself. The metrics and failure

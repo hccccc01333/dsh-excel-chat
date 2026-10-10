@@ -156,4 +156,36 @@ export const workbookTasks: FileBenchmarkTask[] = [
       { id: '订单!B2', expect: '10' },
     ],
   },
+  {
+    id: 'workbook-print-titles',
+    category: 'editing',
+    name: '每页重复表头',
+    description: '打印多页时让表头行重复出现。',
+    buildInput: (dir) => buildCorpusWorkbook(dir, 'workbook-print-titles', [order(three)]),
+    operations: [{ op: 'printTitles', sheet: '订单', rows: '1:1' }],
+    checks: [{ sheet: '订单', printTitlesRow: '1:1' }],
+  },
+  {
+    id: 'workbook-row-page-breaks',
+    category: 'editing',
+    name: '手动分页',
+    description: '在第 2 行前插入分页符，让打印时从这里换页。',
+    buildInput: (dir) => buildCorpusWorkbook(dir, 'workbook-row-page-breaks', [order(three)]),
+    operations: [{ op: 'rowPageBreaks', sheet: '订单', rows: [2] }],
+    checks: [{ sheet: '订单', rowPageBreaks: [2] }],
+  },
+  {
+    id: 'workbook-clear-page-breaks',
+    category: 'editing',
+    name: '清掉手动分页',
+    description: '分页位置不合适，把手动分页符全部清掉，恢复自动分页。',
+    buildInput: (dir) => buildCorpusWorkbook(dir, 'workbook-clear-page-breaks', [order(three)]),
+    operations: [
+      { op: 'rowPageBreaks', sheet: '订单', rows: [2, 3] },
+      { op: 'clearPageBreaks', sheet: '订单' },
+    ],
+    // Exact match: the whole content of this task is that no break is left, and a
+    // containment check would pass without looking at anything.
+    checks: [{ sheet: '订单', rowPageBreaks: [] }],
+  },
 ]

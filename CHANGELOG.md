@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- **语料覆盖 70 → 73 / 77，剩下的 5 个全部有硬理由。**
+
+  | 新增 | 覆盖 |
+  | --- | --- |
+  | `printTitlesRow` / `printTitlesColumn` 条件 | `printTitles` |
+  | `rowPageBreaks` 条件 | `rowPageBreaks` · `clearPageBreaks` |
+
+  语料 **141 → 144**。
+
+- **`rowPageBreaks` 是这个项目里第一条从 XML 读的断言条件。**
+
+  探测发现：`rowPageBreaks` **写得出、读不回** —— 原始 XML 里 `<rowBreaks count="1">`
+  确实在，但 ExcelJS 重新加载后 `worksheet.rowBreaks` 是**空的**。**文件是对的，操作是对的，
+  只是读不到。**
+
+  所以这一个条件绕开 ExcelJS，直接读工作表 XML —— 这也是这个项目处理 ExcelJS 看不见的
+  东西的既有做法。**工作表文件按 `workbook.xml` + rels 解析，不假定 `sheet1.xml`**：
+  编号跟的是创建顺序、不是标签顺序，假定就会**安静地读错工作表**并给出一个自信的错答案。
+  跨表的情况专门验过（给「第二表」加断点，断言「订单」必须报「无」）。
+
+- **`printTitles` 是 ExcelJS 原生字段**（`pageSetup.printTitlesRow`），正常读回，不用走 XML。
+
+- 测试 **509 通过**。
+
 - **语料覆盖 69 → 70 / 77：`conditionalFormatting`。**
 
   摸清规则形状花了两次探测，两次都是我猜错的：
