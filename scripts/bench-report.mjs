@@ -22,6 +22,7 @@
  *   than a blank cell.
  */
 import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs'
+import { corpusTasks } from '../src/corpus/index.ts'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -122,6 +123,34 @@ function render(runs) {
     .filter((run) => run.provenance)
     .map((run) => `- **${run.label}**：${run.provenance}`)
 
+  // The corpus size is read, not written down. The numbers here used to be literals
+  // ("语料共 100 个文件级任务"), and the corpus outgrew them — the doc kept stating a
+  // scale the runs no longer used, which is the same drift this generator exists to stop.
+  const corpusTotal = corpusTasks.length
+  const corpusByCategory = Object.entries(
+    corpusTasks.reduce((acc, task) => {
+      acc[task.category] = (acc[task.category] ?? 0) + 1
+      return acc
+    }, {}),
+  )
+    .sort((a, b) => b[1] - a[1])
+    .map(([category, count]) => `${CATEGORY_LABELS[category] ?? category} ${count}`)
+    .join(' / ')
+
+  // A run whose `total` is not the current corpus size was measured on a different
+  // question set. Saying so here — computed, never typed — is what keeps a percentage
+  // from being read as a score on the current tasks.
+  const stale = runs.filter((run) => run.total !== corpusTotal)
+  const staleness = stale.length === 0
+    ? ''
+    : `
+> ⚠️ **下面 ${stale.length} 行不是在当前语料上跑的，不能直接比较。**
+> 当前语料共 **${corpusTotal}** 个任务（${corpusByCategory}），
+> 而 ${stale.map((run) => `\`${run.model}\` 用了 ${run.total} 个`).join('、')}。
+> 语料增长的部分大多来自此前**完全没有覆盖**的操作族 ——
+> 也就是说旧百分比是在**更容易的题面**上得到的。当前语料的实测结果**待重跑**。
+`
+
   return `# 评测结果（自动生成）
 
 > 本文件由 \`npm run bench:report\` 从 \`bench-results/*.json\` 生成，**不要手改**。
@@ -129,12 +158,50 @@ function render(runs) {
 > \`rounds\` 几个用于比较的字段）。手写的数字会和实测漂移，这张表不会。
 
 ## 结果
-
+${staleness}
 ${lines.join('\n')}
 
 任务成功率 = 全部断言通过且公式异常为 0；平均准确率 = 断言通过比例；
-完整性率 = 公式异常为 0 的任务比例。语料共 100 个文件级任务
-（编辑 35 / 分析 25 / 公式 22 / 工作流 18），见 [benchmark.md](benchmark.md)。
+完整性率 = 公式异常为 0 的任务比例。语料共 ${corpusTotal} 个文件级任务
+（${corpusByCategory}），见 [benchmark.md](benchmark.md)。
+
+## 复现
+
+重跑当前语料（${corpusTotal} 个任务）。**先跑不花钱的语料自检**，确认题目本身是好的：
+
+\`\`\`sh
+npm run bench:corpus     # ${corpusTotal}/${corpusTotal} 语料回归，不调用任何模型
+\`\`\`
+
+然后接任意 OpenAI 兼容端点。**OpenCode Go 上 Step 5 Preview 目前免费**：
+
+\`\`\`sh
+LLM_PROVIDER=deepseek \\
+DEEPSEEK_BASE_URL=https://opencode.ai/zen/go/v1 \\
+DEEPSEEK_MODEL=step-5-preview-free \\
+DEEPSEEK_API_KEY=<你的 OpenCode key> \\
+LLM_EXTRA_HEADERS='{"x-opencode-session":"dsh-excel-chat-bench"}' \\
+LLM_BENCH_OUT=bench-results/step-5-preview-free.jsonl \\
+node --test tests/invoke-llm-benchmark.ts
+\`\`\`
+
+**\`LLM_EXTRA_HEADERS\` 在 OpenCode 上是必须的**，不是可选项：缺 \`x-opencode-session\`
+时网关返回 \`400 MissingSessionID\`（原文：*"cannot be routed efficiently"*），
+而那个报错**看起来像模型坏了**。它是通用的 JSON 头，不做 provider 特判 ——
+不需要额外头的网关什么都不用设。写错了会**抛错**而不是被静默忽略。
+
+\`LLM_BENCH_OUT\` 是**逐任务断点文件**：每完成一个任务追加一行，重跑跳过已完成的，
+所以长跑断了不用从头来 —— 而且它**就是**原始逐任务结果。
+
+**先小样验证再接长跑**（实测约 2–3 分钟一个任务，全量要几小时）：
+
+\`\`\`sh
+LLM_BENCH_SAMPLE=3 LLM_BENCH_OUT=/tmp/smoke.jsonl \\
+LLM_PROVIDER=deepseek DEEPSEEK_BASE_URL=https://opencode.ai/zen/go/v1 \\
+DEEPSEEK_MODEL=step-5-preview-free DEEPSEEK_API_KEY=<key> \\
+LLM_EXTRA_HEADERS='{"x-opencode-session":"smoke"}' \\
+node --test tests/invoke-llm-benchmark.ts
+\`\`\`
 
 ## 自己跑一行
 
@@ -159,13 +226,7 @@ DEEPSEEK_API_KEY=ollama DEEPSEEK_BASE_URL=http://localhost:11434/v1 \\
 npm run bench:report
 \`\`\`
 
-跑之前先确认语料本身是好的（**不调用任何模型，秒级完成**）：
-
-\`\`\`sh
-npm run bench:corpus     # 100/100 语料回归
-\`\`\`
-
-**注意**：没配 key 时 runner 不会报错退出，而是把 100 个任务全记成
+**注意**：没配 key 时 runner 不会报错退出，而是把 ${corpusTotal} 个任务全记成
 \`execution\` 失败。所以生成表时会**拒绝**这种「全 execution + 0% 成功率」的结果——
 它不是模型得 0 分，是根本没跑到模型。托管端点限流严重时，用
 \`LLM_BENCH_OUT\` 开断点续跑逐任务补齐，别让限流污染整轮结果。

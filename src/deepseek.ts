@@ -13,11 +13,48 @@ export interface DeepSeekMessage {
   tool_calls?: DeepSeekToolCall[]
 }
 
+/** How this plugin identifies itself to a gateway. */
+const USER_AGENT = 'dsh-excel-chat/1.0'
+
+/**
+ * Extra request headers from `LLM_EXTRA_HEADERS`, as a JSON object.
+ *
+ * Some gateways require headers of their own — OpenCode, for one, refuses a request
+ * without `x-opencode-session` and says so in the error. Naming the header in an
+ * environment variable keeps this generic: no provider is special-cased here, and a
+ * gateway that needs nothing simply sets nothing.
+ *
+ * A malformed value throws rather than being ignored. Silently dropping the headers
+ * would turn a gateway's 400 into something that looks like a broken model.
+ */
+export function parseExtraHeaders(
+  raw: string | undefined = process.env.LLM_EXTRA_HEADERS,
+): Record<string, string> {
+  if (!raw || raw.trim() === '') return {}
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('LLM_EXTRA_HEADERS must be a JSON object, for example {"x-opencode-session":"abc"}')
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('LLM_EXTRA_HEADERS must be a JSON object of string values')
+  }
+  const headers: Record<string, string> = {}
+  for (const [name, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (typeof value !== 'string') throw new Error(`LLM_EXTRA_HEADERS["${name}"] must be a string`)
+    headers[name] = value
+  }
+  return headers
+}
+
 export interface DeepSeekChatOptions {
   apiKey: string
   baseUrl?: string
   model: string
   messages: DeepSeekMessage[]
+  /** Extra request headers. Some gateways require their own; see `LLM_EXTRA_HEADERS`. */
+  headers?: Record<string, string>
   temperature?: number
   maxTokens?: number
   signal?: AbortSignal
@@ -30,6 +67,8 @@ export async function deepseekChatCompletion(options: DeepSeekChatOptions): Prom
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${options.apiKey}`,
+      'User-Agent': USER_AGENT,
+      ...options.headers,
     },
     body: JSON.stringify({
       model: options.model,
@@ -83,6 +122,7 @@ export function deepseekLlmTextFromEnv(model = process.env.DEEPSEEK_MODEL ?? 'de
     messages: [{ role: 'user', content: prompt }],
     temperature: 0,
     maxTokens,
+    headers: parseExtraHeaders(),
     signal,
   })
 }
@@ -102,6 +142,8 @@ export async function deepseekChatWithTools(
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${options.apiKey}`,
+      'User-Agent': USER_AGENT,
+      ...options.headers,
     },
     body: JSON.stringify({
       model: options.model,

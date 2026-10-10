@@ -6,49 +6,56 @@
 
 ## 结果
 
-> ⚠️ **这两行是 100 任务语料时代的数据，不能和现在的语料直接比较。**
-> 语料已经从 100 涨到 **144 个任务**（编辑 77 / 分析 27 / 公式 22 / 工作流 18），
-> 新加的任务大多来自此前**完全没有覆盖**的操作族 —— 也就是说，这些百分比是在
-> **更容易的题面**上得到的。当前语料的实测结果**待重跑**，跑完会替换这一节，
-> 并附上原始逐任务结果。
+> ⚠️ **下面 2 行不是在当前语料上跑的，不能直接比较。**
+> 当前语料共 **144** 个任务（编辑 77 / 分析 27 / 公式 22 / 工作流 18），
+> 而 `deepseek-chat` 用了 100 个、`glm-5.3-flash` 用了 100 个。
+> 语料增长的部分大多来自此前**完全没有覆盖**的操作族 ——
+> 也就是说旧百分比是在**更容易的题面**上得到的。当前语料的实测结果**待重跑**。
 
 | 模型 | 日期 | 轮数 | 任务成功率 | 平均准确率 | 完整性率 | 编辑 | 分析 | 公式 | 工作流 | 最大失败源 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | deepseek-chat | 2026-10-07 | 3 | **52%** | 61% | 93% | 65.7% | 28% | 68.2% | 38.9% | Verification 33 |
 | glm-5.3-flash | 2026-10-07 | 3 | **86%** | 88.5% | 99% | 85.7% | 84% | 95.5% | 77.8% | Argument 9 |
 
-**上面两行的语料规模是 100 个文件级任务**（编辑 35 / 分析 25 / 公式 22 / 工作流 18）。
 任务成功率 = 全部断言通过且公式异常为 0；平均准确率 = 断言通过比例；
-完整性率 = 公式异常为 0 的任务比例。当前语料见 [benchmark.md](benchmark.md)。
+完整性率 = 公式异常为 0 的任务比例。语料共 144 个文件级任务
+（编辑 77 / 分析 27 / 公式 22 / 工作流 18），见 [benchmark.md](benchmark.md)。
 
 ## 复现
 
 重跑当前语料（144 个任务）。**先跑不花钱的语料自检**，确认题目本身是好的：
 
 ```sh
-npm run bench:corpus     # 不调用任何模型，秒级完成
+npm run bench:corpus     # 144/144 语料回归，不调用任何模型
 ```
 
-然后接任意 OpenAI 兼容端点。例如 OpenCode Go 上免费的 Step 5 Preview：
+然后接任意 OpenAI 兼容端点。**OpenCode Go 上 Step 5 Preview 目前免费**：
 
 ```sh
 LLM_PROVIDER=deepseek \
 DEEPSEEK_BASE_URL=https://opencode.ai/zen/go/v1 \
 DEEPSEEK_MODEL=step-5-preview-free \
 DEEPSEEK_API_KEY=<你的 OpenCode key> \
+LLM_EXTRA_HEADERS='{"x-opencode-session":"dsh-excel-chat-bench"}' \
 LLM_BENCH_OUT=bench-results/step-5-preview-free.jsonl \
 node --test tests/invoke-llm-benchmark.ts
 ```
 
-`LLM_BENCH_OUT` 是**逐任务断点文件** ✓ —— 每完成一个任务就追加一行 ✓，重跑会跳过已完成的 ✓。
-长跑中途断了不用从头来 ✓，而且它**就是**原始逐任务结果 ✓。
+**`LLM_EXTRA_HEADERS` 在 OpenCode 上是必须的**，不是可选项：缺 `x-opencode-session`
+时网关返回 `400 MissingSessionID`（原文：*"cannot be routed efficiently"*），
+而那个报错**看起来像模型坏了**。它是通用的 JSON 头，不做 provider 特判 ——
+不需要额外头的网关什么都不用设。写错了会**抛错**而不是被静默忽略。
 
-**先小样验证再接长跑** ✓：
+`LLM_BENCH_OUT` 是**逐任务断点文件**：每完成一个任务追加一行，重跑跳过已完成的，
+所以长跑断了不用从头来 —— 而且它**就是**原始逐任务结果。
+
+**先小样验证再接长跑**（实测约 2–3 分钟一个任务，全量要几小时）：
 
 ```sh
 LLM_BENCH_SAMPLE=3 LLM_BENCH_OUT=/tmp/smoke.jsonl \
 LLM_PROVIDER=deepseek DEEPSEEK_BASE_URL=https://opencode.ai/zen/go/v1 \
 DEEPSEEK_MODEL=step-5-preview-free DEEPSEEK_API_KEY=<key> \
+LLM_EXTRA_HEADERS='{"x-opencode-session":"smoke"}' \
 node --test tests/invoke-llm-benchmark.ts
 ```
 
@@ -75,13 +82,7 @@ DEEPSEEK_API_KEY=ollama DEEPSEEK_BASE_URL=http://localhost:11434/v1 \
 npm run bench:report
 ```
 
-跑之前先确认语料本身是好的（**不调用任何模型，秒级完成**）：
-
-```sh
-npm run bench:corpus     # 100/100 语料回归
-```
-
-**注意**：没配 key 时 runner 不会报错退出，而是把 100 个任务全记成
+**注意**：没配 key 时 runner 不会报错退出，而是把 144 个任务全记成
 `execution` 失败。所以生成表时会**拒绝**这种「全 execution + 0% 成功率」的结果——
 它不是模型得 0 分，是根本没跑到模型。托管端点限流严重时，用
 `LLM_BENCH_OUT` 开断点续跑逐任务补齐，别让限流污染整轮结果。
