@@ -141,6 +141,12 @@ function render(runs) {
   // question set. Saying so here — computed, never typed — is what keeps a percentage
   // from being read as a score on the current tasks.
   const stale = runs.filter((run) => run.total !== corpusTotal)
+  const current = runs.filter((run) => run.total === corpusTotal)
+  // Whether the current corpus has been measured is a fact about the artifacts, not a
+  // sentence to remember to edit. It said "待重跑" once the rerun had happened.
+  const currentNote = current.length === 0
+    ? '当前语料的实测结果**待重跑**。'
+    : `当前语料已有实测结果：${current.map((run) => `\`${run.model}\` ${(run.rate * 100).toFixed(1)}%`).join('、')}。`
   const staleness = stale.length === 0
     ? ''
     : `
@@ -148,7 +154,7 @@ function render(runs) {
 > 当前语料共 **${corpusTotal}** 个任务（${corpusByCategory}），
 > 而 ${stale.map((run) => `\`${run.model}\` 用了 ${run.total} 个`).join('、')}。
 > 语料增长的部分大多来自此前**完全没有覆盖**的操作族 ——
-> 也就是说旧百分比是在**更容易的题面**上得到的。当前语料的实测结果**待重跑**。
+> 也就是说旧百分比是在**更容易的题面**上得到的。${currentNote}
 `
 
   return `# 评测结果（自动生成）

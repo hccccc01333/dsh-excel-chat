@@ -1,0 +1,46 @@
+{
+  "label": "step-5-preview-free",
+  "model": "step-5-preview-free",
+  "provider": "opencode-go",
+  "date": "2026-10-10",
+  "rounds": 3,
+  "total": 144,
+  "success": 64,
+  "successRate": 0.4444444444444444,
+  "meanAccuracy": 0.4785879629629629,
+  "integrityRate": 0.5902777777777778,
+  "categories": {
+    "editing": {
+      "total": 77,
+      "success": 37,
+      "successRate": 0.4805194805194805
+    },
+    "analysis": {
+      "total": 27,
+      "success": 5,
+      "successRate": 0.18518518518518517
+    },
+    "formula": {
+      "total": 22,
+      "success": 16,
+      "successRate": 0.7272727272727273
+    },
+    "workflow": {
+      "total": 18,
+      "success": 6,
+      "successRate": 0.3333333333333333
+    }
+  },
+  "failureBreakdown": {
+    "intent": 3,
+    "semantic": 0,
+    "planning": 1,
+    "tool-selection": 0,
+    "argument": 18,
+    "execution": 58,
+    "verification": 0,
+    "replan": 0,
+    "other": 0
+  },
+  "provenance": "OpenCode Go 免费期实测，LLM_BENCH_CONCURRENCY=8，原始逐任务结果见 bench-results/step-5-preview-free.jsonl。"
+}
