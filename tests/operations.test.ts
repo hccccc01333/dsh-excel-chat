@@ -2290,3 +2290,41 @@ test('fillSeries accepts a single-cell target', async () => {
   assert.equal(sheet.getCell('A2').value, 2)
   assert.equal(sheet.getCell('A3').value, 3)
 })
+
+/**
+ * The one operation nothing executed: `unprotectSheet`.
+ *
+ * A coverage scan over the corpus and every test file found 76 of the 77 operations
+ * reached the dispatcher at least once; this was the exception. `protectSheet` was
+ * tested, so the path that removes protection never ran.
+ *
+ * The password field is documented as "password used when protecting", not as one to
+ * check against — and it cannot be checked, because ExcelJS's `unprotect()` takes no
+ * argument and its password derivation is not exported. So removing protection with a
+ * mismatched password is the documented behaviour, not a hole; what was missing was
+ * anything at all pinning it.
+ */
+test('unprotectSheet removes protection, whatever password is supplied', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('订单')
+    sheet.getCell('A1').value = '产品'
+  })
+  const outPath = join(join(path, '..'), 'unprotect.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'protectSheet', sheet: '订单', password: 'secret' },
+    { op: 'unprotectSheet', sheet: '订单', password: 'secret' },
+  ], outPath)
+
+  const { unzipSync, strFromU8 } = await import('fflate')
+  const files = unzipSync(new Uint8Array(await readFile(outPath)))
+  const sheetXml = strFromU8(files['xl/worksheets/sheet1.xml']!)
+  assert.ok(!/<sheetProtection/.test(sheetXml), 'protection should be gone')
+
+  // And protecting alone does write it, so the assertion above is not vacuous.
+  const protectedPath = join(join(path, '..'), 'protect.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'protectSheet', sheet: '订单', password: 'secret' },
+  ], protectedPath)
+  const protectedFiles = unzipSync(new Uint8Array(await readFile(protectedPath)))
+  assert.match(strFromU8(protectedFiles['xl/worksheets/sheet1.xml']!), /<sheetProtection/)
+})
