@@ -1,28 +1,11 @@
 # Publish dsh-excel-chat to npm and attach the tarball to a GitHub Release.
 #
-# Publishing uses npm **trusted publishing** (OIDC): GitHub mints a short-lived
-# token for this exact workflow, so there is no `NPM_TOKEN` secret to rotate, no
-# long-lived credential in the repo, and no 2FA prompt to sit through. It also
-# makes a release fully automatic — `node scripts/release.mjs X.Y.Z` is the whole
-# procedure.
+# Runs on a `v*` tag. Publishing uses npm trusted publishing (OIDC), so the repo
+# holds no npm credential; the trust relationship lives in the npm package settings
+# and is out of band with this file.
 #
-# One-time setup (repo owner), on npmjs.com:
-#   Package → Settings → Trusted publishing → GitHub Actions
-#     Organization or user : hccccc01333
-#     Repository           : dsh-excel-chat
-#     Workflow filename    : publish.yml        (the file name only)
-#     Environment name     : (leave blank)
-#     Allowed actions      : allow `npm publish` — leaving only `npm stage
-#                            publish` checked sends every release back to a
-#                            manual 2FA approval
-#   Every field is case-sensitive and npm does not validate them on save: a typo
-#   only surfaces as ENEEDAUTH on the next release. The configuration must also
-#   complete one successful publish within two days or it expires.
-#
-# Trigger a release:
-#   node scripts/release.mjs X.Y.Z
-# which bumps both manifests, stamps CHANGELOG.md, commits, tags and pushes; this
-# workflow then tests, builds, publishes and opens the GitHub Release.
+# Triggered by `node scripts/release.mjs X.Y.Z`, which bumps both manifests, stamps
+# CHANGELOG.md, commits, tags and pushes.
 
 name: Publish to npm
 

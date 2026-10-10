@@ -27,7 +27,11 @@ for (const name of ['README.md', 'README.en.md']) {
 
     const headings = new Set<string>()
     for (const line of text.split('\n')) {
-      const match = /^#{1,6}\s+(.*)$/.exec(line)
+      // Strip the carriage return first. Without `m`, `$` anchors to the end of the
+      // string and `.` will not match `\r`, so on a CRLF file the pattern matched no
+      // heading at all and every anchor looked broken — which is exactly what happened
+      // when the file's line endings changed.
+      const match = /^#{1,6}\s+(.*)$/.exec(line.replace(/\r$/, ''))
       if (match) headings.add(slug(match[1]!))
     }
 

@@ -34,7 +34,7 @@
 - [为什么用它](#为什么用它) · [最近更新](#最近更新)
 - [功能实录](#功能实录对话内真实截图) · [架构](#架构) · [安装与上手](#安装与上手)
 - [工具](#工具)（[先看懂文件](#先看懂文件) · [动手改文件](#动手改文件) · [公式体检与修复](#公式体检与修复这个项目的核心) · [对比与图表](#对比与图表)）
-- [评测与可靠性](#评测与可靠性) · [开发](#开发) · [已知限制](#已知限制) · [相关链接](#相关链接)
+- [评测与可靠性](#评测与可靠性) · [已知限制](#已知限制) · [相关链接](#相关链接)
 
 ![dsh-excel-chat 能力一览](assets/feature-grid.png)
 
@@ -180,90 +180,6 @@ goal 模式 + glm-5.3-flash 全量实测成功率 86%（DeepSeek 基线 52%）�
 **逐次跑分的公开结果表见 [docs/benchmark-results.md](docs/benchmark-results.md)**
 （由原始输出生成，你可以自己跑一行加进去）；指标与失败归因见 [docs/benchmark.md](docs/benchmark.md)；右侧可编辑 Excel
 面板的设计与实测见 [docs/web-panel.md](docs/web-panel.md)。
-
-## 源码模块
-
-每个源文件做什么，见 [docs/modules.md](docs/modules.md)。
-
-## 开发
-
-```sh
-node --test tests/*.test.ts        # 全量（483 项）
-```
-
-真实模型端到端：
-
-```sh
-node tests/invoke-real-llm.ts
-node tests/invoke-conversation.ts   # 对话直用：自然语言 -> 工具调用 -> 执行 -> 复验
-```
-
-Pass@1 benchmark（确定性修复 + 可选 LLM）：
-
-```sh
-node tests/invoke-benchmark.ts                 # 仅确定性路线
-VERA_BENCH_LLM=1 node tests/invoke-benchmark.ts # 接真实 DeepSeek
-```
-
-构建并安装 bundle：
-
-```sh
-npm run build:bundle
-dsh plugin --profile demo add ./bundle
-```
-
-发布 bundle（可选，本地打包）：
-
-```sh
-cd bundle && npm pack
-```
-
-发版（一条命令）：
-
-```sh
-node scripts/release.mjs X.Y.Z        # 或 npm run release -- X.Y.Z
-```
-
-它会：改 `bundle/package.json` 与根 `package.json` 的版本 → 把 CHANGELOG 的
-`## Unreleased` 段定版为 `## vX.Y.Z — 日期` → 重新构建 `bundle/dist` → 跑全量测试
-→ 提交 → 打 tag `vX.Y.Z` → 推送。**推 tag 会触发 `.github/workflows/publish.yml`**，
-由 CI 完成测试、构建、`npm pack` 校验 tag 与版本一致、发布 npm（并在 GitHub Release
-上附带 tarball）。
-
-发布走 **npm trusted publishing（OIDC）**：GitHub 为这个工作流签发短期凭证，
-仓库里不需要 `NPM_TOKEN`，也不需要人工过 2FA。首次使用前需在 npmjs.com 上做一次
-配置（包 → Settings → Trusted publishing → GitHub Actions，仓库 `hccccc01333/dsh-excel-chat`、
-工作流文件名 `publish.yml`、允许 `npm publish`）；细节见 workflow 顶部的注释。
-
-加 `--dry-run` 只校验不改动，加 `--no-push` 只本地提交打 tag。
-
-通过真实执行管线调用工具：
-
-```sh
-node --import tsx tests/invoke-plugin.ts
-node --import tsx tests/invoke-compiler.ts
-node --import tsx tests/invoke-workbook.ts
-node --import tsx tests/invoke-repair.ts
-```
-
-挂进 Web UI（可选，两种方式）：仓库里只带模板 `cordis.yml.example`，
-先复制成 `cordis.yml` 并填上你的路径。
-
-```sh
-# 复制模板，再把里面的 PATH/TO/... 换成你的实际路径
-cp cordis.yml.example cordis.yml
-
-# 方式一：从仓库目录启动，patch 指向本目录
-# （把 /path/to/dsh-excel-chat 换成你实际 clone 下来的路径）
-pnpm dsh web --patch /path/to/dsh-excel-chat/cordis.yml
-
-# 方式二：安装官方 CLI 后从本地启动（依赖树较大，机器空闲时再装）
-npm install --save-dev @deepseek-ai/dsh@0.1.0-rc.6
-npx dsh web --patch /path/to/dsh-excel-chat/cordis.yml
-```
-
-Windows 上 `cordis.yml` 的入口路径必须是 URL 形式（如
-`file:///d:/projects/dsh-excel-chat/src/index.ts`），不能用相对路径。
 
 ## 一个例子：它怎么发现问题
 

@@ -48,7 +48,7 @@ genuinely drive Excel — charts, native pivot tables, PDF export — require Wi
 - [Why this exists](#why-this-exists) · [What's new](#whats-new)
 - [In action](#in-action-real-screenshots-from-the-conversation) · [Architecture](#architecture) · [Install and first steps](#install-and-first-steps)
 - [Tools](#tools) · [Benchmarks and reliability](#benchmarks-and-reliability)
-- [Development](#development) · [Known limitations](#known-limitations) · [Links](#links)
+- [Known limitations](#known-limitations) · [Links](#links)
 
 ## In action (real screenshots from the conversation)
 
@@ -200,92 +200,6 @@ baseline 52%). **The per-run results table is [docs/benchmark-results.md](docs/b
 attribution are in
 [docs/benchmark.md](docs/benchmark.md). The design and measurements of the editable Excel
 panel are in [docs/web-panel.md](docs/web-panel.md).
-
-## Source modules
-
-What each source file does: [docs/modules.en.md](docs/modules.en.md).
-
-## Development
-
-```sh
-node --test tests/*.test.ts        # everything (483 tests)
-```
-
-Real-model end to end:
-
-```sh
-node tests/invoke-real-llm.ts
-node tests/invoke-conversation.ts   # conversation: natural language -> tool call -> execute -> re-validate
-```
-
-The Pass@1 benchmark (deterministic repair, optionally LLM):
-
-```sh
-node tests/invoke-benchmark.ts                  # deterministic route only
-VERA_BENCH_LLM=1 node tests/invoke-benchmark.ts # against a real DeepSeek endpoint
-```
-
-Build and install the bundle:
-
-```sh
-npm run build:bundle
-dsh plugin --profile demo add ./bundle
-```
-
-Pack the bundle locally (optional):
-
-```sh
-cd bundle && npm pack
-```
-
-Release (one command):
-
-```sh
-node scripts/release.mjs X.Y.Z        # or npm run release -- X.Y.Z
-```
-
-It bumps the version in `bundle/package.json` and the root `package.json`, stamps the
-CHANGELOG's `## Unreleased` section as `## vX.Y.Z — <date>`, rebuilds `bundle/dist`, runs
-the full test suite, commits, tags `v0.40.0` and pushes. **Pushing the tag triggers
-`.github/workflows/publish.yml`**, where CI tests, builds, checks with `npm pack` that the
-tag matches the version, publishes to npm, and attaches the tarball to a GitHub Release.
-
-Publishing uses **npm trusted publishing (OIDC)**: GitHub issues short-lived credentials to
-the workflow, so the repository needs no `NPM_TOKEN` and no human passes 2FA. It needs a
-one-time setup on npmjs.com (package → Settings → Trusted publishing → GitHub Actions, repo
-`hccccc01333/dsh-excel-chat`, workflow file `publish.yml`, allowing `npm publish`); details
-are in the comment at the top of the workflow.
-
-`--dry-run` only validates, `--no-push` only commits and tags locally.
-
-Call the tools through the real execution pipeline:
-
-```sh
-node --import tsx tests/invoke-plugin.ts
-node --import tsx tests/invoke-compiler.ts
-node --import tsx tests/invoke-workbook.ts
-node --import tsx tests/invoke-repair.ts
-```
-
-Wiring it into the Web UI (optional, two ways): the repository ships only the template
-`cordis.yml.example`, so copy it to `cordis.yml` and fill in your paths.
-
-```sh
-# copy the template, then replace PATH/TO/... with your real paths
-cp cordis.yml.example cordis.yml
-
-# way 1: start from the repository directory, with the patch pointing at it
-# (replace /path/to/dsh-excel-chat with where you actually cloned it)
-pnpm dsh web --patch /path/to/dsh-excel-chat/cordis.yml
-
-# way 2: install the official CLI and start from a local checkout
-# (a large dependency tree — install when the machine is idle)
-npm install --save-dev @deepseek-ai/dsh@0.1.0-rc.6
-npx dsh web --patch /path/to/dsh-excel-chat/cordis.yml
-```
-
-On Windows the entry path in `cordis.yml` must be a URL (for example
-`file:///d:/projects/dsh-excel-chat/src/index.ts`), not a relative path.
 
 ## Example
 
