@@ -81,6 +81,15 @@ export interface SheetAssertion {
   state?: 'visible' | 'hidden' | 'veryHidden'
   /** Merged ranges that must exist, as written (`A1:B1`). */
   merged?: string[]
+  /**
+   * Conditional-formatting rules that must exist, matched on range, type and operator.
+   *
+   * The rule's style is deliberately not asserted: the point of a conditional format is
+   * that it changes what a cell looks like *when a condition holds*, and the corpus has
+   * no way to evaluate the condition. Asserting the rule is present is the honest check;
+   * asserting its colour would be asserting the file's XML, not its behaviour.
+   */
+  conditionalFormattings?: Array<{ range: string; type: string; operator?: string }>
 }
 
 /**
@@ -442,6 +451,25 @@ function evaluateSheetAssertion(
       }),
       passed: actual.size === wanted.size && [...wanted].every((range) => actual.has(range)),
     })
+  }
+
+  if (assertion.conditionalFormattings !== undefined) {
+    const actual = (sheet as unknown as {
+      conditionalFormattings?: Array<{ ref?: string; rules?: Array<{ type?: string; operator?: string }> }>
+    }).conditionalFormattings ?? []
+    for (const wanted of assertion.conditionalFormattings) {
+      const found = actual.some(
+        (entry) =>
+          normalizeRef(entry.ref ?? '') === normalizeRef(wanted.range) &&
+          (entry.rules ?? []).some(
+            (rule) => rule.type === wanted.type && (wanted.operator === undefined || rule.operator === wanted.operator),
+          ),
+      )
+      checks.push({
+        label: t('条件格式 {range} {type} 存在 期望是', { range: wanted.range, type: wanted.type }),
+        passed: found,
+      })
+    }
   }
 
   if (checks.length === 0) {

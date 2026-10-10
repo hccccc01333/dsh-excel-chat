@@ -139,4 +139,21 @@ export const workbookTasks: FileBenchmarkTask[] = [
       { id: '订单!B2', expect: '10' },
     ],
   },
+  {
+    id: 'workbook-conditional-format',
+    category: 'editing',
+    name: '给超标数量标红',
+    description: '数量大于 6 的格子自动标红加粗。',
+    buildInput: (dir) => buildCorpusWorkbook(dir, 'workbook-conditional-format', [order(three)]),
+    operations: [{
+      op: 'conditionalFormatting',
+      range: '订单!B2:B4',
+      rules: [{ type: 'cellIs', operator: 'greaterThan', formula: '6', style: { fill: 'FFC7CE', bold: true } }],
+    }],
+    checks: [
+      { sheet: '订单', conditionalFormattings: [{ range: 'B2:B4', type: 'cellIs', operator: 'greaterThan' }] },
+      // A conditional format must not change the values themselves.
+      { id: '订单!B2', expect: '10' },
+    ],
+  },
 ]

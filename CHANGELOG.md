@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **语料覆盖 69 → 70 / 77：`conditionalFormatting`。**
+
+  摸清规则形状花了两次探测，两次都是我猜错的：
+
+  | 我猜的 | 实际 |
+  | --- | --- |
+  | `formulae: ['6']` | **`formula: '6'`**（单数） |
+  | `style: { fill: { type:'pattern', fgColor:{ argb } } }`（ExcelJS 形状） | **`style: { fill: 'FFC7CE', bold: true }`**（扁平十六进制） |
+
+  断言按**范围 + 类型 + 运算符**匹配，**刻意不断言样式**：条件格式的意义是「条件成立时
+  才改变外观」，而语料没有求值条件的能力。断言规则存在是诚实的检查；断言颜色只是在断言
+  文件的 XML。
+
+  ```ts
+  { sheet: '订单', conditionalFormattings: [{ range: 'B2:B4', type: 'cellIs', operator: 'greaterThan' }] }
+  ```
+
+  反向验过：**范围不对、运算符不对、类型不对都会被抓住**。
+
+  语料 **140 → 141**。
+
+- 测试 **509 通过**。
+
 - **语料覆盖 68 → 69 / 77：`definedName`。**
 
   工作簿级断言多了一个条件 —— 命名区域。比较时**两边都归一化**（去掉 `$` 和表名引号）：

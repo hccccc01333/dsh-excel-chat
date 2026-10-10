@@ -280,6 +280,17 @@ function evaluateSheetAssertion(assertion, workbook) {
             passed: actual.size === wanted.size && [...wanted].every((range) => actual.has(range)),
         });
     }
+    if (assertion.conditionalFormattings !== undefined) {
+        const actual = sheet.conditionalFormattings ?? [];
+        for (const wanted of assertion.conditionalFormattings) {
+            const found = actual.some((entry) => normalizeRef(entry.ref ?? '') === normalizeRef(wanted.range) &&
+                (entry.rules ?? []).some((rule) => rule.type === wanted.type && (wanted.operator === undefined || rule.operator === wanted.operator)));
+            checks.push({
+                label: t('条件格式 {range} {type} 存在 期望是', { range: wanted.range, type: wanted.type }),
+                passed: found,
+            });
+        }
+    }
     if (checks.length === 0) {
         return { id: assertion.sheet, passed: false, detail: t('{sheet} 的表级断言没有声明任何条件', { sheet: assertion.sheet }) };
     }

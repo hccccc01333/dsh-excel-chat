@@ -57,6 +57,7 @@ const EN = {
     '工作簿级断言没有声明任何条件': 'the workbook-level assertion declares no condition to check',
     '名称 {name} 期望 {expected} 实际 {actual}': 'name {name}: expected {expected}, found {actual}',
     '未定义': 'not defined',
+    '条件格式 {range} {type} 存在 期望是': 'conditional format {range} of type {type}: expected present',
     // analysis.ts
     '{sheet} 的 {measure} 按 {time} 呈{direction}趋势：从 {first} 的 {from} 到 {last} 的 {to}（{change}），{consistent}/{steps} 期同向。': '{sheet}: {measure} trends {direction} by {time} — from {from} in {first} to {to} in {last} ({change}), {consistent} of {steps} steps in the same direction.',
     '上升': 'up',

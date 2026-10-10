@@ -109,7 +109,7 @@ test('every corpus task asserts something', () => {
         'frozen', 'hiddenRows', 'hiddenColumns', 'columnWidth', 'rowHeight',
         'protected', 'tabColor', 'autoFilter', 'comments', 'hyperlinks', 'outlineRows',
         'outlineColumns', 'images', 'tables', 'dataValidation', 'pageOrientation',
-        'oddHeader', 'showGridLines', 'zoom', 'state', 'merged', 'sheetOrder', 'properties', 'workbook', 'definedNames']
+        'oddHeader', 'showGridLines', 'zoom', 'state', 'merged', 'sheetOrder', 'properties', 'workbook', 'definedNames', 'conditionalFormattings']
         .filter((key) => (check as Record<string, unknown>)[key] !== undefined)
       const label = (check as { id?: string }).id ?? (check as { sheet?: string }).sheet
       assert.ok(conditions.length > 0, `${task.id}/${label} declares no condition to check`)
