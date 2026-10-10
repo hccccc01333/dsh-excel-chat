@@ -9,6 +9,7 @@ import { readWorkbookCells, stripPivotTableParts } from './workbook.js';
 import { diffCellMaps, writePatchLog } from './diff.js';
 import { annotateWorkbookXml, emptyAnnotations } from './xml-postprocess.js';
 import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 export * from './operation-types.js';
 import { findSheet, resolveCell, writeContent, parseRange, cellContentOf, qualifySheetName, properCase, normalizeTextValue, similarity, splitByWidth } from './op/core.js';
 import { deleteColumnsFromSheet, deleteRowsFromSheet, shiftWorkbookColumns, shiftWorkbookRows } from './op/structure.js';
@@ -27,7 +28,24 @@ import { applyAggregateReport, applyPreset, applyReport, applySubtotal } from '.
 // re-exported rather than removed so every existing caller keeps importing them
 // from here, and the split stays a change of layout rather than of interface.
 export { findSheet, qualifySheetName, shiftFormulaReferences } from './op/core.js';
-export async function applyOperationsToWorkbook(inputPath, operations, outputPath) {
+/**
+ * Whether two paths name the same file.
+ *
+ * Resolved to absolute, with separators unified, and compared case-insensitively on
+ * Windows — where `C:\a.xlsx` and `c:\A.XLSX` are one file, and `./a.xlsx` and `a.xlsx`
+ * are one file everywhere.
+ *
+ * It errs towards "same". A false positive refuses an edit that would have been safe,
+ * which the caller fixes by naming a different output; a false negative lets an
+ * in-place rewrite through the gate, which is the exact loss the gate exists to stop.
+ */
+function samePath(a, b) {
+    const normalize = (path) => resolve(path).replace(/\\/g, '/');
+    const left = normalize(a);
+    const right = normalize(b);
+    return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
+}
+export async function applyOperationsToWorkbook(inputPath, operations, outputPath, options = {}) {
     const original = await readFile(inputPath);
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(stripPivotTableParts(original));
@@ -40,11 +58,24 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
     const preserved = capturePreserved(original);
     const unpreserved = findUnpreservedParts(original);
     if (unpreserved.length > 0) {
+        // In-place is the dangerous case: the original is overwritten, so whatever is
+        // dropped is dropped for good. Writing to a different path leaves the original
+        // exactly as it was, and that is the escape hatch this error points at.
+        const inPlace = samePath(inputPath, outputPath);
+        if (inPlace && options.onUnpreserved !== 'allow') {
+            throw new Error(t('这个文件含有本插件无法保留的内容：{features}。原地编辑会永久丢失它们，因此已拒绝写入，原文件未改动。要么把 output 指向另一个文件（原文件保留），要么在确认可接受损失后显式传入 onUnpreserved: "allow"。', {
+                features: listJoin(unpreserved),
+            }));
+        }
         warnings.push({
             op: -1,
-            message: t('这个文件含有本插件无法保留的内容，编辑后会丢失：{features}。需要保留请先另存一份副本，或改用原生 Excel 操作。', {
-                features: listJoin(unpreserved),
-            }),
+            message: inPlace
+                ? t('这个文件含有本插件无法保留的内容，编辑后会丢失：{features}。（已显式确认，继续写入。）', {
+                    features: listJoin(unpreserved),
+                })
+                : t('这个文件含有本插件无法保留的内容，输出副本里不会有它们：{features}。原文件未改动。', {
+                    features: listJoin(unpreserved),
+                }),
         });
     }
     for (const [index, operation] of operations.entries()) {
@@ -897,13 +928,13 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
  * Fixed-width split: take `widths[i]` characters per output column. Anything
  * past the last width becomes a trailing column rather than being dropped.
  */
-export async function operateWorkbookFile(path, operations, outputPath) {
+export async function operateWorkbookFile(path, operations, outputPath, options = {}) {
     // Read the "before" state first. Reading it after the write only works when the
     // output is a different file; for an in-place edit (`outputPath === path`) both
     // reads returned the edited workbook, so the audit log came out empty and the
     // patch-log rollback had nothing to replay.
     const before = await readWorkbookCells(await readFile(path));
-    const result = await applyOperationsToWorkbook(path, operations, outputPath);
+    const result = await applyOperationsToWorkbook(path, operations, outputPath, options);
     const after = await readWorkbookCells(await readFile(outputPath));
     const patchLogPath = `${outputPath}.patch.json`;
     const log = {

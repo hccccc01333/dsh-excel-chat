@@ -62,6 +62,10 @@ const EN = {
     '重复标题列 期望 {expected} 实际 {actual}': 'repeating title columns: expected {expected}, found {actual}',
     '手动分页符 期望 {expected} 实际 {actual}': 'manual row page breaks: expected {expected}, found {actual}',
     '读不到工作表 XML': 'the sheet XML could not be read',
+    // operations.ts — the unpreserved-content gate
+    '这个文件含有本插件无法保留的内容：{features}。原地编辑会永久丢失它们，因此已拒绝写入，原文件未改动。要么把 output 指向另一个文件（原文件保留），要么在确认可接受损失后显式传入 onUnpreserved: "allow"。': 'This workbook contains parts this plugin cannot preserve: {features}. Editing it in place would lose them permanently, so the write was refused and the original is unchanged. Either point `output` at a different file (the original is kept), or pass `onUnpreserved: "allow"` once you accept the loss.',
+    '这个文件含有本插件无法保留的内容，编辑后会丢失：{features}。（已显式确认，继续写入。）': 'This workbook contains parts this plugin cannot preserve, and they will be lost: {features}. (Explicitly confirmed — writing anyway.)',
+    '这个文件含有本插件无法保留的内容，输出副本里不会有它们：{features}。原文件未改动。': 'This workbook contains parts this plugin cannot preserve, and they will not appear in the output copy: {features}. The original is unchanged.',
     // analysis.ts
     '{sheet} 的 {measure} 按 {time} 呈{direction}趋势：从 {first} 的 {from} 到 {last} 的 {to}（{change}），{consistent}/{steps} 期同向。': '{sheet}: {measure} trends {direction} by {time} — from {from} in {first} to {to} in {last} ({change}), {consistent} of {steps} steps in the same direction.',
     '上升': 'up',

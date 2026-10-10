@@ -153,6 +153,11 @@ export function registerWriteTools(ctx) {
                 type: 'string',
                 description: 'Output .xlsx path (default: <path>.edited.xlsx).',
             },
+            onUnpreserved: {
+                type: 'string',
+                enum: ['refuse', 'allow'],
+                description: 'What to do when the input contains parts this plugin cannot write back (slicers, VBA macros, embedded objects, custom XML, SmartArt, form controls, timelines, macro sheets). "refuse" (default) rejects an in-place edit so those parts are never lost silently; writing to a different outPath is always allowed, since the original is untouched. Pass "allow" only when the user has explicitly agreed to lose those parts.',
+            },
             validateAfter: {
                 type: 'boolean',
                 description: 'Re-validate the edited workbook for silent formula errors (default true).',
@@ -169,7 +174,9 @@ export function registerWriteTools(ctx) {
             // well-formed array, so a missing nested field used to surface as a raw
             // TypeError from deep inside a handler.
             const operations = sanitizeOperations(args.operations, await readWorkbookSheetNames(path));
-            const result = await operateWorkbookFile(path, operations, outPath);
+            const result = await operateWorkbookFile(path, operations, outPath, {
+                onUnpreserved: args.onUnpreserved === 'allow' ? 'allow' : 'refuse',
+            });
             if (args.validateAfter === false) {
                 return {
                     ...result,

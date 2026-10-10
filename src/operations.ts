@@ -17,6 +17,7 @@ import { cellContent, contentToCellValue, plainContent, readWorkbookCells, strip
 import { diffCellMaps, writePatchLog, type PatchLog } from './diff.ts'
 import { annotateWorkbookXml, emptyAnnotations, type CommentSpec, type SparklineGroupSpec, type WorkbookAnnotations } from './xml-postprocess.ts'
 import { readFile, writeFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 
 export * from './operation-types.ts'
 import type { ExcelOperation, ExcelStyle, OperationWarning, ApplyOperationsResult, OperateResult } from './operation-types.ts'
@@ -40,10 +41,44 @@ import { applyAggregateReport, applyPreset, applyReport, applySubtotal } from '.
 // from here, and the split stays a change of layout rather than of interface.
 export { findSheet, qualifySheetName, shiftFormulaReferences } from './op/core.ts'
 
+/**
+ * How to treat a workbook that contains parts ExcelJS cannot write back.
+ *
+ * `refuse` is the default because the alternative already cost someone their macros:
+ * a warning is printed, the edit goes ahead, and the feature is gone from the file.
+ * A warning that scrolls past in a tool result is not consent.
+ *
+ * There are two honest ways out, and both are a deliberate act:
+ *   - write to a **different** output path, so the original is never touched
+ *   - pass `allow`, which is the caller saying it knows what it is giving up
+ */
+export interface ApplyOperationsOptions {
+  onUnpreserved?: 'refuse' | 'allow'
+}
+
+/**
+ * Whether two paths name the same file.
+ *
+ * Resolved to absolute, with separators unified, and compared case-insensitively on
+ * Windows — where `C:\a.xlsx` and `c:\A.XLSX` are one file, and `./a.xlsx` and `a.xlsx`
+ * are one file everywhere.
+ *
+ * It errs towards "same". A false positive refuses an edit that would have been safe,
+ * which the caller fixes by naming a different output; a false negative lets an
+ * in-place rewrite through the gate, which is the exact loss the gate exists to stop.
+ */
+function samePath(a: string, b: string): boolean {
+  const normalize = (path: string) => resolve(path).replace(/\\/g, '/')
+  const left = normalize(a)
+  const right = normalize(b)
+  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right
+}
+
 export async function applyOperationsToWorkbook(
   inputPath: string,
   operations: ExcelOperation[],
   outputPath: string,
+  options: ApplyOperationsOptions = {},
 ): Promise<ApplyOperationsResult> {
   const original = await readFile(inputPath)
   const workbook = new ExcelJS.Workbook()
@@ -58,11 +93,26 @@ export async function applyOperationsToWorkbook(
   const preserved = capturePreserved(original)
   const unpreserved = findUnpreservedParts(original)
   if (unpreserved.length > 0) {
+    // In-place is the dangerous case: the original is overwritten, so whatever is
+    // dropped is dropped for good. Writing to a different path leaves the original
+    // exactly as it was, and that is the escape hatch this error points at.
+    const inPlace = samePath(inputPath, outputPath)
+    if (inPlace && options.onUnpreserved !== 'allow') {
+      throw new Error(
+        t('这个文件含有本插件无法保留的内容：{features}。原地编辑会永久丢失它们，因此已拒绝写入，原文件未改动。要么把 output 指向另一个文件（原文件保留），要么在确认可接受损失后显式传入 onUnpreserved: "allow"。', {
+          features: listJoin(unpreserved),
+        }),
+      )
+    }
     warnings.push({
       op: -1,
-      message: t('这个文件含有本插件无法保留的内容，编辑后会丢失：{features}。需要保留请先另存一份副本，或改用原生 Excel 操作。', {
-        features: listJoin(unpreserved),
-      }),
+      message: inPlace
+        ? t('这个文件含有本插件无法保留的内容，编辑后会丢失：{features}。（已显式确认，继续写入。）', {
+            features: listJoin(unpreserved),
+          })
+        : t('这个文件含有本插件无法保留的内容，输出副本里不会有它们：{features}。原文件未改动。', {
+            features: listJoin(unpreserved),
+          }),
     })
   }
 
@@ -857,13 +907,14 @@ export async function operateWorkbookFile(
   path: string,
   operations: ExcelOperation[],
   outputPath: string,
+  options: ApplyOperationsOptions = {},
 ): Promise<OperateResult> {
   // Read the "before" state first. Reading it after the write only works when the
   // output is a different file; for an in-place edit (`outputPath === path`) both
   // reads returned the edited workbook, so the audit log came out empty and the
   // patch-log rollback had nothing to replay.
   const before = await readWorkbookCells(await readFile(path))
-  const result = await applyOperationsToWorkbook(path, operations, outputPath)
+  const result = await applyOperationsToWorkbook(path, operations, outputPath, options)
   const after = await readWorkbookCells(await readFile(outputPath))
   const patchLogPath = `${outputPath}.patch.json`
   const log: PatchLog = {
