@@ -11,7 +11,9 @@ import { readWorkbookCells } from '../src/workbook.ts'
 test('corpus ids are unique', () => {
   const ids = corpusTasks.map((task) => task.id)
   assert.equal(new Set(ids).size, ids.length)
-  assert.equal(corpusTasks.length, 100)
+  // A floor, not an exact count: pinning it to 100 meant every added task failed
+  // this test, which trains you to edit the number rather than read the failure.
+  assert.ok(corpusTasks.length >= 100, `expected at least 100 tasks, found ${corpusTasks.length}`)
 })
 
 test('no corpus fixture ships a circular formula', async () => {

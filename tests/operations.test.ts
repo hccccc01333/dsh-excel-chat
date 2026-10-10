@@ -2231,3 +2231,62 @@ test('conditionalFormatting writes every style field a rule declares', async () 
   assert.match(dxf, /bottom style="thin"/, 'the border is missing from the rule')
   assert.ok(!/<dxf\/>/.test(dxf), 'the rule wrote an empty style')
 })
+
+/**
+ * A single cell is a valid range, and the writer has to agree with the reader.
+ *
+ * `excel_read` and `preview` each carry their own tolerant range parser, and both
+ * accept `Sheet!A3`; the operation dispatcher's parser required a colon and rejected
+ * it. So the same string worked when reading a workbook and failed when writing one —
+ * and a real run hit it, recorded in the failure taxonomy as
+ * `invalid range: 区域汇总!A3（第 3 轮计划：fillSeries(target="区域汇总!A3")）`.
+ * A model writing a single cell where a range is expected is not making an error.
+ */
+test('a range field accepts a single cell', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('订单')
+    sheet.getCell('A1').value = '产品'
+    sheet.getCell('A2').value = '苹果'
+    sheet.getCell('A3').value = null
+  })
+  const outPath = join(join(path, '..'), 'single-cell.xlsx')
+  // `style` documents a range; a single cell must work as well as `A2:A2`.
+  await applyOperationsToWorkbook(path, [
+    { op: 'style', range: '订单!A2', style: { bold: true } },
+  ], outPath)
+
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  assert.equal(workbook.getWorksheet('订单')!.getCell('A2').font?.bold, true)
+})
+
+test('fillSeries accepts a single-cell target', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('区域汇总')
+    sheet.getCell('A1').value = 1
+    sheet.getCell('A2').value = null
+    sheet.getCell('A3').value = null
+  })
+  const outPath = join(join(path, '..'), 'fill-single.xlsx')
+  // A one-cell target, which is the shape the recorded failure used. `start` must be
+  // the target's top-left cell, so it is the same cell here.
+  await applyOperationsToWorkbook(path, [
+    { op: 'fillSeries', start: '区域汇总!A1', target: '区域汇总!A1', step: 1 },
+  ], outPath)
+
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  assert.equal(workbook.getWorksheet('区域汇总')!.getCell('A1').value, 1)
+
+  // And the multi-cell form still fills as before.
+  const filled = join(join(path, '..'), 'fill-range.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'fillSeries', start: '区域汇总!A1', target: '区域汇总!A1:A3', step: 1 },
+  ], filled)
+  const reread = new ExcelJS.Workbook()
+  await reread.xlsx.readFile(filled)
+  const sheet = reread.getWorksheet('区域汇总')!
+  assert.equal(sheet.getCell('A1').value, 1)
+  assert.equal(sheet.getCell('A2').value, 2)
+  assert.equal(sheet.getCell('A3').value, 3)
+})

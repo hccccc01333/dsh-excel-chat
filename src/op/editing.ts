@@ -27,9 +27,10 @@ export function applyFill(workbook: ExcelJS.Workbook, sourceId: string, targetRa
   const sheet = findSheet(workbook, targetSheetName)
   if (!sheet) throw new Error(`sheet not found: ${targetSheetName}`)
   const startCol = columnToNumber(match[1]!)
-  const endCol = columnToNumber(match[3]!)
   const startRow = Number(match[2]!)
-  const endRow = Number(match[4]!)
+  // No colon: filling that one cell, which is a 1×1 target.
+  const endCol = match[3] ? columnToNumber(match[3]) : startCol
+  const endRow = match[4] ? Number(match[4]) : startRow
   const content = cellContentOf(source)
   if (!content) return
   for (let col = startCol; col <= endCol; col++) {

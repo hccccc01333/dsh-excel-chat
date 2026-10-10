@@ -1,6 +1,15 @@
 import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula } from '../formula.js';
 import { contentToCellValue } from '../workbook.js';
-export const RANGE_LINE = /^([A-Za-z]{1,3})(\d+):([A-Za-z]{1,3})(\d+)$/;
+/**
+ * A sheet-qualified range body: `A1:B2`, or a bare `A1` meaning that one cell.
+ *
+ * The colon used to be required, so `订单!A1` was rejected as an invalid range while
+ * `excel_read` — which has its own, tolerant parser — accepted the same string. The
+ * same input was valid when reading and invalid when writing, and a real benchmark run
+ * hit it: `invalid range: 区域汇总!A3（第 3 轮计划：fillSeries(target="区域汇总!A3")）`.
+ * A single cell is a 1×1 range; callers read the end and fall back to the start.
+ */
+export const RANGE_LINE = /^([A-Za-z]{1,3})(\d+)(?::([A-Za-z]{1,3})(\d+))?$/;
 export function findSheet(workbook, name) {
     const normalized = normalizeSheet(name);
     return workbook.worksheets.find((sheet) => normalizeSheet(sheet.name) === normalized);
@@ -48,12 +57,15 @@ export function parseRange(workbook, range) {
     const sheet = findSheet(workbook, rawSheet);
     if (!sheet)
         throw new Error(`sheet not found: ${rawSheet}`);
+    const startCol = columnToNumber(match[1]);
+    const startRow = Number(match[2]);
     return {
         sheet,
-        startCol: columnToNumber(match[1]),
-        startRow: Number(match[2]),
-        endCol: columnToNumber(match[3]),
-        endRow: Number(match[4]),
+        startCol,
+        startRow,
+        // No colon: the range is that one cell.
+        endCol: match[3] ? columnToNumber(match[3]) : startCol,
+        endRow: match[4] ? Number(match[4]) : startRow,
     };
 }
 /**

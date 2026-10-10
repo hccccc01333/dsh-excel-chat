@@ -6,6 +6,15 @@
  * lets the rest be split without cycles.
  */
 import ExcelJS from 'exceljs';
+/**
+ * A sheet-qualified range body: `A1:B2`, or a bare `A1` meaning that one cell.
+ *
+ * The colon used to be required, so `订单!A1` was rejected as an invalid range while
+ * `excel_read` — which has its own, tolerant parser — accepted the same string. The
+ * same input was valid when reading and invalid when writing, and a real benchmark run
+ * hit it: `invalid range: 区域汇总!A3（第 3 轮计划：fillSeries(target="区域汇总!A3")）`.
+ * A single cell is a 1×1 range; callers read the end and fall back to the start.
+ */
 export declare const RANGE_LINE: RegExp;
 export declare function findSheet(workbook: ExcelJS.Workbook, name: string): ExcelJS.Worksheet | undefined;
 export declare function resolveCell(workbook: ExcelJS.Workbook, id: string): ExcelJS.Cell;
