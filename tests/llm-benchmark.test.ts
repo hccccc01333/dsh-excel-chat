@@ -129,3 +129,43 @@ test('the benchmark runs tasks concurrently and still reports them in order', as
     tasks.map((task) => task.id),
   )
 })
+
+test('a failed task is checkpointed too, not silently dropped', async () => {
+  // The checkpoint used to keep only `error === null`. A run that walked all 144 tasks
+  // left 70 lines behind, and the 74 that were missing were exactly the hard ones — so
+  // the rate computed from the file was a rate over a biased subset, with nothing in the
+  // file to say so. The file is the raw per-task record; a failure is a result.
+  const dir = await mkdtemp(join(tmpdir(), 'bench-fail-'))
+  const outFile = join(dir, 'run.jsonl')
+  const tasks = Array.from({ length: 4 }, (_, index) => ({
+    id: `t${index}`,
+    category: 'editing',
+    name: `task ${index}`,
+    description: '',
+    buildInput: (inputDir: string) =>
+      buildCorpusWorkbook(inputDir, `t${index}`, [{ name: 'Sheet1', headers: ['a'], rows: [['x']] }]),
+    operations: [],
+    checks: [],
+  })) as unknown as FileBenchmarkTask[]
+
+  const planner: AgentPlanner = {
+    // Two tasks plan cleanly, two cannot be planned at all — the shape of a real run.
+    plan: async () => {
+      const call = seenPlan++
+      if (call % 2 === 1) throw new Error('planner exploded')
+      return [{ name: 'noop', operations: [] }]
+    },
+    verify: async () => ({ achieved: true, reason: 'ok' }),
+  }
+  let seenPlan = 0
+
+  const report = await runLlmBenchmark(tasks, { planner, maxRounds: 1, concurrency: 2, outFile })
+  const lines = (await readFile(outFile, 'utf8')).trim().split('\n').filter(Boolean)
+
+  assert.equal(lines.length, tasks.length, 'every task must reach the checkpoint, passing or not')
+  assert.ok(
+    lines.some((line) => (JSON.parse(line) as { success: boolean }).success === false),
+    'the run had failures, so at least one checkpoint line must be a failure',
+  )
+  assert.equal(report.tasks.length, tasks.length, 'the report must count every task')
+})

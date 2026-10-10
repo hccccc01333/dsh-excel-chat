@@ -269,7 +269,14 @@ export async function runLlmBenchmark(
       const result = await runLlmTaskWithRetry(task, options)
       results[index] = result
       completed += 1
-      if (result.error === null) await appendResult(result)
+      // Every result is written, pass or fail. Keeping only `error === null` made the
+      // file a record of what worked: a run that hit 144 tasks left 70 lines behind, and
+      // the 74 that were missing were exactly the hard ones. The rate computed from that
+      // file was 78.6% over a biased subset, and nothing said so.
+      //
+      // Retrying is `runLlmTaskWithRetry`'s job and it has already finished by now, so
+      // what arrives here is the final word on this task either way.
+      await appendResult(result)
       onProgress?.(result, completed, tasks.length)
       if (options.interTaskDelayMs) await sleep(options.interTaskDelayMs)
     }

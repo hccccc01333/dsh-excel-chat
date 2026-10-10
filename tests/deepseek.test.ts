@@ -34,7 +34,7 @@ test('deepseekChatCompletion surfaces API errors', async () => {
   try {
     await assert.rejects(
       () => deepseekChatCompletion({ apiKey: 'sk-bad', model: 'deepseek-chat', messages: [] }),
-      /DeepSeek API 401: bad key/,
+      /LLM API .*returned 401: bad key/,
     )
   } finally {
     globalThis.fetch = originalFetch

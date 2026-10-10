@@ -80,12 +80,12 @@ export async function deepseekChatCompletion(options: DeepSeekChatOptions): Prom
     signal: options.signal,
   })
   if (!response.ok) {
-    throw new Error(`DeepSeek API ${response.status}: ${(await response.text()).slice(0, 500)}`)
+    throw new Error(`LLM API ${baseUrl} returned ${response.status}: ${(await response.text()).slice(0, 500)}`)
   }
   const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> }
   const content = data.choices?.[0]?.message?.content
   if (typeof content !== 'string') {
-    throw new Error('DeepSeek API returned no content')
+    throw new Error(`LLM API ${baseUrl} returned no content`)
   }
   return content
 }
@@ -156,14 +156,14 @@ export async function deepseekChatWithTools(
     signal: options.signal,
   })
   if (!response.ok) {
-    throw new Error(`DeepSeek API ${response.status}: ${(await response.text()).slice(0, 500)}`)
+    throw new Error(`LLM API ${baseUrl} returned ${response.status}: ${(await response.text()).slice(0, 500)}`)
   }
   const data = (await response.json()) as {
     choices?: Array<{ message?: { content?: string | null; tool_calls?: DeepSeekToolCall[] } }>
   }
   const message = data.choices?.[0]?.message
   if (!message) {
-    throw new Error('DeepSeek API returned no message')
+    throw new Error(`LLM API ${baseUrl} returned no message`)
   }
   return { content: message.content ?? null, toolCalls: message.tool_calls ?? [] }
 }
