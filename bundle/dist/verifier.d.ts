@@ -93,6 +93,12 @@ export interface WorkbookLevelAssertion {
         title?: string;
         creator?: string;
     };
+    /**
+     * Named ranges that must be defined, keyed by name and valued by the range they point
+     * at. `$` and the sheet-name quotes are ignored on both sides: Excel writes
+     * `'订单'!$B$2` and nobody types it that way.
+     */
+    definedNames?: Record<string, string>;
 }
 export type WorkbookAssertion = CellAssertion | SheetAssertion | WorkbookLevelAssertion;
 /** The result for one deterministic workbook assertion. */

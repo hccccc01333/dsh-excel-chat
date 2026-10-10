@@ -122,4 +122,21 @@ export const workbookTasks: FileBenchmarkTask[] = [
       { id: '通知!A2', expect: '香蕉 还差 5 件' },
     ],
   },
+  {
+    id: 'workbook-defined-names',
+    category: 'editing',
+    name: '给区域起名字',
+    description: '把数量列命名为「数量」，公式和图表里可以直接引用。',
+    buildInput: (dir) => buildCorpusWorkbook(dir, 'workbook-defined-names', [order(three)]),
+    operations: [
+      { op: 'definedName', name: '数量', ref: '订单!$B$2:$B$4' },
+      { op: 'definedName', name: '合计', ref: '订单!$B$5' },
+    ],
+    checks: [
+      // Excel writes '订单'!$B$2:$B$4 and the assertion is written 订单!B2:B4; the
+      // comparison normalises both sides, so this is about what the name points at.
+      { workbook: true, definedNames: { 数量: '订单!B2:B4' } },
+      { id: '订单!B2', expect: '10' },
+    ],
+  },
 ]

@@ -98,6 +98,12 @@ export interface WorkbookLevelAssertion {
   sheetOrder?: string[]
   /** Required document properties. */
   properties?: { title?: string; creator?: string }
+  /**
+   * Named ranges that must be defined, keyed by name and valued by the range they point
+   * at. `$` and the sheet-name quotes are ignored on both sides: Excel writes
+   * `'订单'!$B$2` and nobody types it that way.
+   */
+  definedNames?: Record<string, string>
 }
 
 export type WorkbookAssertion = CellAssertion | SheetAssertion | WorkbookLevelAssertion
@@ -573,6 +579,27 @@ function evaluateWorkbookAssertion(
     })
   }
 
+  if (assertion.definedNames !== undefined) {
+    const names = workbook.definedNames as unknown as { getRanges(name: string): { ranges?: string[] } }
+    for (const [name, ref] of Object.entries(assertion.definedNames)) {
+      let actual: string | null = null
+      try {
+        const found = names.getRanges(name)
+        actual = found?.ranges?.[0] ?? null
+      } catch {
+        actual = null
+      }
+      checks.push({
+        label: t('名称 {name} 期望 {expected} 实际 {actual}', {
+          name,
+          expected: ref,
+          actual: actual ?? t('未定义'),
+        }),
+        passed: actual !== null && normalizeRef(actual) === normalizeRef(ref),
+      })
+    }
+  }
+
   if (checks.length === 0) {
     return { id: 'workbook', passed: false, detail: t('工作簿级断言没有声明任何条件') }
   }
@@ -587,6 +614,17 @@ function evaluateWorkbookAssertion(
             failures: listJoin(failed.map((check) => check.label), 'semicolon'),
           }),
   }
+}
+
+/**
+ * Normalise a defined-name reference for comparison.
+ *
+ * Excel writes `'订单'!$B$2`; a person writes `订单!B2`. Dropping the `$` and the
+ * quoting around sheet names makes those the same string, which is the point — the
+ * assertion should be about what the name points at, not how Excel spelled it.
+ */
+function normalizeRef(ref: string): string {
+  return ref.replace(/\$/g, '').replace(/'/g, '').replace(/\s+/g, '').toUpperCase()
 }
 
 /** Resolve `A2` or `订单!A2` against an already-loaded sheet. */

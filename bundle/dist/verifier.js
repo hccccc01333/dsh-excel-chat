@@ -396,6 +396,27 @@ function evaluateWorkbookAssertion(assertion, workbook) {
             passed: actual === assertion.properties.creator,
         });
     }
+    if (assertion.definedNames !== undefined) {
+        const names = workbook.definedNames;
+        for (const [name, ref] of Object.entries(assertion.definedNames)) {
+            let actual = null;
+            try {
+                const found = names.getRanges(name);
+                actual = found?.ranges?.[0] ?? null;
+            }
+            catch {
+                actual = null;
+            }
+            checks.push({
+                label: t('名称 {name} 期望 {expected} 实际 {actual}', {
+                    name,
+                    expected: ref,
+                    actual: actual ?? t('未定义'),
+                }),
+                passed: actual !== null && normalizeRef(actual) === normalizeRef(ref),
+            });
+        }
+    }
     if (checks.length === 0) {
         return { id: 'workbook', passed: false, detail: t('工作簿级断言没有声明任何条件') };
     }
@@ -409,6 +430,16 @@ function evaluateWorkbookAssertion(assertion, workbook) {
                 failures: listJoin(failed.map((check) => check.label), 'semicolon'),
             }),
     };
+}
+/**
+ * Normalise a defined-name reference for comparison.
+ *
+ * Excel writes `'订单'!$B$2`; a person writes `订单!B2`. Dropping the `$` and the
+ * quoting around sheet names makes those the same string, which is the point — the
+ * assertion should be about what the name points at, not how Excel spelled it.
+ */
+function normalizeRef(ref) {
+    return ref.replace(/\$/g, '').replace(/'/g, '').replace(/\s+/g, '').toUpperCase();
 }
 /** Resolve `A2` or `订单!A2` against an already-loaded sheet. */
 function cellIn(sheet, cellId) {
