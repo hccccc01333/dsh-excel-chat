@@ -1,4 +1,4 @@
-import { copyFile, mkdtemp, readFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { t, listJoin, listSeparator } from './i18n.js';
@@ -19,128 +19,137 @@ export async function runAgentTask(path, options) {
     const maxRounds = options.maxRounds ?? 2;
     if (maxRounds < 1)
         throw new Error('maxRounds must be at least 1');
+    // Scratch space for the round-by-round intermediates. The finished workbook is
+    // copied out to its own path before this returns, so nothing here is a deliverable —
+    // and a long-lived session calls this repeatedly, which makes the leak a slow one.
     const dir = await mkdtemp(join(tmpdir(), 'vera-agent-'));
-    let currentPath = path;
-    const rounds = [];
-    let achieved = false;
-    let previousPlan;
-    let previousResult;
-    let verifierNote;
-    for (let round = 1; round <= maxRounds; round++) {
-        const beforeProfile = await profileWorkbook(currentPath);
-        const semanticProfile = await buildWorkbookSemanticProfile(currentPath);
-        const beforeValidation = await validateWorkbookFile(currentPath);
-        const beforeFingerprint = await workbookFingerprint(currentPath);
-        const planContext = {
-            goal: options.goal,
-            path: currentPath,
-            round,
-            sheetNames: beforeProfile.sheets.map((sheet) => sheet.sheet),
-            profileSummary: summarizeProfile(beforeProfile),
-            semanticSummary: semanticProfile.summary,
-            validationSummary: t('{count} 个公式异常', { count: beforeValidation.anomalies.length }),
-            previousPlan,
-            previousResult,
-            verifierNote,
-        };
-        let plan;
-        let planAssertions = [];
-        try {
-            const rawPlan = await options.planner.plan(planContext);
-            const steps = Array.isArray(rawPlan) ? rawPlan : rawPlan.steps;
-            if (!steps || steps.length === 0)
-                throw new Error('planner returned an empty plan');
-            // The profile is already in hand, so header→column salvage costs nothing
-            // extra here. Planners routinely write `groupColumn: "区域"` — the header
-            // they can see in the profile — where the schema wants `"B"`.
-            plan = sanitizePlan(steps, planContext.sheetNames, buildHeaderIndex(beforeProfile.sheets)).steps;
-            if (!Array.isArray(rawPlan) && rawPlan.assertions !== undefined) {
-                const sanitized = sanitizeAssertions(rawPlan.assertions, planContext.sheetNames);
-                planAssertions = sanitized.assertions;
-            }
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            if (round < maxRounds) {
-                verifierNote = t('计划无效：{message}。请修正后重新规划。', { message });
-                previousPlan = undefined;
-                previousResult = undefined;
-                continue;
-            }
-            throw wrapRoundError(error, t('{message}（第 {round} 轮计划：{ops}）', { message, round, ops: summarizePlanOps(plan ?? []) }));
-        }
-        const roundOut = join(dir, `round-${round}.xlsx`);
-        let result;
-        try {
-            result = await runExcelTask(currentPath, plan, roundOut);
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            if (round < maxRounds) {
-                verifierNote = t('执行出错：{message}。请修正计划后重新规划。', { message });
-                previousPlan = plan;
-                previousResult = undefined;
-                continue;
-            }
-            throw wrapRoundError(error, t('{message}（第 {round} 轮计划：{ops}）', { message, round, ops: summarizePlanOps(plan) }));
-        }
-        const afterProfile = await profileWorkbook(result.outputPath);
-        const afterValidation = await validateWorkbookFile(result.outputPath);
-        const cellSnapshot = await cellSnapshotOf(result.outputPath);
-        const changed = (await workbookFingerprint(result.outputPath)) !== beforeFingerprint;
-        const deterministicVerification = options.deterministicAssertions === undefined
-            ? undefined
-            : await verifyWorkbookAssertions(result.outputPath, options.deterministicAssertions);
-        // Verifier 2.0: deterministic check of the planner's own assertions.
-        const assertionCheck = planAssertions.length > 0
-            ? await verifyWorkbookAssertions(result.outputPath, planAssertions)
-            : undefined;
-        let verdict = deterministicVerification === undefined
-            ? await options.planner.verify({
-                ...planContext,
-                path: result.outputPath,
-                profileSummary: summarizeProfile(afterProfile),
-                validationSummary: t('{count} 个公式异常', { count: afterValidation.anomalies.length }),
-                executedPlan: plan,
-                executedResult: result,
-                cellSnapshot,
-            })
-            : { achieved: deterministicVerification.achieved, reason: deterministicVerification.reason };
-        const anomalyNote = afterValidation.anomalies.length === 0
-            ? t('公式无异常')
-            : t('仍有 {count} 个公式异常', { count: afterValidation.anomalies.length });
-        const deterministicNote = t('{anomalies}；文件{changed}实质变化', {
-            anomalies: anomalyNote,
-            changed: changed ? t('有') : t('没有'),
-        });
-        if (!changed || afterValidation.anomalies.length > 0) {
-            verdict = { achieved: false, reason: t('{reason}（确定性校验：{note}）', { reason: verdict.reason, note: deterministicNote }) };
-        }
-        if (assertionCheck && !assertionCheck.achieved) {
-            verdict = {
-                achieved: false,
-                reason: t('{reason}（规划器断言未过 {passed}/{total}：{failures}）', {
-                    reason: verdict.reason,
-                    passed: assertionCheck.passed,
-                    total: assertionCheck.total,
-                    failures: listJoin(assertionCheck.failures.slice(0, 3), 'semicolon'),
-                }),
+    try {
+        let currentPath = path;
+        const rounds = [];
+        let achieved = false;
+        let previousPlan;
+        let previousResult;
+        let verifierNote;
+        for (let round = 1; round <= maxRounds; round++) {
+            const beforeProfile = await profileWorkbook(currentPath);
+            const semanticProfile = await buildWorkbookSemanticProfile(currentPath);
+            const beforeValidation = await validateWorkbookFile(currentPath);
+            const beforeFingerprint = await workbookFingerprint(currentPath);
+            const planContext = {
+                goal: options.goal,
+                path: currentPath,
+                round,
+                sheetNames: beforeProfile.sheets.map((sheet) => sheet.sheet),
+                profileSummary: summarizeProfile(beforeProfile),
+                semanticSummary: semanticProfile.summary,
+                validationSummary: t('{count} 个公式异常', { count: beforeValidation.anomalies.length }),
+                previousPlan,
+                previousResult,
+                verifierNote,
             };
+            let plan;
+            let planAssertions = [];
+            try {
+                const rawPlan = await options.planner.plan(planContext);
+                const steps = Array.isArray(rawPlan) ? rawPlan : rawPlan.steps;
+                if (!steps || steps.length === 0)
+                    throw new Error('planner returned an empty plan');
+                // The profile is already in hand, so header→column salvage costs nothing
+                // extra here. Planners routinely write `groupColumn: "区域"` — the header
+                // they can see in the profile — where the schema wants `"B"`.
+                plan = sanitizePlan(steps, planContext.sheetNames, buildHeaderIndex(beforeProfile.sheets)).steps;
+                if (!Array.isArray(rawPlan) && rawPlan.assertions !== undefined) {
+                    const sanitized = sanitizeAssertions(rawPlan.assertions, planContext.sheetNames);
+                    planAssertions = sanitized.assertions;
+                }
+            }
+            catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                if (round < maxRounds) {
+                    verifierNote = t('计划无效：{message}。请修正后重新规划。', { message });
+                    previousPlan = undefined;
+                    previousResult = undefined;
+                    continue;
+                }
+                throw wrapRoundError(error, t('{message}（第 {round} 轮计划：{ops}）', { message, round, ops: summarizePlanOps(plan ?? []) }));
+            }
+            const roundOut = join(dir, `round-${round}.xlsx`);
+            let result;
+            try {
+                result = await runExcelTask(currentPath, plan, roundOut);
+            }
+            catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                if (round < maxRounds) {
+                    verifierNote = t('执行出错：{message}。请修正计划后重新规划。', { message });
+                    previousPlan = plan;
+                    previousResult = undefined;
+                    continue;
+                }
+                throw wrapRoundError(error, t('{message}（第 {round} 轮计划：{ops}）', { message, round, ops: summarizePlanOps(plan) }));
+            }
+            const afterProfile = await profileWorkbook(result.outputPath);
+            const afterValidation = await validateWorkbookFile(result.outputPath);
+            const cellSnapshot = await cellSnapshotOf(result.outputPath);
+            const changed = (await workbookFingerprint(result.outputPath)) !== beforeFingerprint;
+            const deterministicVerification = options.deterministicAssertions === undefined
+                ? undefined
+                : await verifyWorkbookAssertions(result.outputPath, options.deterministicAssertions);
+            // Verifier 2.0: deterministic check of the planner's own assertions.
+            const assertionCheck = planAssertions.length > 0
+                ? await verifyWorkbookAssertions(result.outputPath, planAssertions)
+                : undefined;
+            let verdict = deterministicVerification === undefined
+                ? await options.planner.verify({
+                    ...planContext,
+                    path: result.outputPath,
+                    profileSummary: summarizeProfile(afterProfile),
+                    validationSummary: t('{count} 个公式异常', { count: afterValidation.anomalies.length }),
+                    executedPlan: plan,
+                    executedResult: result,
+                    cellSnapshot,
+                })
+                : { achieved: deterministicVerification.achieved, reason: deterministicVerification.reason };
+            const anomalyNote = afterValidation.anomalies.length === 0
+                ? t('公式无异常')
+                : t('仍有 {count} 个公式异常', { count: afterValidation.anomalies.length });
+            const deterministicNote = t('{anomalies}；文件{changed}实质变化', {
+                anomalies: anomalyNote,
+                changed: changed ? t('有') : t('没有'),
+            });
+            if (!changed || afterValidation.anomalies.length > 0) {
+                verdict = { achieved: false, reason: t('{reason}（确定性校验：{note}）', { reason: verdict.reason, note: deterministicNote }) };
+            }
+            if (assertionCheck && !assertionCheck.achieved) {
+                verdict = {
+                    achieved: false,
+                    reason: t('{reason}（规划器断言未过 {passed}/{total}：{failures}）', {
+                        reason: verdict.reason,
+                        passed: assertionCheck.passed,
+                        total: assertionCheck.total,
+                        failures: listJoin(assertionCheck.failures.slice(0, 3), 'semicolon'),
+                    }),
+                };
+            }
+            rounds.push({ round, plan, result, verdict, deterministicVerification, planAssertions: assertionCheck });
+            currentPath = result.outputPath;
+            previousPlan = plan;
+            previousResult = result;
+            verifierNote = verdict.reason;
+            if (verdict.achieved) {
+                achieved = true;
+                break;
+            }
         }
-        rounds.push({ round, plan, result, verdict, deterministicVerification, planAssertions: assertionCheck });
-        currentPath = result.outputPath;
-        previousPlan = plan;
-        previousResult = result;
-        verifierNote = verdict.reason;
-        if (verdict.achieved) {
-            achieved = true;
-            break;
-        }
+        const finalOutput = options.outPath ?? path.replace(/\.xlsx$/i, '.agent.xlsx');
+        await copyFile(currentPath, finalOutput);
+        const finalAnomalies = (await validateWorkbookFile(finalOutput)).anomalies.length;
+        return { outputPath: finalOutput, rounds, achieved, finalAnomalies };
     }
-    const finalOutput = options.outPath ?? path.replace(/\.xlsx$/i, '.agent.xlsx');
-    await copyFile(currentPath, finalOutput);
-    const finalAnomalies = (await validateWorkbookFile(finalOutput)).anomalies.length;
-    return { outputPath: finalOutput, rounds, achieved, finalAnomalies };
+    finally {
+        // Best effort: failing to tidy up must not turn a finished run into an error.
+        await rm(dir, { recursive: true, force: true }).catch(() => { });
+    }
 }
 /**
  * Re-throw a round failure with the round's plan attached, keeping the failure

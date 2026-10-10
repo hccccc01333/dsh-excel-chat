@@ -1,4 +1,4 @@
-import { copyFile, mkdtemp } from 'node:fs/promises';
+import { copyFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { autofixWorkbookFile } from './autofix.js';
@@ -15,36 +15,45 @@ import { readWorkbookSheetNames, validateWorkbookFile } from './workbook.js';
 export async function runExcelTask(path, steps, outPath) {
     if (steps.length === 0)
         throw new Error('task requires at least one step');
+    // The scratch directory holds the intermediate workbooks and nothing else — the
+    // finished file is copied out before this returns. A long-lived session runs this
+    // many times, and a directory per run with no cleanup is a slow leak.
     const dir = await mkdtemp(join(tmpdir(), 'vera-task-'));
-    let current = path;
-    const results = [];
-    for (const [index, step] of steps.entries()) {
-        const stepOut = index === steps.length - 1 ? join(dir, 'final.xlsx') : join(dir, `step-${index + 1}.xlsx`);
-        // Validate each step against the sheets that exist *now* — an earlier step
-        // may have added one. Same reason as excel_operate: the executor assumes a
-        // well-formed array.
-        const operations = sanitizeOperations(step.operations, await readWorkbookSheetNames(current));
-        const applied = await applyOperationsToWorkbook(current, operations, stepOut);
-        const result = { index, name: step.name ?? `step ${index + 1}`, warnings: applied.warnings };
-        if (step.verify !== false) {
-            const validation = await validateWorkbookFile(stepOut);
-            if (validation.anomalies.length > 0) {
-                const fix = await autofixWorkbookFile(stepOut);
-                result.validation = { before: validation.anomalies.length, after: fix.after.total, fixed: fix.repairs.length };
-                current = fix.repairs.length > 0 ? fix.repairedPath : stepOut;
+    try {
+        let current = path;
+        const results = [];
+        for (const [index, step] of steps.entries()) {
+            const stepOut = index === steps.length - 1 ? join(dir, 'final.xlsx') : join(dir, `step-${index + 1}.xlsx`);
+            // Validate each step against the sheets that exist *now* — an earlier step
+            // may have added one. Same reason as excel_operate: the executor assumes a
+            // well-formed array.
+            const operations = sanitizeOperations(step.operations, await readWorkbookSheetNames(current));
+            const applied = await applyOperationsToWorkbook(current, operations, stepOut);
+            const result = { index, name: step.name ?? `step ${index + 1}`, warnings: applied.warnings };
+            if (step.verify !== false) {
+                const validation = await validateWorkbookFile(stepOut);
+                if (validation.anomalies.length > 0) {
+                    const fix = await autofixWorkbookFile(stepOut);
+                    result.validation = { before: validation.anomalies.length, after: fix.after.total, fixed: fix.repairs.length };
+                    current = fix.repairs.length > 0 ? fix.repairedPath : stepOut;
+                }
+                else {
+                    result.validation = { before: 0, after: 0, fixed: 0 };
+                    current = stepOut;
+                }
             }
             else {
-                result.validation = { before: 0, after: 0, fixed: 0 };
                 current = stepOut;
             }
+            results.push(result);
         }
-        else {
-            current = stepOut;
-        }
-        results.push(result);
+        const finalOutput = outPath ?? path.replace(/\.xlsx$/i, '.task.xlsx');
+        await copyFile(current, finalOutput);
+        const finalAnomalies = (await validateWorkbookFile(finalOutput)).anomalies.length;
+        return { outputPath: finalOutput, steps: results, finalAnomalies };
     }
-    const finalOutput = outPath ?? path.replace(/\.xlsx$/i, '.task.xlsx');
-    await copyFile(current, finalOutput);
-    const finalAnomalies = (await validateWorkbookFile(finalOutput)).anomalies.length;
-    return { outputPath: finalOutput, steps: results, finalAnomalies };
+    finally {
+        // Best effort: a failure to clean up must not turn a successful task into an error.
+        await rm(dir, { recursive: true, force: true }).catch(() => { });
+    }
 }
