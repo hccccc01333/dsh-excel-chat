@@ -139,12 +139,36 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Checkout first: it cleans the workspace, so downloading the artifact before it
+      # would leave the tarball deleted by the time the release step looks for it.
+      - uses: actions/checkout@v6
+
       - uses: actions/download-artifact@v4
         with:
           name: npm-tarball
           path: dist
 
+      # The release notes come from CHANGELOG.md, not from GitHub's generator.
+      #
+      # `generate_release_notes` produced a single line — "Full Changelog: compare
+      # v0.41.0...v0.42.0" — so the release page said nothing about what changed, and
+      # the prose that was written for it sat in the repository where only people who
+      # already had the repo would read it. The notes are the point of a release.
+      - name: Extract the release notes from the CHANGELOG
+        run: |
+          set -euo pipefail
+          awk -v heading="## ${GITHUB_REF_NAME} " '
+            index($0, heading) == 1 { inside = 1; next }
+            /^## / { inside = 0 }
+            inside
+          ' CHANGELOG.md | sed '/./,$!d' > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "CHANGELOG.md has no '## ${GITHUB_REF_NAME} ' section; nothing to publish" >&2
+            exit 1
+          fi
+          echo "release notes: $(wc -l < release-notes.md) lines"
+
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*.tgz
-          generate_release_notes: true
+          body_path: release-notes.md

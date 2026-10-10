@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- **修复：GitHub Release 页面不写改了什么。** 发布 workflow 用的是
+  `generate_release_notes: true`，而它生成的就一行 ——
+  「Full Changelog: compare v0.41.0...v0.42.0」。于是**发布页对「改了什么」只字未提**，
+  而专门为此写的 CHANGELOG 正文躺在仓库里，只有已经 clone 过的人才看得到。
+
+  现在 release job 会**从 CHANGELOG.md 抽出该 tag 的那一节**作为 Release 正文
+  （`body_path`），抽不到就**响亮地失败**，而不是默默退回自动生成的一行。
+
+  **顺带修了一个我自己引入的顺序 bug**：新加的 `actions/checkout` 放在
+  `download-artifact` 之后 —— checkout 默认会**清空工作区**，会把刚下载的
+  `dist/*.tgz` 删掉，Release 就没附件了。已把 checkout 提到最前。
+  （YAML 合法 ≠ 逻辑正确 —— 这个 bug 用 YAML 校验是查不出来的。）
+
+- **README 增加指向 CHANGELOG 与 Releases 的指引**，中英文都加。
+
+- 回溯更新了 **v0.42.0 的 Release 正文**：从 91 字符的自动占位符换成
+  **2817 字符**的实际说明。
+
+- 测试 483 通过。
+
 ## v0.42.0 — 2026-10-10
 
 - **Benchmark：新增 7 条任务，语料 105 → 113 条，覆盖操作 31 → 39（共 77）。**

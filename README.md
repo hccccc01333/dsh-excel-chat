@@ -13,6 +13,9 @@
 调用 `excel_operate` 完成；每次编辑后自动体检公式有没有被弄坏，也可以让它
 “检查这个表哪里算错了”并自动修复。所有工作都在对话里完成，不需要记 Excel 操作。
 
+每个版本的改动写在 [CHANGELOG](CHANGELOG.md)，发布说明见
+[Releases](https://github.com/hccccc01333/dsh-excel-chat/releases)。
+
 ![dsh-excel-chat 能力一览](assets/feature-grid.png)
 
 ![dsh-excel-chat 真实演示（DeepSeek Harness Web + 真实模型录制）](assets/demo.gif)

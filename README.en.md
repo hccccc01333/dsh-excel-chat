@@ -15,6 +15,9 @@ calls `excel_operate` to do it. Every edit is followed by an automatic formula c
 you can also ask it to "find what's wrong with this sheet" and repair it. Everything
 happens in the conversation — there is no Excel UI to memorise.
 
+What changed in each version is in the [CHANGELOG](CHANGELOG.md), and the release notes
+are on [Releases](https://github.com/hccccc01333/dsh-excel-chat/releases).
+
 ![dsh-excel-chat capability overview](assets/feature-grid.png)
 
 ![dsh-excel-chat live demo (DeepSeek Harness Web, recorded with a real model)](assets/demo.gif)
