@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentPlanner } from '../src/agent.ts'
 import { corpusTasks } from '../src/corpus/index.ts'
+import { buildCorpusWorkbook } from '../src/corpus/helpers.ts'
 import { readBenchmarkCheckpoint, runLlmBenchmark, runLlmTask } from '../src/llm-benchmark.ts'
 
 test('LLM benchmark runner scores the canonical plan 100% offline', async () => {
@@ -77,5 +78,54 @@ test('runLlmBenchmark resumes across slices and merges the report', async () => 
   assert.deepEqual(
     merged.tasks.map((task) => task.id).sort(),
     corpusTasks.slice(0, 5).map((task) => task.id).sort(),
+  )
+})
+
+test('the benchmark runs tasks concurrently and still reports them in order', async () => {
+  // Serial, a full corpus took hours while the model answered in about four seconds —
+  // nearly all of it spent waiting. Tasks are independent, so concurrency changes the
+  // clock and nothing else; this test pins both halves of that claim.
+  const seen: string[] = []
+  const inFlight = { current: 0, peak: 0 }
+  const tasks = Array.from({ length: 6 }, (_, index) => ({
+    id: `t${index}`,
+    category: 'editing',
+    name: `task ${index}`,
+    description: '',
+    // A real workbook: the runner loads the input before it ever asks the planner, so a
+    // stub path would fail first and the overlap this test is about would never happen.
+    buildInput: (dir: string) =>
+      buildCorpusWorkbook(dir, `t${index}`, [
+        { name: 'Sheet1', headers: ['a', 'b'], rows: [['x', index]] },
+      ]),
+    operations: [],
+    checks: [],
+  })) as unknown as FileBenchmarkTask[]
+
+  const options = {
+    planner: {
+      plan: async () => {
+        inFlight.current += 1
+        inFlight.peak = Math.max(inFlight.peak, inFlight.current)
+        // Long enough that a serial loop could never overlap two of them.
+        await new Promise((resolve) => setTimeout(resolve, 60))
+        inFlight.current -= 1
+        seen.push('call')
+        return [{ name: 'noop', operations: [] }]
+      },
+      verify: async () => ({ achieved: true, reason: 'ok' }),
+    },
+    maxRounds: 1,
+  } as unknown as LlmBenchmarkOptions
+
+  const report = await runLlmBenchmark(tasks, { ...options, concurrency: 3 })
+
+  assert.ok(inFlight.peak > 1, `tasks did not overlap; peak in flight was ${inFlight.peak}`)
+  assert.ok(inFlight.peak <= 3, `concurrency limit exceeded: ${inFlight.peak} in flight`)
+  // Order is the caller's, not the completion order — a shuffled report would make two
+  // runs of the same corpus diff badly.
+  assert.deepEqual(
+    report.tasks.map((task) => task.id),
+    tasks.map((task) => task.id),
   )
 })

@@ -177,6 +177,8 @@ export interface LlmBenchmarkOptions {
   retryDelayMs?: number
   /** Pause between tasks in ms to stay under provider rate limits. */
   interTaskDelayMs?: number
+  /** How many tasks run at once. Tasks are independent, so this only affects the clock. */
+  concurrency?: number
 }
 
 /** Read a JSONL checkpoint file into id -> result (last line wins). */
@@ -231,41 +233,70 @@ export async function runLlmBenchmark(
 ): Promise<LlmBenchmarkReport> {
   const { outFile, onProgress } = options
   const checkpoint = outFile ? await readBenchmarkCheckpoint(outFile) : new Map<string, LlmTaskResult>()
-  const results: LlmTaskResult[] = []
-  for (const task of tasks) {
-    const prior = checkpoint.get(task.id)
-    if (prior) {
-      results.push(prior)
-      continue
-    }
-    const result = await runLlmTaskWithRetry(task, options)
-    results.push(result)
-    if (outFile && result.error === null) {
+  // The tasks are independent — each builds its own input in its own scratch directory —
+  // so running several at once changes nothing about the result and everything about the
+  // wall clock. Serial, a full corpus took hours; the model answers in about four
+  // seconds, and almost all of that time was spent waiting.
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? 1, tasks.length || 1))
+  const results: Array<LlmTaskResult | undefined> = new Array(tasks.length)
+  let completed = 0
+  let next = 0
+
+  // Appends are serialised: two workers finishing together must not interleave halves of
+  // two JSON lines. The checkpoint is the raw result, so a corrupted line is a lost task.
+  let appendChain: Promise<void> = Promise.resolve()
+  const appendResult = (result: LlmTaskResult) => {
+    if (!outFile) return
+    appendChain = appendChain.then(async () => {
       await mkdir(dirname(outFile), { recursive: true })
       await appendFile(outFile, `${JSON.stringify(result)}\n`, 'utf8')
-    }
-    onProgress?.(result, results.length, tasks.length)
-    if (options.interTaskDelayMs) await sleep(options.interTaskDelayMs)
+    })
+    return appendChain
   }
-  const success = results.filter((result) => result.success).length
-  const accuracySum = results.reduce((sum, result) => sum + (result.checksTotal === 0 ? 0 : result.checksPassed / result.checksTotal), 0)
+
+  const worker = async () => {
+    for (;;) {
+      const index = next++
+      if (index >= tasks.length) return
+      const task = tasks[index]!
+      const prior = checkpoint.get(task.id)
+      if (prior) {
+        results[index] = prior
+        completed += 1
+        onProgress?.(prior, completed, tasks.length)
+        continue
+      }
+      const result = await runLlmTaskWithRetry(task, options)
+      results[index] = result
+      completed += 1
+      if (result.error === null) await appendResult(result)
+      onProgress?.(result, completed, tasks.length)
+      if (options.interTaskDelayMs) await sleep(options.interTaskDelayMs)
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, worker))
+  await appendChain
+  const finished = results.filter((result): result is LlmTaskResult => result !== undefined)
+  const success = finished.filter((result) => result.success).length
+  const accuracySum = finished.reduce((sum, result) => sum + (result.checksTotal === 0 ? 0 : result.checksPassed / result.checksTotal), 0)
   const categories: Record<string, { total: number; success: number; successRate: number }> = {}
-  for (const result of results) {
+  for (const result of finished) {
     const entry = (categories[result.category] ??= { total: 0, success: 0, successRate: 0 })
     entry.total += 1
     if (result.success) entry.success += 1
   }
   for (const entry of Object.values(categories)) entry.successRate = entry.total === 0 ? 0 : entry.success / entry.total
   return {
-    total: results.length,
+    total: finished.length,
     success,
-    successRate: results.length === 0 ? 0 : success / results.length,
-    meanAccuracy: results.length === 0 ? 0 : accuracySum / results.length,
-    integrityRate: results.filter((result) => result.integrity === 0).length / (results.length || 1),
+    successRate: finished.length === 0 ? 0 : success / finished.length,
+    meanAccuracy: finished.length === 0 ? 0 : accuracySum / finished.length,
+    integrityRate: finished.filter((result) => result.integrity === 0).length / (finished.length || 1),
     categories,
     failureBreakdown: summarizeFailureBreakdown(
-      results.filter((result) => !result.success && result.failure !== null).map((result) => result.failure!),
+      finished.filter((result) => !result.success && result.failure !== null).map((result) => result.failure!),
     ),
-    tasks: results,
+    tasks: finished,
   }
 }

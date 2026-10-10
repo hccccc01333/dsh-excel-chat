@@ -9,6 +9,7 @@
  *   LLM_BENCH_OUT  — JSONL checkpoint file; completed tasks are appended and
  *                    skipped on rerun, so sliced runs can resume after a crash
  *   LLM_BENCH_ROUNDS — max replanning rounds (default 3)
+ *   LLM_BENCH_CONCURRENCY — tasks in flight at once (default 4)
  * Progress goes to stderr; the final report is the only stdout JSON.
  */
 import { corpusTasks } from '../src/corpus/index.ts'
@@ -32,6 +33,9 @@ const report = await runLlmBenchmark(tasks, {
   retries: process.env.LLM_BENCH_RETRIES ? Number(process.env.LLM_BENCH_RETRIES) : 4,
   retryDelayMs: process.env.LLM_BENCH_RETRY_DELAY ? Number(process.env.LLM_BENCH_RETRY_DELAY) : 30_000,
   interTaskDelayMs: process.env.LLM_BENCH_TASK_DELAY ? Number(process.env.LLM_BENCH_TASK_DELAY) : 3_000,
+  // Tasks are independent, so concurrency changes the clock and nothing else. Default 4:
+  // serial, a full corpus ran for hours while the model answered in about four seconds.
+  concurrency: process.env.LLM_BENCH_CONCURRENCY ? Number(process.env.LLM_BENCH_CONCURRENCY) : 4,
   onProgress: (result: LlmTaskResult, completed: number, total: number) => {
     const mark = result.success ? 'PASS' : `FAIL(${result.failure?.category ?? 'crashed'})`
     console.error(`[${model}] ${completed}/${total} ${result.id} ${mark} checks=${result.checksPassed}/${result.checksTotal}`)
