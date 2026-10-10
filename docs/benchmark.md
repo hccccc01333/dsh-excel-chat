@@ -1,7 +1,7 @@
 # 评测（ExcelBench lite）
 
 从 v0.34.0 起，评测从“11 个合成公式修复 case”升级为**文件级真实任务语料**：
-100 个职场场景（编辑 35 / 分析 25 / 公式 22 / 多步工作流 18），每个任务包含
+144 个职场场景（编辑 77 / 分析 27 / 公式 22 / 多步工作流 18），每个任务包含
 真实中文数据（订单、价目表、区域汇总、销售/市场双表等）、期望操作序列与
 单元格/样式断言。
 
@@ -15,7 +15,7 @@
 ## 运行
 
 ```sh
-npm run bench:corpus    # 语料回归守护（100/100，不调用模型，秒级）
+npm run bench:corpus    # 语料回归守护（144/144，不调用模型，秒级）
 npm run bench           # 真实 LLM 规划基准（需要 API key，输出 JSON）
 npm run bench:report    # 把 bench-results/*.json 汇成公开结果表
 ```
@@ -51,7 +51,7 @@ DEEPSEEK_API_KEY=ollama DEEPSEEK_BASE_URL=http://localhost:11434/v1 \
 ## 真实 LLM 规划基准（基线）
 
 用 goal 模式（DeepSeek `deepseek-chat`，LLM 规划 + LLM 验证，maxRounds=2）跑
-100 任务语料，最终以任务断言 + 公式完整性打分：
+144 任务语料，最终以任务断言 + 公式完整性打分：
 
 | 指标 | 数值 |
 |---|---|

@@ -18,7 +18,8 @@ dsh plugin --profile demo add dsh-excel-chat
 dsh web --profile demo
 ```
 
-锁定版本：`dsh plugin --profile demo add dsh-excel-chat@0.23.1`（不写版本默认 latest）。
+需要固定版本时在包名后加 `@版本号`，例如 `dsh plugin --profile demo add dsh-excel-chat@0.42.0`；
+不写则默认装 latest。**具体版本号以 npm 上的最新发布为准**，本文不锁定 —— 写死的版本号会和发布漂移。
 
 装完先自检一次（检查宿主包隔离 + 引擎冒烟，装坏了一跑就知道）：
 
