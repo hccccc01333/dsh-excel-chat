@@ -101,9 +101,17 @@ function columnName(index: number): string {
 
 /** Inline viewport height; the fullscreen overlay uses most of the window. */
 const INLINE_VIEW_HEIGHT = 560
-/** Display caps: bigger sheets get a truncation notice instead of silent loss. */
-const MAX_RENDER_ROWS = 2000
-const MAX_RENDER_COLS = 100
+/**
+ * Display caps: bigger sheets get a truncation notice instead of silent loss.
+ *
+ * Fullscreen raises them. The notice used to say "点「全屏」可看更多" while the caps were
+ * constants, so going fullscreen changed the height and nothing else — the one thing the
+ * message promised was the one thing it did not do.
+ */
+const INLINE_RENDER_ROWS = 2000
+const INLINE_RENDER_COLS = 100
+const FULLSCREEN_RENDER_ROWS = 20000
+const FULLSCREEN_RENDER_COLS = 500
 
 /** Real spreadsheet grid (Excel-like) for excel_read / excel_preview results. */
 function SpreadsheetView({
@@ -121,6 +129,7 @@ function SpreadsheetView({
   const [fullscreen, setFullscreen] = useState(false)
   const [viewportTick, setViewportTick] = useState(0)
   const [truncated, setTruncated] = useState(false)
+  const [caps, setCaps] = useState({ rows: INLINE_RENDER_ROWS, cols: INLINE_RENDER_COLS })
   useEffect(() => {
     if (!fullscreen) return
     const onResize = (): void => setViewportTick((tick) => tick + 1)
@@ -151,11 +160,17 @@ function SpreadsheetView({
         })
         return cols.length > 0 ? Math.max(...cols) : 1
       }))
-      const overflowRows = Math.max(0, maxRows - MAX_RENDER_ROWS)
-      const overflowCols = Math.max(0, maxCols - MAX_RENDER_COLS)
+      // The caps depend on the mode, and the notice reports the numbers actually used
+      // rather than the constants — a notice that names its own limits cannot drift out
+      // of step with them.
+      const maxRenderRows = fullscreen ? FULLSCREEN_RENDER_ROWS : INLINE_RENDER_ROWS
+      const maxRenderCols = fullscreen ? FULLSCREEN_RENDER_COLS : INLINE_RENDER_COLS
+      const overflowRows = Math.max(0, maxRows - maxRenderRows)
+      const overflowCols = Math.max(0, maxCols - maxRenderCols)
+      setCaps({ rows: maxRenderRows, cols: maxRenderCols })
       setTruncated(overflowRows > 0 || overflowCols > 0)
-      const colCount = Math.min(MAX_RENDER_COLS, Math.max(5, maxCols))
-      const rowCount = Math.min(MAX_RENDER_ROWS, Math.max(10, maxRows))
+      const colCount = Math.min(maxRenderCols, Math.max(5, maxCols))
+      const rowCount = Math.min(maxRenderRows, Math.max(10, maxRows))
       const viewHeight = fullscreen ? Math.max(320, window.innerHeight - 96) : INLINE_VIEW_HEIGHT
       const ss = Spreadsheet(el, {
         mode: editable ? 'edit' : 'read',
@@ -200,7 +215,9 @@ function SpreadsheetView({
     }
   }, [sheets, editable, fullscreen, viewportTick])
   const truncationNotice = truncated
-    ? `表格较大：已显示前 ${MAX_RENDER_ROWS} 行 × ${MAX_RENDER_COLS} 列，点「全屏」可看更多`
+    ? fullscreen
+      ? `表格较大：已显示前 ${caps.rows} 行 × ${caps.cols} 列，已达全屏显示上限`
+      : `表格较大：已显示前 ${caps.rows} 行 × ${caps.cols} 列，点「全屏」可看更多（${FULLSCREEN_RENDER_ROWS} 行 × ${FULLSCREEN_RENDER_COLS} 列）`
     : null
   return (
     <div
