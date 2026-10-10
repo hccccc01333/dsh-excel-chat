@@ -26,7 +26,7 @@ export function registerDiscoverTools(ctx) {
     })), 'tool:excel_menu');
     ctx.effect(() => ctx.tools.register(defineTool({
         name: 'excel_insight',
-        description: 'Data insight report for an .xlsx file: per-sheet plain-language summary plus heuristic anomaly findings (missing values, suspicious duplicates, outlier/negative values, text whitespace, formula presence) and concrete next-step suggestions. Call when the user asks "summarize this file", "帮我看看这表有什么问题", or wants to know what the data says before doing anything.',
+        description: 'Data insight report for an .xlsx file: per-sheet plain-language summary, heuristic anomaly findings (missing values, suspicious duplicates, outlier/negative values, text whitespace, formula presence) and analytical findings (a measure trending across periods, a measure concentrated in a few categories), plus concrete next-step suggestions. Call when the user asks "summarize this file", "帮我看看这表有什么问题", "这表有什么趋势", or wants to know what the data says before doing anything.',
         parameters: {
             path: {
                 type: 'string',

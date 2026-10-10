@@ -147,7 +147,7 @@ Grouped by **what you want to do**, not by source module.
 | `excel_read` | Exact reads: value / formula / type / number format / font / fill / alignment / merges / data validation, so you can see the cell state before editing |
 | `excel_preview` | Table preview: renders the requested sheet or range as a Markdown table (visible inline) plus an HTML preview file. Answers "what does this table look like" |
 | `excel_menu` | Can't describe what you want? Hand it a file and get a menu — a one-line summary of what's inside, then options for cleaning, filling blanks, reports, pivots, charts, health checks, notifications and role templates, each with example wording you can just pick |
-| `excel_insight` | Data insight: a one-line summary plus heuristic checks for missing values, duplicates, outliers, negatives, stray whitespace and formulas, plus next-step suggestions. Answers "what's wrong with this sheet" and "summarise it for me" |
+| `excel_insight` | Data insight: a one-line summary plus heuristic checks for missing values, duplicates, outliers, negatives, stray whitespace and formulas, **analytical findings (a measure trending across periods, a measure concentrated in a few categories)**, and next-step suggestions. Answers "what's wrong with this sheet", "what is this sheet trending towards" and "summarise it for me" |
 
 ### Change the file
 

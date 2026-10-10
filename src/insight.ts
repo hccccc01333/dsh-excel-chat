@@ -1,5 +1,6 @@
 import { t } from './i18n.ts'
 import { profileWorkbook, type SheetProfile, type WorkbookProfile } from './profile.ts'
+import { analyzeWorkbook, type AnalysisFinding } from './analysis.ts'
 
 export type InsightSeverity = 'info' | 'warn' | 'alert'
 
@@ -25,10 +26,21 @@ export interface WorkbookInsight {
  * Heuristic data insight report (ExcelGenius2-style "upload -> summary +
  * anomalies"): per-sheet one-liner, missing/duplicate/outlier/normalization
  * findings, and concrete next-step suggestions. Deterministic, no LLM needed.
+ *
+ * Two kinds of finding come back. Most answer "is this data trustworthy" — missing
+ * values, duplicates, outliers. The rest come from `analysis.ts` and answer "what do the
+ * numbers say" — a trend across periods, a measure concentrated in a few categories.
+ * The second kind was missing entirely: a sheet with a clean 100→260 ramp and one region
+ * four times the size of the others produced no findings at all.
  */
 export async function buildWorkbookInsight(path: string, sheet?: string): Promise<WorkbookInsight> {
   const profile = await profileWorkbook(path, sheet)
   const sheetInsights = profile.sheets.map((entry) => insightForSheet(entry))
+  const analysis = await analyzeWorkbook(path, sheet)
+  for (const finding of analysis) {
+    const target = sheetInsights.find((entry) => entry.sheet === finding.sheet)
+    if (target) target.findings.push(analysisToInsight(finding))
+  }
   const findings = sheetInsights.flatMap((entry) => entry.findings)
   const suggestions = buildSuggestions(profile, findings)
   return {
@@ -40,6 +52,17 @@ export async function buildWorkbookInsight(path: string, sheet?: string): Promis
     sheets: sheetInsights,
     suggestions,
   }
+}
+
+/**
+ * An analytical finding, presented as an insight.
+ *
+ * `info`, not `warn`: a trend or a concentrated measure is not a problem to fix. Marking
+ * it as one would put "your sales grew" in the same list as "you have 40% missing
+ * values", and the alerts count at the top would stop meaning anything.
+ */
+function analysisToInsight(finding: AnalysisFinding): InsightFinding {
+  return { severity: 'info', category: finding.kind, message: finding.message }
 }
 
 function insightForSheet(sheet: SheetProfile): SheetInsight {
@@ -129,6 +152,8 @@ function buildSuggestions(profile: WorkbookProfile, findings: InsightFinding[]):
   if (findings.some((f) => f.category === 'duplicate')) suggestions.push(t('疑似重复：用 dedupeRows 按关键列去重。'))
   if (findings.some((f) => f.category === 'outlier' || f.category === 'negative')) suggestions.push(t('发现异常/负值：建议先核对源数据，再用条件格式或图表突出展示。'))
   if (findings.some((f) => f.category === 'whitespace')) suggestions.push(t('存在首尾空格：用 trimText 清理，再去做匹配/去重。'))
+  if (findings.some((f) => f.category === 'trend')) suggestions.push(t('发现趋势：可用 excel_create_chart 画折线图，或 report 做汇总表。'))
+  if (findings.some((f) => f.category === 'concentration')) suggestions.push(t('发现集中度：可用 crosstab 做二维对比，或 highlightRows 把头部项标出来。'))
   if (profile.sheets.some((s) => s.formulaCells > 0)) suggestions.push(t('表里含公式：可运行 excel_autofix 体检并修复。'))
   if (profile.sheets.some((s) => s.dataRows > 20)) suggestions.push(t('数据量较大：可用 excel_create_pivot / aggregateReport 做透视汇总，或 excel_create_chart 画图。'))
   if (suggestions.length === 0) suggestions.push(t('未发现明显数据问题；可继续做报表（report）、透视或图表。'))

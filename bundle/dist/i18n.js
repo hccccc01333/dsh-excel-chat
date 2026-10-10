@@ -16,6 +16,14 @@ const EN = {
     '公式行 {from} 与 {to} 之间存在空单元格': 'empty cell between formula rows {from} and {to}',
     '单元格含 Excel 错误值 {token}': 'cell contains Excel error {token}',
     '循环引用：{cycle}': 'circular reference: {cycle}',
+    // analysis.ts
+    '{sheet} 的 {measure} 按 {time} 呈{direction}趋势：从 {first} 的 {from} 到 {last} 的 {to}（{change}），{consistent}/{steps} 期同向。': '{sheet}: {measure} trends {direction} by {time} — from {from} in {first} to {to} in {last} ({change}), {consistent} of {steps} steps in the same direction.',
+    '上升': 'up',
+    '下降': 'down',
+    '{sheet} 的 {measure} 集中在少数 {dimension}：{top} 占 {topShare}，前三占 {top3Share}（共 {count} 项）。': '{sheet}: {measure} is concentrated in a few {dimension} — {top} is {topShare} and the top three are {top3Share} (of {count}).',
+    // insight.ts
+    '发现趋势：可用 excel_create_chart 画折线图，或 report 做汇总表。': 'A trend was found: excel_create_chart can draw it as a line chart, or report can summarise it.',
+    '发现集中度：可用 crosstab 做二维对比，或 highlightRows 把头部项标出来。': 'Concentration was found: crosstab can compare the dimensions, or highlightRows can mark the leading entries.',
     // operation warnings
     'dedupeRows 从 {sheet} 删除了 {count} 个重复行': 'dedupeRows removed {count} duplicate row(s) from {sheet}',
     'fillMissing 填充了 {count} 个空单元格': 'fillMissing filled {count} cell(s)',
