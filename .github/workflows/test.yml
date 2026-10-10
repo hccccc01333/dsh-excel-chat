@@ -19,8 +19,16 @@ env:
 
 jobs:
   test:
-    name: Test, type check and pack
-    runs-on: ubuntu-24.04
+    name: Test (${{ matrix.os }})
+    # Windows is not decoration. The plugin writes files, renames over them and compares
+    # paths, and every one of those behaves differently there — case-insensitive
+    # filesystems, backslash separators, rename-over-an-open-file. Issue #5's silent skip
+    # was a packaging problem, but a path problem would be just as invisible from Linux.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -31,16 +39,29 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
+      # The repository keeps LF. A checkout that rewrites line endings makes the
+      # rebuild check below compare files that differ only in CRLF.
+      - name: Keep line endings as committed
+        run: git config core.autocrlf false
+
       - name: Install (immutable)
         run: npm ci
 
       - name: Type check
         run: npx tsc -p bundle/tsconfig.json --noEmit
 
+      - name: Rebuild the bundle
+        run: npm run build:bundle
+
+      # `bundle/dist` is committed because it is what users install. If the source
+      # changed and the bundle did not, the tests below would pass against a stale
+      # artifact and the release would ship code nobody tested.
+      - name: The committed bundle matches the source
+        run: git diff --exit-code -- bundle/dist
+
       - name: Test
         run: node --test tests/*.test.ts
 
       - name: Pack (dry run)
-        run: |
-          cd bundle
-          npm pack --dry-run
+        working-directory: bundle
+        run: npm pack --dry-run
