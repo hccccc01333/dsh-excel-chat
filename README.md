@@ -175,7 +175,7 @@ dsh-excel-chat-doctor                              # npm 全局/npx 可用时
 
 ## 评测与可靠性
 
-能力深度与可靠性进展：133 个职场任务的自建评测语料（ExcelBench lite），覆盖 77 个操作里的 61 个，
+能力深度与可靠性进展：139 个职场任务的自建评测语料（ExcelBench lite），覆盖 77 个操作里的 68 个，
 goal 模式 + glm-5.3-flash 全量实测成功率 86%（DeepSeek 基线 52%）。
 **逐次跑分的公开结果表见 [docs/benchmark-results.md](docs/benchmark-results.md)**
 （由原始输出生成，你可以自己跑一行加进去）；指标与失败归因见 [docs/benchmark.md](docs/benchmark.md)；右侧可编辑 Excel

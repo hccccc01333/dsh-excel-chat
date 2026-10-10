@@ -72,8 +72,29 @@ export interface SheetAssertion {
     zoom?: number;
     /** Required sheet state. */
     state?: 'visible' | 'hidden' | 'veryHidden';
+    /** Merged ranges that must exist, as written (`A1:B1`). */
+    merged?: string[];
 }
-export type WorkbookAssertion = CellAssertion | SheetAssertion;
+/**
+ * A deterministic assertion over the workbook itself: sheet order and document
+ * properties.
+ *
+ * These belong to no single sheet. `moveSheet` changes the order of the tab strip and
+ * `setWorkbookProperties` writes the metadata Excel shows in File → Info; neither is
+ * visible from any sheet, which is why neither had coverage.
+ */
+export interface WorkbookLevelAssertion {
+    /** Discriminator. A sheet assertion names a sheet, a cell assertion a cell. */
+    workbook: true;
+    /** Required sheet order, by name. */
+    sheetOrder?: string[];
+    /** Required document properties. */
+    properties?: {
+        title?: string;
+        creator?: string;
+    };
+}
+export type WorkbookAssertion = CellAssertion | SheetAssertion | WorkbookLevelAssertion;
 /** The result for one deterministic workbook assertion. */
 export interface WorkbookAssertionResult {
     id: string;

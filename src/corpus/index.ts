@@ -3,6 +3,7 @@ import { editingTasks } from './editing.ts'
 import { structureTasks } from './structure.ts'
 import { sheetTasks } from './sheet.ts'
 import { viewTasks } from './view.ts'
+import { workbookTasks } from './workbook.ts'
 import { crossSheetTasks } from './cross-sheet.ts'
 import { missedEditTasks } from './missed-edits.ts'
 import { analysisTasks } from './analysis.ts'
@@ -15,6 +16,7 @@ export const corpusTasks: FileBenchmarkTask[] = [
   ...structureTasks,
   ...viewTasks,
   ...sheetTasks,
+  ...workbookTasks,
   ...crossSheetTasks,
   ...missedEditTasks,
   ...analysisTasks,

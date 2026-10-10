@@ -79,9 +79,28 @@ export interface SheetAssertion {
   zoom?: number
   /** Required sheet state. */
   state?: 'visible' | 'hidden' | 'veryHidden'
+  /** Merged ranges that must exist, as written (`A1:B1`). */
+  merged?: string[]
 }
 
-export type WorkbookAssertion = CellAssertion | SheetAssertion
+/**
+ * A deterministic assertion over the workbook itself: sheet order and document
+ * properties.
+ *
+ * These belong to no single sheet. `moveSheet` changes the order of the tab strip and
+ * `setWorkbookProperties` writes the metadata Excel shows in File → Info; neither is
+ * visible from any sheet, which is why neither had coverage.
+ */
+export interface WorkbookLevelAssertion {
+  /** Discriminator. A sheet assertion names a sheet, a cell assertion a cell. */
+  workbook: true
+  /** Required sheet order, by name. */
+  sheetOrder?: string[]
+  /** Required document properties. */
+  properties?: { title?: string; creator?: string }
+}
+
+export type WorkbookAssertion = CellAssertion | SheetAssertion | WorkbookLevelAssertion
 
 /** The result for one deterministic workbook assertion. */
 export interface WorkbookAssertionResult {
@@ -115,13 +134,15 @@ export async function verifyWorkbookAssertions(
   // A sheet assertion always needs the parsed workbook; a cell assertion only does when
   // it asks about presentation. Narrow first, so `hasStyleAssertion` sees a cell.
   const needsWorkbook = assertions.some(
-    (assertion) => isSheetAssertion(assertion) || hasStyleAssertion(assertion),
+    (assertion) => isWorkbookAssertion(assertion) || isSheetAssertion(assertion) || hasStyleAssertion(assertion),
   )
   const workbook = needsWorkbook ? await loadWorkbook(path) : null
   const results = assertions.map((assertion) =>
-    isSheetAssertion(assertion)
-      ? evaluateSheetAssertion(assertion, workbook!)
-      : evaluateAssertion(assertion, cells, workbook ? styleCellsOf(workbook) : null),
+    isWorkbookAssertion(assertion)
+      ? evaluateWorkbookAssertion(assertion, workbook!)
+      : isSheetAssertion(assertion)
+        ? evaluateSheetAssertion(assertion, workbook!)
+        : evaluateAssertion(assertion, cells, workbook ? styleCellsOf(workbook) : null),
   )
   const failures = results.filter((result) => !result.passed).map((result) => result.detail)
   const passed = results.length - failures.length
@@ -141,6 +162,10 @@ export async function verifyWorkbookAssertions(
 /** A sheet assertion names a sheet; a cell assertion names a cell. */
 function isSheetAssertion(assertion: WorkbookAssertion): assertion is SheetAssertion {
   return typeof (assertion as SheetAssertion).sheet === 'string' && !(assertion as CellAssertion).id
+}
+
+function isWorkbookAssertion(assertion: WorkbookAssertion): assertion is WorkbookLevelAssertion {
+  return (assertion as WorkbookLevelAssertion).workbook === true
 }
 
 /**
@@ -393,6 +418,26 @@ function evaluateSheetAssertion(
     })
   }
 
+  if (assertion.merged !== undefined) {
+    // Exact match, not containment. `merged: []` has to mean "nothing is merged" —
+    // written as a containment check first, an empty list checked nothing at all and
+    // the assertion passed without looking, which is the failure mode this whole
+    // assertion kind exists to prevent.
+    const actual = new Set(
+      ((sheet as unknown as { model?: { merges?: string[] } }).model?.merges ?? []).map((range) =>
+        range.replace(/\$/g, '').toUpperCase(),
+      ),
+    )
+    const wanted = new Set(assertion.merged.map((range) => range.replace(/\$/g, '').toUpperCase()))
+    checks.push({
+      label: t('合并区 期望 {expected} 实际 {actual}', {
+        expected: [...wanted].sort().join(' ') || t('无'),
+        actual: [...actual].sort().join(' ') || t('无'),
+      }),
+      passed: actual.size === wanted.size && [...wanted].every((range) => actual.has(range)),
+    })
+  }
+
   if (checks.length === 0) {
     return { id: assertion.sheet, passed: false, detail: t('{sheet} 的表级断言没有声明任何条件', { sheet: assertion.sheet }) }
   }
@@ -484,6 +529,64 @@ function hasStyleAssertion(assertion: CellAssertion): boolean {
     || assertion.numberFormat !== undefined
     || assertion.wrapText !== undefined
     || assertion.hAlign !== undefined
+}
+
+/** Evaluate sheet order and document properties. */
+function evaluateWorkbookAssertion(
+  assertion: WorkbookLevelAssertion,
+  workbook: ExcelJS.Workbook,
+): WorkbookAssertionResult {
+  const checks: Array<{ label: string; passed: boolean }> = []
+
+  if (assertion.sheetOrder !== undefined) {
+    const actual = workbook.worksheets.map((sheet) => sheet.name)
+    checks.push({
+      label: t('工作表顺序 期望 {expected} 实际 {actual}', {
+        expected: assertion.sheetOrder.join(' | '),
+        actual: actual.join(' | '),
+      }),
+      passed:
+        actual.length === assertion.sheetOrder.length &&
+        actual.every((name, index) => name === assertion.sheetOrder![index]),
+    })
+  }
+
+  if (assertion.properties?.title !== undefined) {
+    const actual = workbook.title ?? null
+    checks.push({
+      label: t('文档标题 期望 {expected} 实际 {actual}', {
+        expected: assertion.properties.title,
+        actual: actual ?? t('无'),
+      }),
+      passed: actual === assertion.properties.title,
+    })
+  }
+
+  if (assertion.properties?.creator !== undefined) {
+    const actual = workbook.creator ?? null
+    checks.push({
+      label: t('文档作者 期望 {expected} 实际 {actual}', {
+        expected: assertion.properties.creator,
+        actual: actual ?? t('无'),
+      }),
+      passed: actual === assertion.properties.creator,
+    })
+  }
+
+  if (checks.length === 0) {
+    return { id: 'workbook', passed: false, detail: t('工作簿级断言没有声明任何条件') }
+  }
+  const failed = checks.filter((check) => !check.passed)
+  return {
+    id: 'workbook',
+    passed: failed.length === 0,
+    detail:
+      failed.length === 0
+        ? t('工作簿级断言通过')
+        : t('工作簿级断言未通过：{failures}', {
+            failures: listJoin(failed.map((check) => check.label), 'semicolon'),
+          }),
+  }
 }
 
 /** Resolve `A2` or `订单!A2` against an already-loaded sheet. */
