@@ -20,7 +20,12 @@ are on [Releases](https://github.com/hccccc01333/dsh-excel-chat/releases).
 
 ![dsh-excel-chat capability overview](assets/feature-grid.png)
 
-![dsh-excel-chat live demo (DeepSeek Harness Web, recorded with a real model)](assets/demo.gif)
+![dsh-excel-chat live demo (recorded 2026-08-15)](assets/demo.gif)
+
+<sub>Recorded **2026-08-15**, around v0.23, with a real model at the time.
+The plugin is now at v0.42 and both the UI and the operation catalogue have moved on —
+**this shows what the project has done, not what it does today**. A new demo goes up once
+the web editing path settles.</sub>
 
 ## Why this exists
 

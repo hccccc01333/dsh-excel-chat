@@ -1,1 +1,2 @@
 {"id":"clean-dedupe","category":"editing","name":"按产品去重","success":true,"checksPassed":5,"checksTotal":5,"integrity":0,"rounds":1,"achieved":true,"error":null,"failure":null}
+{"id":"clean-remove-empty-rows","category":"editing","name":"删除整空行","success":true,"checksPassed":2,"checksTotal":2,"integrity":0,"rounds":1,"achieved":true,"error":null,"failure":null}

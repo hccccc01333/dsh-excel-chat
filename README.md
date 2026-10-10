@@ -38,7 +38,11 @@
 
 ![dsh-excel-chat 能力一览](assets/feature-grid.png)
 
-![dsh-excel-chat 真实演示（DeepSeek Harness Web + 真实模型录制）](assets/demo.gif)
+![dsh-excel-chat 真实演示（2026-08-15 录制）](assets/demo.gif)
+
+<sub>上面的演示录于 **2026-08-15**（约 v0.23 时期），用的是当时的真实模型。
+此后插件已经迭代到 v0.42，界面与操作目录都变了不少 ——
+**它展示的是这个项目做过什么，不是它现在的样子**。新版演示等 Web 编辑链路稳定后再录。</sub>
 
 ## 功能实录（对话内真实截图）
 
