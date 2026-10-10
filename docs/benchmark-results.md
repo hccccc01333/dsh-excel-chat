@@ -6,14 +6,51 @@
 
 ## 结果
 
+> ⚠️ **这两行是 100 任务语料时代的数据，不能和现在的语料直接比较。**
+> 语料已经从 100 涨到 **144 个任务**（编辑 77 / 分析 27 / 公式 22 / 工作流 18），
+> 新加的任务大多来自此前**完全没有覆盖**的操作族 —— 也就是说，这些百分比是在
+> **更容易的题面**上得到的。当前语料的实测结果**待重跑**，跑完会替换这一节，
+> 并附上原始逐任务结果。
+
 | 模型 | 日期 | 轮数 | 任务成功率 | 平均准确率 | 完整性率 | 编辑 | 分析 | 公式 | 工作流 | 最大失败源 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | deepseek-chat | 2026-10-07 | 3 | **52%** | 61% | 93% | 65.7% | 28% | 68.2% | 38.9% | Verification 33 |
 | glm-5.3-flash | 2026-10-07 | 3 | **86%** | 88.5% | 99% | 85.7% | 84% | 95.5% | 77.8% | Argument 9 |
 
+**上面两行的语料规模是 100 个文件级任务**（编辑 35 / 分析 25 / 公式 22 / 工作流 18）。
 任务成功率 = 全部断言通过且公式异常为 0；平均准确率 = 断言通过比例；
-完整性率 = 公式异常为 0 的任务比例。语料共 100 个文件级任务
-（编辑 35 / 分析 25 / 公式 22 / 工作流 18），见 [benchmark.md](benchmark.md)。
+完整性率 = 公式异常为 0 的任务比例。当前语料见 [benchmark.md](benchmark.md)。
+
+## 复现
+
+重跑当前语料（144 个任务）。**先跑不花钱的语料自检**，确认题目本身是好的：
+
+```sh
+npm run bench:corpus     # 不调用任何模型，秒级完成
+```
+
+然后接任意 OpenAI 兼容端点。例如 OpenCode Go 上免费的 Step 5 Preview：
+
+```sh
+LLM_PROVIDER=deepseek \
+DEEPSEEK_BASE_URL=https://opencode.ai/zen/go/v1 \
+DEEPSEEK_MODEL=step-5-preview-free \
+DEEPSEEK_API_KEY=<你的 OpenCode key> \
+LLM_BENCH_OUT=bench-results/step-5-preview-free.jsonl \
+node --test tests/invoke-llm-benchmark.ts
+```
+
+`LLM_BENCH_OUT` 是**逐任务断点文件** ✓ —— 每完成一个任务就追加一行 ✓，重跑会跳过已完成的 ✓。
+长跑中途断了不用从头来 ✓，而且它**就是**原始逐任务结果 ✓。
+
+**先小样验证再接长跑** ✓：
+
+```sh
+LLM_BENCH_SAMPLE=3 LLM_BENCH_OUT=/tmp/smoke.jsonl \
+LLM_PROVIDER=deepseek DEEPSEEK_BASE_URL=https://opencode.ai/zen/go/v1 \
+DEEPSEEK_MODEL=step-5-preview-free DEEPSEEK_API_KEY=<key> \
+node --test tests/invoke-llm-benchmark.ts
+```
 
 ## 自己跑一行
 
