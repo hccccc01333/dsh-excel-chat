@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { columnToNumber, numberToColumn } from '../formula.js';
 import { contentToCellValue } from '../workbook.js';
 import { cellContentOf, parseRange } from './core.js';
@@ -39,7 +40,7 @@ export function joinSheets(workbook, operation, warnings, opIndex) {
                 value.startsWith('=') ? { formula: value.slice(1) } : contentToCellValue(value);
         });
     }
-    warnings.push({ op: opIndex, message: `joinSheets matched ${matched} row(s), ${missed} without a lookup hit` });
+    warnings.push({ op: opIndex, message: t('joinSheets 匹配了 {matched} 行，{missed} 行没有找到对应值', { matched, missed }) });
 }
 function normalizeJoinKey(value) {
     if (value === null || value === undefined)

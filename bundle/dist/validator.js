@@ -1,4 +1,5 @@
 import { buildDependencyGraph } from './graph.js';
+import { t } from './i18n.js';
 import { detectEmptyGaps, detectErrorValues, detectHardcodeBreaks, detectPatternAnomalies, } from './patterns.js';
 /** Skip plugin-owned internal sheets (e.g. `_dsh_体检报告`) so a health
  * report never flags itself or pollutes user-facing validation. */
@@ -37,7 +38,7 @@ export function validate(cells) {
         anomalies.push({
             kind: 'circular-reference',
             cell: cycle[0] ?? '',
-            message: `circular reference: ${cycle.join(' -> ')}`,
+            message: t('循环引用：{cycle}', { cycle: cycle.join(' -> ') }),
             expected: 'acyclic',
             actual: cycle.join(' -> '),
             confidence: 1,

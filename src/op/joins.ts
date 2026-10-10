@@ -6,6 +6,7 @@
  * filled-in column that stays put. Split out of `operations.ts` unchanged.
  */
 import ExcelJS from 'exceljs'
+import { t } from '../i18n.ts'
 import { columnToNumber, numberToColumn } from '../formula.ts'
 import { cellContent, contentToCellValue } from '../workbook.ts'
 import type { ExcelOperation, OperationWarning } from '../operation-types.ts'
@@ -57,7 +58,7 @@ export function joinSheets(
         value.startsWith('=') ? { formula: value.slice(1) } : contentToCellValue(value)
     })
   }
-  warnings.push({ op: opIndex, message: `joinSheets matched ${matched} row(s), ${missed} without a lookup hit` })
+  warnings.push({ op: opIndex, message: t('joinSheets 匹配了 {matched} 行，{missed} 行没有找到对应值', { matched, missed }) })
 }
 
 

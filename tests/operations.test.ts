@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import { excelOperationSchema } from '../src/operation-schema.ts'
+import { t } from '../src/i18n.ts'
 import assert from 'node:assert/strict'
 import ExcelJS from 'exceljs'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
@@ -218,7 +219,10 @@ test('deleteColumns removes columns and shifts references after the deletion', a
   const result = await applyOperationsToWorkbook(path, [
     { op: 'deleteColumns', sheet: 'Sheet1', column: 'B', count: 1 },
   ], outPath)
-  assert.ok(result.warnings.some((warning) => /references a deleted column/.test(warning.message)))
+  // Asserted through t() so the check holds in either language, and so what it pins is
+  // the message a user actually sees. These warnings used to be English-only while
+  // Chinese is the default, and a regex on the English text could not notice.
+  assert.ok(result.warnings.some((warning) => warning.message === t('公式 {cell} 引用了 {sheet} 中被删除的列', { cell: 'Sheet1!C2', sheet: 'Sheet1' })))
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.readFile(outPath)
   const sheet = workbook.getWorksheet('Sheet1')!
@@ -454,7 +458,7 @@ test('findReplace swaps text across cells and reports the count', async () => {
   const result = await applyOperationsToWorkbook(path, [
     { op: 'findReplace', find: 'old', replace: 'new', sheet: 'Sheet1', matchCase: false },
   ], outPath)
-  assert.equal(result.warnings[0]!.message, 'findReplace replaced 2 occurrence(s)')
+  assert.equal(result.warnings[0]!.message, t('findReplace 替换了 {count} 处', { count: 2 }))
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.readFile(outPath)
   const sheet = workbook.getWorksheet('Sheet1')!
@@ -1837,7 +1841,7 @@ test('hideRows clamps a huge range to the used rows instead of bloating the file
   const result = await applyOperationsToWorkbook(path, [
     { op: 'hideRows', sheet: 'S', from: 2, to: 500000 },
   ], outPath)
-  assert.ok(result.warnings.some((w) => /clamped/.test(w.message)), 'expected a clamp warning')
+  assert.ok(result.warnings.some((w) => w.message === t('hideRows 被截断到已用范围（第 {row} 行）', { row: 1 })), 'expected a clamp warning')
   // The used range is a single row; hiding "to the bottom" is a no-op and must
   // not materialize half a million empty rows (which would bloat the file).
   assert.ok((await readFile(outPath)).length < 20000, 'file should stay small')

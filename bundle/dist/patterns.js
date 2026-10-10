@@ -1,4 +1,5 @@
 import { canonicalCellId, columnToNumber, parseCellId, parseFormula } from './formula.js';
+import { t } from './i18n.js';
 import { excelErrorPattern } from './error-values.js';
 function normalizeFormula(parsed, baseSheet, baseColumnNumber, baseRow) {
     const slots = new Map();
@@ -125,7 +126,7 @@ export function detectPatternAnomalies(cells) {
                         anomalies.push({
                             kind: 'structure-mismatch',
                             cell: entry.id,
-                            message: `missing slot ${slotKey}; column expects ${expected[slotKey]}`,
+                            message: t('缺少槽位 {slot}；该列应为 {expected}', { slot: slotKey, expected: expected[slotKey] }),
                             expected: expected[slotKey],
                             actual: null,
                             confidence: total > 0 ? majority.count / total : null,
@@ -136,7 +137,7 @@ export function detectPatternAnomalies(cells) {
                     anomalies.push({
                         kind: 'reference-offset',
                         cell: entry.id,
-                        message: `slot ${slotKey} deviates from column pattern: expected ${expected[slotKey]}, actual ${formatNormalized(value)}`,
+                        message: t('槽位 {slot} 偏离列模式：应为 {expected}，实际为 {actual}', { slot: slotKey, expected: expected[slotKey], actual: formatNormalized(value) }),
                         expected: expected[slotKey],
                         actual: formatNormalized(value),
                         confidence: total > 0 ? majority.count / total : null,
@@ -199,7 +200,7 @@ export function detectHardcodeBreaks(cells) {
                 anomalies.push({
                     kind: 'hardcode-break',
                     cell: value.id,
-                    message: `numeric value ${value.content} inside formula column (formula rows ${minRow}-${maxRow})`,
+                    message: t('公式列里出现数值 {content}（公式行为 {min}-{max}）', { content: value.content, min: minRow, max: maxRow }),
                     expected: '=formula',
                     actual: value.content,
                     confidence: null,
@@ -245,7 +246,7 @@ export function detectEmptyGaps(cells) {
                     anomalies.push({
                         kind: 'empty-gap',
                         cell: gapId,
-                        message: `empty cell between formula rows ${sorted[i - 1]} and ${sorted[i]}`,
+                        message: t('公式行 {from} 与 {to} 之间存在空单元格', { from: sorted[i - 1], to: sorted[i] }),
                         expected: `=formula at ${gapId}`,
                         actual: 'empty',
                         confidence: 1,
@@ -321,7 +322,7 @@ export function detectErrorValues(cells) {
             anomalies.push({
                 kind: 'error-value',
                 cell: id,
-                message: `cell contains Excel error ${token}`,
+                message: t('单元格含 Excel 错误值 {token}', { token }),
                 expected: 'valid value',
                 actual: trimmed.slice(0, 200),
                 confidence: 1,

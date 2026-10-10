@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { t } from '../src/i18n.ts'
 import { test } from 'node:test'
 import { buildDependencyGraph, traceDependencies } from '../src/graph.ts'
 import { validate } from '../src/validator.ts'
@@ -126,5 +127,5 @@ test('the validator reports a self-reference as a circular-reference anomaly', (
   assert.equal(circular.length, 1)
   assert.equal(circular[0]!.cell, 'SHEET1!A1')
   assert.equal(circular[0]!.confidence, 1)
-  assert.match(circular[0]!.message, /circular reference: SHEET1!A1 -> SHEET1!A1/)
+  assert.equal(circular[0]!.message, t('循环引用：{cycle}', { cycle: 'SHEET1!A1 -> SHEET1!A1' }))
 })

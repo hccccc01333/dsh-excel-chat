@@ -7,6 +7,7 @@
  * silently pointing somewhere new.
  */
 import ExcelJS from 'exceljs'
+import { t } from '../i18n.ts'
 import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula, type RefPoint } from '../formula.ts'
 import type { OperationWarning } from '../operation-types.ts'
 import { absoluteColumnRef, cellContentOf, findSheet, parseRange, resolveCell, shiftFormulaReferences, writeContent } from './core.ts'
@@ -25,7 +26,7 @@ export function deleteRowsFromSheet(
   if (start < 1 || count < 1) throw new Error(`invalid deleteRows: row=${start} count=${count}`)
   const end = start + count - 1
   for (const formulaCell of collectDeletedRangeRefs(workbook, sheetName, start, end)) {
-    warnings.push({ op: opIndex, message: `formula ${formulaCell} references a deleted row in ${sheetName}` })
+    warnings.push({ op: opIndex, message: t('公式 {cell} 引用了 {sheet} 中被删除的行', { cell: formulaCell, sheet: sheetName }) })
   }
   markDeletedRowRefs(workbook, sheetName, start, end)
   sheet.spliceRows(start, count)
@@ -46,7 +47,7 @@ export function deleteColumnsFromSheet(
   if (column < 1 || count < 1) throw new Error(`invalid deleteColumns: column=${column} count=${count}`)
   const end = column + count - 1
   for (const formulaCell of collectDeletedColumnRefs(workbook, sheetName, column, end)) {
-    warnings.push({ op: opIndex, message: `formula ${formulaCell} references a deleted column in ${sheetName}` })
+    warnings.push({ op: opIndex, message: t('公式 {cell} 引用了 {sheet} 中被删除的列', { cell: formulaCell, sheet: sheetName }) })
   }
   markDeletedColumnRefs(workbook, sheetName, column, end)
   sheet.spliceColumns(column, count)

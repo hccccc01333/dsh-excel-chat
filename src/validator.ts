@@ -1,4 +1,5 @@
 import { buildDependencyGraph, type DependencyGraph } from './graph.ts'
+import { t } from './i18n.ts'
 import {
   detectEmptyGaps,
   detectErrorValues,
@@ -56,7 +57,7 @@ export function validate(cells: Record<string, string>): ValidationResult {
     anomalies.push({
       kind: 'circular-reference',
       cell: cycle[0] ?? '',
-      message: `circular reference: ${cycle.join(' -> ')}`,
+      message: t('循环引用：{cycle}', { cycle: cycle.join(' -> ') }),
       expected: 'acyclic',
       actual: cycle.join(' -> '),
       confidence: 1,

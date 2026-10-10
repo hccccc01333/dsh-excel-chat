@@ -1,4 +1,5 @@
 import { columnToNumber, numberToColumn } from '../formula.js';
+import { t } from '../i18n.js';
 import { absoluteColumnRef, findSheet, parseRange } from './core.js';
 const CROSSTAB_FUNCTIONS = {
     sum: 'SUMIFS',
@@ -97,7 +98,7 @@ export function applyCrosstab(workbook, options, warnings, opIndex) {
     }
     warnings.push({
         op: opIndex,
-        message: `crosstab built ${rowKeys.length}x${colKeys.length} grid on ${outputSheetName} with live ${fn} formulas`,
+        message: t('crosstab 在 {sheet} 生成了 {rows}x{cols} 的交叉表（{fn} 活公式）', { sheet: outputSheetName, rows: rowKeys.length, cols: colKeys.length, fn }),
     });
 }
 /** Formats exceljs can embed, and the size ceiling that keeps memory sane. */

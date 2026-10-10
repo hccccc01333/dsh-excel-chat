@@ -125,7 +125,7 @@ export async function applyOperationsToWorkbook(
         for (const row of rowsToDelete.sort((a, b) => b - a)) {
           deleteRowsFromSheet(workbook, sheet.name, row, 1, warnings, index)
         }
-        warnings.push({ op: index, message: `dedupeRows removed ${rowsToDelete.length} duplicate row(s) from ${sheet.name}` })
+        warnings.push({ op: index, message: t('dedupeRows 从 {sheet} 删除了 {count} 个重复行', { sheet: sheet.name, count: rowsToDelete.length }) })
         break
       }
       case 'fillMissing': {
@@ -160,7 +160,7 @@ export async function applyOperationsToWorkbook(
             }
           }
         }
-        warnings.push({ op: index, message: `fillMissing filled ${filled} cell(s)` })
+        warnings.push({ op: index, message: t('fillMissing 填充了 {count} 个空单元格', { count: filled }) })
         break
       }
       case 'removeEmptyRows': {
@@ -179,7 +179,7 @@ export async function applyOperationsToWorkbook(
         for (const row of emptyRows.sort((a, b) => b - a)) {
           deleteRowsFromSheet(workbook, parsed.sheet.name, row, 1, warnings, index)
         }
-        warnings.push({ op: index, message: `removeEmptyRows removed ${emptyRows.length} fully empty row(s) in ${operation.range}` })
+        warnings.push({ op: index, message: t('removeEmptyRows 在 {range} 删除了 {count} 个完全空白的行', { range: operation.range, count: emptyRows.length }) })
         break
       }
       case 'removeEmptyColumns': {
@@ -198,7 +198,7 @@ export async function applyOperationsToWorkbook(
         for (const col of emptyCols.sort((a, b) => b - a)) {
           deleteColumnsFromSheet(workbook, parsed.sheet.name, col, 1, warnings, index)
         }
-        warnings.push({ op: index, message: `removeEmptyColumns removed ${emptyCols.length} fully empty column(s) in ${operation.range}` })
+        warnings.push({ op: index, message: t('removeEmptyColumns 在 {range} 删除了 {count} 个完全空白的列', { range: operation.range, count: emptyCols.length }) })
         break
       }
       case 'trimText': {
@@ -215,7 +215,7 @@ export async function applyOperationsToWorkbook(
             }
           }
         }
-        warnings.push({ op: index, message: `trimText trimmed ${trimmed} cell(s)` })
+        warnings.push({ op: index, message: t('trimText 清理了 {count} 个单元格的空白', { count: trimmed }) })
         break
       }
       case 'changeCase': {
@@ -234,7 +234,7 @@ export async function applyOperationsToWorkbook(
             }
           }
         }
-        warnings.push({ op: index, message: `changeCase converted ${changed} cell(s) to ${operation.case}` })
+        warnings.push({ op: index, message: t('changeCase 把 {count} 个单元格转换为 {mode}', { count: changed, mode: operation.case }) })
         break
       }
       case 'normalizeText': {
@@ -251,7 +251,7 @@ export async function applyOperationsToWorkbook(
             }
           }
         }
-        warnings.push({ op: index, message: `normalizeText normalized ${normalized} cell(s)` })
+        warnings.push({ op: index, message: t('normalizeText 规范化了 {count} 个单元格', { count: normalized }) })
         break
       }
       case 'splitColumn': {
@@ -289,7 +289,7 @@ export async function applyOperationsToWorkbook(
         const mode = operation.widths
           ? `fixed width ${operation.widths.join('/')}`
           : `delimiter "${operation.delimiter}"`
-        warnings.push({ op: index, message: `splitColumn split ${partsByRow.size} row(s) into up to ${maxParts} columns (${mode})` })
+        warnings.push({ op: index, message: t('splitColumn 把 {rows} 行拆成最多 {max} 列（{mode}）', { rows: partsByRow.size, max: maxParts, mode }) })
         break
       }
       case 'highlightRows': {
@@ -307,7 +307,7 @@ export async function applyOperationsToWorkbook(
           matched++
           applyStyle(workbook, `${sheet.name}!${numberToColumn(parsed.startCol)}${row}:${numberToColumn(parsed.endCol)}${row}`, style)
         }
-        warnings.push({ op: index, message: `highlightRows highlighted ${matched} row(s) in ${operation.range}` })
+        warnings.push({ op: index, message: t('highlightRows 在 {range} 高亮了 {count} 行', { range: operation.range, count: matched }) })
         break
       }
       case 'fuzzyMatch': {
@@ -344,7 +344,7 @@ export async function applyOperationsToWorkbook(
             if (scoreCol !== null) sourceParsed.sheet.getCell(`${numberToColumn(scoreCol)}${row}`).value = Math.round(bestScore * 100) / 100
           }
         }
-        warnings.push({ op: index, message: `fuzzyMatch matched ${matched}/${sourceParsed.endRow - sourceParsed.startRow + 1} source row(s) at threshold ${threshold}` })
+        warnings.push({ op: index, message: t('fuzzyMatch 在阈值 {threshold} 下匹配了 {matched}/{total} 行', { threshold, matched, total: sourceParsed.endRow - sourceParsed.startRow + 1 }) })
         break
       }
       case 'hideRows': {
@@ -357,7 +357,7 @@ export async function applyOperationsToWorkbook(
         // the file with thousands of synthetic rows.
         const to = hidden ? Math.min(operation.to, sheet.rowCount) : operation.to
         if (hidden && to < operation.to) {
-          warnings.push({ op: index, message: `hideRows clamped to the used range (row ${to})` })
+          warnings.push({ op: index, message: t('hideRows 被截断到已用范围（第 {row} 行）', { row: to }) })
         }
         for (let row = operation.from; row <= to; row++) {
           const target = sheet.getRow(row)
@@ -388,7 +388,7 @@ export async function applyOperationsToWorkbook(
         // Same clamp as hideRows: collapsed groups materialize empty rows.
         const end = level > 0 ? Math.min(operation.end, Math.max(sheet.rowCount, operation.start)) : operation.end
         if (level > 0 && end < operation.end) {
-          warnings.push({ op: index, message: `groupRows clamped to the used range (row ${end})` })
+          warnings.push({ op: index, message: t('groupRows 被截断到已用范围（第 {row} 行）', { row: end }) })
         }
         for (let row = operation.start; row <= end; row++) {
           const target = sheet.getRow(row)
@@ -444,7 +444,7 @@ export async function applyOperationsToWorkbook(
       }
       case 'transpose': {
         transposeRange(workbook, operation.source, operation.target)
-        warnings.push({ op: index, message: 'transpose copied values and formulas (styles are not transposed)' })
+        warnings.push({ op: index, message: t('transpose 复制了值和公式（样式不会被转置）') })
         break
       }
       case 'clearRange': {
@@ -486,7 +486,7 @@ export async function applyOperationsToWorkbook(
       }
       case 'uniqueValues': {
         const extracted = uniqueValues(workbook, operation)
-        warnings.push({ op: index, message: `uniqueValues extracted ${extracted} distinct value(s)` })
+        warnings.push({ op: index, message: t('uniqueValues 提取了 {count} 个不重复值', { count: extracted }) })
         break
       }
       case 'unmergeAll': {
@@ -494,7 +494,7 @@ export async function applyOperationsToWorkbook(
         if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
         const merges = [...(sheet.model.merges ?? [])]
         for (const range of merges) sheet.unMergeCells(range)
-        warnings.push({ op: index, message: `unmergeAll removed ${merges.length} merged range(s) from ${sheet.name}` })
+        warnings.push({ op: index, message: t('unmergeAll 从 {sheet} 移除了 {count} 个合并区域', { sheet: sheet.name, count: merges.length }) })
         break
       }
       case 'setZoom': {
@@ -693,7 +693,7 @@ export async function applyOperationsToWorkbook(
       }
       case 'findReplace': {
         const count = findReplace(workbook, operation.find, operation.replace, operation.sheet, operation.matchCase ?? false)
-        warnings.push({ op: index, message: `findReplace replaced ${count} occurrence(s)` })
+        warnings.push({ op: index, message: t('findReplace 替换了 {count} 处', { count }) })
         break
       }
       case 'duplicateSheet': {
@@ -722,7 +722,7 @@ export async function applyOperationsToWorkbook(
       }
       case 'sortRange': {
         sortRange(workbook, operation.range, operation.keys, operation.headerRows ?? 0)
-        warnings.push({ op: index, message: 'sortRange moved cell content; formulas outside the range still point to their original addresses' })
+        warnings.push({ op: index, message: t('sortRange 移动了单元格内容；区间之外的公式仍指向原地址') })
         break
       }
       case 'report': {
@@ -751,7 +751,7 @@ export async function applyOperationsToWorkbook(
       }
       case 'subtotal': {
         applySubtotal(workbook, operation)
-        warnings.push({ op: index, message: 'subtotal groups data by the group column; sort the range by that column first for correct grouping' })
+        warnings.push({ op: index, message: t('subtotal 按分组列聚合；请先按该列排序，否则分组不正确') })
         break
       }
       case 'aggregateReport': {
