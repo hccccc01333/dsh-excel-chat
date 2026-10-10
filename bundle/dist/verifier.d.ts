@@ -42,6 +42,36 @@ export interface SheetAssertion {
     columnWidth?: Record<string, number>;
     /** Required row heights, keyed by row number. */
     rowHeight?: Record<string, number>;
+    /** Required protection state. */
+    protected?: boolean;
+    /** Required tab colour, with or without an ARGB alpha prefix. */
+    tabColor?: string;
+    /** Required autofilter range (`A1:B1`); `null` requires no filter. */
+    autoFilter?: string | null;
+    /** Required cell comments, keyed by cell id, valued by the comment text. */
+    comments?: Record<string, string>;
+    /** Required hyperlinks, keyed by cell id, valued by the URL. */
+    hyperlinks?: Record<string, string>;
+    /** Required row outline levels, keyed by row number. */
+    outlineRows?: Record<string, number>;
+    /** Required column outline levels, keyed by column letter. */
+    outlineColumns?: Record<string, number>;
+    /** Required number of embedded images. */
+    images?: number;
+    /** Table names that must exist. */
+    tables?: string[];
+    /** Required data-validation types, keyed by cell id. */
+    dataValidation?: Record<string, string>;
+    /** Required page orientation, e.g. `landscape`. */
+    pageOrientation?: string;
+    /** Required odd-page header string, as written (Excel codes and all). */
+    oddHeader?: string;
+    /** Required gridline visibility. */
+    showGridLines?: boolean;
+    /** Required zoom percentage. */
+    zoom?: number;
+    /** Required sheet state. */
+    state?: 'visible' | 'hidden' | 'veryHidden';
 }
 export type WorkbookAssertion = CellAssertion | SheetAssertion;
 /** The result for one deterministic workbook assertion. */

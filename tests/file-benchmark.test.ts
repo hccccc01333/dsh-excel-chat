@@ -106,7 +106,10 @@ test('every corpus task asserts something', () => {
       // keys were missing here, so every sheet assertion read as 'declares no
       // condition' — the guard was right to fire, about itself.
       const conditions = ['expect', 'startsWith', 'fill', 'bold', 'numberFormat', 'wrapText', 'hAlign',
-        'frozen', 'hiddenRows', 'hiddenColumns', 'columnWidth', 'rowHeight']
+        'frozen', 'hiddenRows', 'hiddenColumns', 'columnWidth', 'rowHeight',
+        'protected', 'tabColor', 'autoFilter', 'comments', 'hyperlinks', 'outlineRows',
+        'outlineColumns', 'images', 'tables', 'dataValidation', 'pageOrientation',
+        'oddHeader', 'showGridLines', 'zoom', 'state']
         .filter((key) => (check as Record<string, unknown>)[key] !== undefined)
       const label = (check as { id?: string }).id ?? (check as { sheet?: string }).sheet
       assert.ok(conditions.length > 0, `${task.id}/${label} declares no condition to check`)

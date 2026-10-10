@@ -49,6 +49,36 @@ export interface SheetAssertion {
   columnWidth?: Record<string, number>
   /** Required row heights, keyed by row number. */
   rowHeight?: Record<string, number>
+  /** Required protection state. */
+  protected?: boolean
+  /** Required tab colour, with or without an ARGB alpha prefix. */
+  tabColor?: string
+  /** Required autofilter range (`A1:B1`); `null` requires no filter. */
+  autoFilter?: string | null
+  /** Required cell comments, keyed by cell id, valued by the comment text. */
+  comments?: Record<string, string>
+  /** Required hyperlinks, keyed by cell id, valued by the URL. */
+  hyperlinks?: Record<string, string>
+  /** Required row outline levels, keyed by row number. */
+  outlineRows?: Record<string, number>
+  /** Required column outline levels, keyed by column letter. */
+  outlineColumns?: Record<string, number>
+  /** Required number of embedded images. */
+  images?: number
+  /** Table names that must exist. */
+  tables?: string[]
+  /** Required data-validation types, keyed by cell id. */
+  dataValidation?: Record<string, string>
+  /** Required page orientation, e.g. `landscape`. */
+  pageOrientation?: string
+  /** Required odd-page header string, as written (Excel codes and all). */
+  oddHeader?: string
+  /** Required gridline visibility. */
+  showGridLines?: boolean
+  /** Required zoom percentage. */
+  zoom?: number
+  /** Required sheet state. */
+  state?: 'visible' | 'hidden' | 'veryHidden'
 }
 
 export type WorkbookAssertion = CellAssertion | SheetAssertion
@@ -195,6 +225,174 @@ function evaluateSheetAssertion(
     }
   }
 
+  if (assertion.protected !== undefined) {
+    const protection = (sheet as unknown as { sheetProtection?: unknown }).sheetProtection
+    const actual = protection !== undefined && protection !== null
+    checks.push({
+      label: t('保护 期望 {expected} 实际 {actual}', {
+        expected: assertion.protected ? t('是') : t('否'),
+        actual: actual ? t('是') : t('否'),
+      }),
+      passed: actual === assertion.protected,
+    })
+  }
+
+  if (assertion.tabColor !== undefined) {
+    const actual = (sheet.properties as { tabColor?: { argb?: string } } | undefined)?.tabColor?.argb ?? null
+    checks.push({
+      label: t('标签色 期望 {expected} 实际 {actual}', {
+        expected: assertion.tabColor,
+        actual: actual ?? t('无'),
+      }),
+      // Compare the tail so `FF0000` matches `FFFF0000`, the same rule the cell fill
+      // uses: the alpha prefix is optional in both places.
+      passed: actual !== null && actual.toUpperCase().endsWith(assertion.tabColor.toUpperCase()),
+    })
+  }
+
+  if (assertion.autoFilter !== undefined) {
+    const filter = sheet.autoFilter as string | { from?: string; to?: string } | undefined
+    const actual = typeof filter === 'string' ? filter : filter ? `${filter.from}:${filter.to}` : null
+    checks.push({
+      label: t('筛选范围 期望 {expected} 实际 {actual}', {
+        expected: assertion.autoFilter ?? t('无'),
+        actual: actual ?? t('无'),
+      }),
+      passed: (actual ?? null) === (assertion.autoFilter ?? null),
+    })
+  }
+
+  if (assertion.comments !== undefined) {
+    for (const [cellId, text] of Object.entries(assertion.comments)) {
+      const cell = cellIn(sheet, cellId)
+      const note = cell?.note
+      const actual = typeof note === 'string' ? note : note?.texts?.map((part) => part.text).join('') ?? null
+      checks.push({
+        label: t('{cell} 批注 期望 {expected} 实际 {actual}', {
+          cell: cellId,
+          expected: text,
+          actual: actual ?? t('无'),
+        }),
+        passed: actual === text,
+      })
+    }
+  }
+
+  if (assertion.hyperlinks !== undefined) {
+    for (const [cellId, url] of Object.entries(assertion.hyperlinks)) {
+      const value = cellIn(sheet, cellId)?.value as { hyperlink?: string } | string | null
+      const actual = typeof value === 'object' && value !== null ? value.hyperlink ?? null : null
+      checks.push({
+        label: t('{cell} 超链接 期望 {expected} 实际 {actual}', {
+          cell: cellId,
+          expected: url,
+          actual: actual ?? t('无'),
+        }),
+        passed: actual === url,
+      })
+    }
+  }
+
+  if (assertion.outlineRows !== undefined) {
+    for (const [row, level] of Object.entries(assertion.outlineRows)) {
+      const actual = sheet.getRow(Number(row)).outlineLevel ?? 0
+      checks.push({
+        label: t('第 {row} 行分组层级 期望 {expected} 实际 {actual}', { row, expected: level, actual }),
+        passed: actual === level,
+      })
+    }
+  }
+
+  if (assertion.outlineColumns !== undefined) {
+    for (const [column, level] of Object.entries(assertion.outlineColumns)) {
+      const actual = sheet.getColumn(column).outlineLevel ?? 0
+      checks.push({
+        label: t('{column} 列分组层级 期望 {expected} 实际 {actual}', { column, expected: level, actual }),
+        passed: actual === level,
+      })
+    }
+  }
+
+  if (assertion.images !== undefined) {
+    const actual = sheet.getImages?.().length ?? 0
+    checks.push({
+      label: t('图片数 期望 {expected} 实际 {actual}', { expected: assertion.images, actual }),
+      passed: actual === assertion.images,
+    })
+  }
+
+  if (assertion.tables !== undefined) {
+    for (const name of assertion.tables) {
+      const actual = sheet.getTable?.(name) !== undefined
+      checks.push({ label: t('表格 {name} 存在 期望是', { name }), passed: actual })
+    }
+  }
+
+  if (assertion.dataValidation !== undefined) {
+    for (const [cellId, type] of Object.entries(assertion.dataValidation)) {
+      const actual = cellIn(sheet, cellId)?.dataValidation?.type ?? null
+      checks.push({
+        label: t('{cell} 数据验证 期望 {expected} 实际 {actual}', {
+          cell: cellId,
+          expected: type,
+          actual: actual ?? t('无'),
+        }),
+        passed: actual === type,
+      })
+    }
+  }
+
+  if (assertion.pageOrientation !== undefined) {
+    const actual = sheet.pageSetup?.orientation ?? null
+    checks.push({
+      label: t('纸张方向 期望 {expected} 实际 {actual}', {
+        expected: assertion.pageOrientation,
+        actual: actual ?? t('无'),
+      }),
+      passed: actual === assertion.pageOrientation,
+    })
+  }
+
+  if (assertion.oddHeader !== undefined) {
+    const actual = sheet.headerFooter?.oddHeader ?? null
+    checks.push({
+      label: t('页眉 期望 {expected} 实际 {actual}', {
+        expected: assertion.oddHeader,
+        actual: actual ?? t('无'),
+      }),
+      passed: actual === assertion.oddHeader,
+    })
+  }
+
+  if (assertion.showGridLines !== undefined) {
+    const view = sheet.views?.[0] as { showGridLines?: boolean } | undefined
+    const actual = view?.showGridLines ?? true
+    checks.push({
+      label: t('网格线 期望 {expected} 实际 {actual}', {
+        expected: assertion.showGridLines ? t('显示') : t('隐藏'),
+        actual: actual ? t('显示') : t('隐藏'),
+      }),
+      passed: actual === assertion.showGridLines,
+    })
+  }
+
+  if (assertion.zoom !== undefined) {
+    const view = sheet.views?.[0] as { zoomScale?: number } | undefined
+    const actual = view?.zoomScale ?? 100
+    checks.push({
+      label: t('缩放 期望 {expected} 实际 {actual}', { expected: assertion.zoom, actual }),
+      passed: actual === assertion.zoom,
+    })
+  }
+
+  if (assertion.state !== undefined) {
+    const actual = sheet.state ?? 'visible'
+    checks.push({
+      label: t('工作表状态 期望 {expected} 实际 {actual}', { expected: assertion.state, actual }),
+      passed: actual === assertion.state,
+    })
+  }
+
   if (checks.length === 0) {
     return { id: assertion.sheet, passed: false, detail: t('{sheet} 的表级断言没有声明任何条件', { sheet: assertion.sheet }) }
   }
@@ -286,6 +484,16 @@ function hasStyleAssertion(assertion: CellAssertion): boolean {
     || assertion.numberFormat !== undefined
     || assertion.wrapText !== undefined
     || assertion.hAlign !== undefined
+}
+
+/** Resolve `A2` or `订单!A2` against an already-loaded sheet. */
+function cellIn(sheet: ExcelJS.Worksheet, cellId: string): ExcelJS.Cell | undefined {
+  const address = cellId.includes('!') ? cellId.split('!').pop()! : cellId
+  try {
+    return sheet.getCell(address)
+  } catch {
+    return undefined
+  }
 }
 
 function colorMatches(cell: ExcelJS.Cell | undefined, expected: string): boolean {
