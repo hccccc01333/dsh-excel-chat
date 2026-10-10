@@ -102,9 +102,14 @@ test('every corpus task asserts something', () => {
 
   for (const task of corpusTasks) {
     for (const check of task.checks) {
-      const conditions = ['expect', 'startsWith', 'fill', 'bold', 'numberFormat', 'wrapText', 'hAlign']
+      // A check names either a cell or a sheet, and the conditions differ. The sheet
+      // keys were missing here, so every sheet assertion read as 'declares no
+      // condition' — the guard was right to fire, about itself.
+      const conditions = ['expect', 'startsWith', 'fill', 'bold', 'numberFormat', 'wrapText', 'hAlign',
+        'frozen', 'hiddenRows', 'hiddenColumns', 'columnWidth', 'rowHeight']
         .filter((key) => (check as Record<string, unknown>)[key] !== undefined)
-      assert.ok(conditions.length > 0, `${task.id}/${check.id} declares no condition to check`)
+      const label = (check as { id?: string }).id ?? (check as { sheet?: string }).sheet
+      assert.ok(conditions.length > 0, `${task.id}/${label} declares no condition to check`)
     }
   }
 })
@@ -130,7 +135,11 @@ test('every sheet an assertion names is named in the task description', async ()
     await inputWorkbook.xlsx.load(await readFile(input))
     const inputSheets = new Set(inputWorkbook.worksheets.map((sheet) => sheet.name))
 
-    for (const sheet of new Set(task.checks.map((check) => check.id.split('!')[0]!))) {
+    // A sheet assertion names its sheet directly; a cell assertion carries it in the id.
+    const namedSheets = task.checks.map((check) =>
+      (check as { id?: string }).id ? (check as { id: string }).id.split('!')[0]! : (check as { sheet: string }).sheet,
+    )
+    for (const sheet of new Set(namedSheets)) {
       // Sheets that already exist are context; a sheet the plan creates is a
       // requirement, and the description has to say so.
       if (inputSheets.has(sheet)) continue

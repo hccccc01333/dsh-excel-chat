@@ -16,6 +16,17 @@ const EN = {
     '公式行 {from} 与 {to} 之间存在空单元格': 'empty cell between formula rows {from} and {to}',
     '单元格含 Excel 错误值 {token}': 'cell contains Excel error {token}',
     '循环引用：{cycle}': 'circular reference: {cycle}',
+    // verifier.ts — sheet-level assertions
+    '{sheet} 不存在': 'sheet {sheet} does not exist',
+    '冻结窗格 期望 {expected} 实际 {actual}': 'frozen pane: expected {expected}, found {actual}',
+    '第 {row} 行隐藏 期望是': 'row {row} hidden: expected yes',
+    '{column} 列隐藏 期望是': 'column {column} hidden: expected yes',
+    '{column} 列宽 期望 {expected} 实际 {actual}': 'column {column} width: expected {expected}, found {actual}',
+    '未设置': 'not set',
+    '第 {row} 行高 期望 {expected} 实际 {actual}': 'row {row} height: expected {expected}, found {actual}',
+    '{sheet} 的表级断言没有声明任何条件': 'the sheet assertion for {sheet} declares no condition to check',
+    '{sheet} 表级断言通过': 'sheet {sheet}: layout assertions passed',
+    '{sheet} 表级断言未通过：{failures}': 'sheet {sheet}: layout assertions failed — {failures}',
     // analysis.ts
     '{sheet} 的 {measure} 按 {time} 呈{direction}趋势：从 {first} 的 {from} 到 {last} 的 {to}（{change}），{consistent}/{steps} 期同向。': '{sheet}: {measure} trends {direction} by {time} — from {from} in {first} to {to} in {last} ({change}), {consistent} of {steps} steps in the same direction.',
     '上升': 'up',
