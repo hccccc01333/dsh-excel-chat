@@ -13,6 +13,17 @@ export interface DeepSeekMessage {
   tool_calls?: DeepSeekToolCall[]
 }
 
+/**
+ * Output-token budget for one call.
+ *
+ * Reasoning models bill their hidden reasoning to the same budget as the visible answer.
+ * Measured against Step 5 Preview, a planning prompt of ~9,200 characters spent the
+ * entire 2,000-token budget thinking and returned an empty completion with
+ * `finish_reason: "length"` — 55 of 80 benchmark failures were this. A budget that is
+ * generous costs nothing extra: you are billed for tokens generated, not for the ceiling.
+ */
+const DEFAULT_MAX_TOKENS = Number(process.env.LLM_MAX_TOKENS ?? 8192)
+
 /** How this plugin identifies itself to a gateway. */
 const USER_AGENT = 'dsh-excel-chat/1.0'
 
@@ -74,7 +85,7 @@ export async function deepseekChatCompletion(options: DeepSeekChatOptions): Prom
       model: options.model,
       messages: options.messages,
       temperature: options.temperature ?? 0,
-      max_tokens: options.maxTokens ?? 2000,
+      max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
       stream: false,
     }),
     signal: options.signal,
@@ -82,10 +93,27 @@ export async function deepseekChatCompletion(options: DeepSeekChatOptions): Prom
   if (!response.ok) {
     throw new Error(`LLM API ${baseUrl} returned ${response.status}: ${(await response.text()).slice(0, 500)}`)
   }
-  const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> }
-  const content = data.choices?.[0]?.message?.content
-  if (typeof content !== 'string') {
-    throw new Error(`LLM API ${baseUrl} returned no content`)
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string }; finish_reason?: string }>
+    usage?: { completion_tokens?: number; completion_tokens_details?: { reasoning_tokens?: number } }
+  }
+  const choice = data.choices?.[0]
+  const content = choice?.message?.content
+  if (typeof content !== 'string' || content.length === 0) {
+    // Say which of the two it is. A reasoning model spends the output budget on hidden
+    // reasoning before it writes anything, so a budget that is too small produces an
+    // empty `content` with `finish_reason: "length"` — which the old message reported as
+    // "returned no content", sending anyone looking at the gateway instead of the budget.
+    const reasoning = data.usage?.completion_tokens_details?.reasoning_tokens
+    const completion = data.usage?.completion_tokens
+    if (choice?.finish_reason === 'length') {
+      throw new Error(
+        `LLM API ${baseUrl} ran out of output tokens before writing anything` +
+        ` (max_tokens=${options.maxTokens ?? DEFAULT_MAX_TOKENS}, completion=${completion ?? '?'},` +
+        ` reasoning=${reasoning ?? '?'}). Raise LLM_MAX_TOKENS.`,
+      )
+    }
+    throw new Error(`LLM API ${baseUrl} returned no content (finish_reason=${choice?.finish_reason ?? '?'})`)
   }
   return content
 }
@@ -114,7 +142,7 @@ export function deepseekLlmTextFromEnv(model = process.env.DEEPSEEK_MODEL ?? 'de
   const resolvedModel = provider === 'deepseek' ? model : (process.env.BAI_MODEL ?? model)
   // Reasoning models (glm/qwen flash) spend completion tokens on hidden
   // reasoning; allow a larger budget when calling them.
-  const maxTokens = provider === 'deepseek' ? 2000 : Number(process.env.BAI_MAX_TOKENS ?? 4000)
+  const maxTokens = Number(process.env.LLM_MAX_TOKENS ?? process.env.BAI_MAX_TOKENS ?? DEFAULT_MAX_TOKENS)
   return async (prompt, signal) => deepseekChatCompletion({
     apiKey,
     baseUrl,
@@ -149,7 +177,7 @@ export async function deepseekChatWithTools(
       model: options.model,
       messages: options.messages,
       temperature: options.temperature ?? 0,
-      max_tokens: options.maxTokens ?? 4000,
+      max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
       tools: options.tools,
       stream: false,
     }),

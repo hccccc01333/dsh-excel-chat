@@ -65,7 +65,9 @@ test('deepseekLlmTextFromEnv falls back to BAI_API with api.b.ai base url', asyn
     assert.equal(captured!.init!.headers!['Authorization'], 'Bearer bai-key')
     const body = JSON.parse(String(captured!.init!.body)) as { model: string; max_tokens: number }
     assert.equal(body.model, 'glm-5.3-flash')
-    assert.equal(body.max_tokens, 4000)
+    // 8192, not 4000: a reasoning model bills hidden reasoning to the same budget as the
+    // answer, and 2000 was spent entirely on thinking for a real planning prompt.
+    assert.equal(body.max_tokens, 8192)
   } finally {
     globalThis.fetch = originalFetch
     if (original.deepseek === undefined) delete process.env.DEEPSEEK_API_KEY
@@ -120,5 +122,53 @@ test('deepseekLlmTextFromEnv requires one of the keys', async () => {
     else process.env.BAI_API = original.bai
     if (original.provider === undefined) delete process.env.LLM_PROVIDER
     else process.env.LLM_PROVIDER = original.provider
+  }
+})
+
+test('an empty completion says the budget ran out, not that the gateway returned nothing', async () => {
+  // A reasoning model bills its hidden reasoning to the same output budget as the answer.
+  // Against Step 5 Preview a ~9,200-character planning prompt spent the whole 2,000-token
+  // budget thinking and returned an empty completion — 55 of 80 benchmark failures were
+  // this. The old message ("returned no content") pointed at the gateway, and the gateway
+  // was fine; the budget was not. A diagnosis that names the wrong component costs more
+  // than no diagnosis.
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        choices: [{ message: { content: '' }, finish_reason: 'length' }],
+        usage: { completion_tokens: 2000, completion_tokens_details: { reasoning_tokens: 2000 } },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )) as typeof fetch
+  try {
+    await assert.rejects(
+      () => deepseekChatCompletion({ apiKey: 'sk-x', model: 'step-5-preview-free', messages: [], maxTokens: 2000 }),
+      (error: Error) => {
+        assert.match(error.message, /ran out of output tokens/)
+        assert.match(error.message, /reasoning=2000/)
+        assert.match(error.message, /LLM_MAX_TOKENS/)
+        return true
+      },
+    )
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('an empty completion with a normal finish reason still reports what it saw', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({ choices: [{ message: { content: null }, finish_reason: 'stop' }] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )) as typeof fetch
+  try {
+    await assert.rejects(
+      () => deepseekChatCompletion({ apiKey: 'sk-x', model: 'm', messages: [] }),
+      /returned no content \(finish_reason=stop\)/,
+    )
+  } finally {
+    globalThis.fetch = originalFetch
   }
 })
