@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import type { AgentPlanner } from '../src/agent.ts'
 import { corpusTasks } from '../src/corpus/index.ts'
 import { buildCorpusWorkbook } from '../src/corpus/helpers.ts'
-import { readBenchmarkCheckpoint, runLlmBenchmark, runLlmTask } from '../src/llm-benchmark.ts'
+import { readBenchmarkCheckpoint, retryDelayMsFor, runLlmBenchmark, runLlmTask } from '../src/llm-benchmark.ts'
 
 test('LLM benchmark runner scores the canonical plan 100% offline', async () => {
   const plannerFor = (task: (typeof corpusTasks)[number]): AgentPlanner => ({
@@ -168,4 +168,22 @@ test('a failed task is checkpointed too, not silently dropped', async () => {
     'the run had failures, so at least one checkpoint line must be a failure',
   )
   assert.equal(report.tasks.length, tasks.length, 'the report must count every task')
+})
+
+test('a rate limit backs off in minutes, not seconds', () => {
+  // The gateway answers 429 with no Retry-After, so the wait has to be assumed. Linear
+  // backoff on a 20s base put all three attempts inside the same window at concurrency 8 —
+  // every retry came back 429 and twelve tasks were recorded as failures the planner had
+  // nothing to do with. A retry that returns before the window closes is not a retry.
+  const error = 'LLM API https://opencode.ai/zen/go/v1 returned 429: {"error":...}'
+  assert.equal(retryDelayMsFor(error, 20_000, 1), 60_000)
+  assert.equal(retryDelayMsFor(error, 20_000, 2), 120_000)
+  assert.equal(retryDelayMsFor(error, 20_000, 3), 180_000)
+
+  // An ordinary transient failure keeps the configured base — a network blip does not need
+  // a minute of silence.
+  assert.equal(retryDelayMsFor('fetch failed', 20_000, 1), 20_000)
+
+  // An explicitly larger base is respected for rate limits too, rather than being capped.
+  assert.equal(retryDelayMsFor(error, 120_000, 1), 120_000)
 })

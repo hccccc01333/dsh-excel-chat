@@ -202,30 +202,47 @@ export async function readBenchmarkCheckpoint(outFile: string): Promise<Map<stri
   return completed
 }
 
-/** Server-side failures worth retrying: rate limits, outages, network blips. */
-const TRANSIENT_ERROR = /429|500|503|fetch failed|temporarily_unavailable|query_data_error/i
+  /** Server-side failures worth retrying: rate limits, outages, network blips. */
+  const TRANSIENT_ERROR = /429|500|503|fetch failed|temporarily_unavailable|query_data_error/i
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+  /** A rate limit is not the same kind of failure as a network blip. */
+  const RATE_LIMIT = /\b429\b/
 
-/**
- * Run one task, retrying transient provider failures (429/503/network) with
- * linear backoff so flaky hosted endpoints don't poison the whole report.
- */
-export async function runLlmTaskWithRetry(
-  task: FileBenchmarkTask,
-  options: { planner: AgentPlanner; maxRounds?: number; retries?: number; retryDelayMs?: number },
-): Promise<LlmTaskResult> {
-  const attempts = Math.max(1, options.retries ?? 3)
-  const delay = options.retryDelayMs ?? 20_000
-  let last = await runLlmTask(task, options)
-  for (let attempt = 1; attempt < attempts && last.error !== null && TRANSIENT_ERROR.test(last.error); attempt++) {
-    await sleep(delay * attempt)
-    last = await runLlmTask(task, options)
+  function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
-  return last
-}
+
+  /**
+   * How long to wait before retrying a transient failure.
+   *
+   * Rate limits get a floor of a minute. The gateway sends no `Retry-After` to say how long
+   * it wants, and linear backoff on a 20-second base is nowhere near enough: at concurrency
+   * 8 the three attempts all landed inside the same rate-limit window, every one came back
+   * 429, and twelve tasks were recorded as failures that had nothing to do with the planner.
+   * A retry that returns before the window closes is not a retry.
+   */
+  export function retryDelayMsFor(error: string, baseMs: number, attempt: number): number {
+    const base = RATE_LIMIT.test(error) ? Math.max(baseMs, 60_000) : baseMs
+    return base * attempt
+  }
+
+  /**
+   * Run one task, retrying transient provider failures (429/503/network) with
+   * linear backoff so flaky hosted endpoints don't poison the whole report.
+   */
+  export async function runLlmTaskWithRetry(
+    task: FileBenchmarkTask,
+    options: { planner: AgentPlanner; maxRounds?: number; retries?: number; retryDelayMs?: number },
+  ): Promise<LlmTaskResult> {
+    const attempts = Math.max(1, options.retries ?? 3)
+    const delay = options.retryDelayMs ?? 20_000
+    let last = await runLlmTask(task, options)
+    for (let attempt = 1; attempt < attempts && last.error !== null && TRANSIENT_ERROR.test(last.error); attempt++) {
+      await sleep(retryDelayMsFor(last.error, delay, attempt))
+      last = await runLlmTask(task, options)
+    }
+    return last
+  }
 
 export async function runLlmBenchmark(
   tasks: FileBenchmarkTask[],
