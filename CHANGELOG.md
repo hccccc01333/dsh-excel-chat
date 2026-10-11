@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- **P1：修 `structure-delete-columns-shifts-formula` —— 一个缺字段的计划崩成了 TypeError。**
+
+  16 个失败任务里的**两个「执行异常」之一** ✓。模型的实际计划是：
+
+  ```
+  freezeFormulas(range="订单!B2:B3") -> deleteColumns(sheet="订单") -> set(...)
+  ```
+
+  **`deleteColumns` 少了必填的 `column` 和 `count`** ✗✓ —— 结果不是被校验拦下 ✓，
+  而是 **`Cannot read properties of undefined (reading 'toUpperCase')`** ✗✓ ——
+  **记成「执行异常」** ✗，其实是一个**畸形计划** ✓✓。
+
+  **定位**（用模型的真实轨迹本地复现 ✓，不需要 LLM ✓）：调用栈直指
+  `columnToNumber (src/formula.ts)` ← `applyOperationsToWorkbook` ✓。
+
+  **讽刺的是** ✓：`columnToNumber` 上面那段注释写的正是
+  *"Rejecting at the boundary keeps the error next to the argument that caused it."* ✓
+  —— **意图在，实现有个洞** ✗：它校验了**字母形状** ✓，但没校验**是不是字符串** ✗ →
+  `undefined.toUpperCase()` 在形状检查**之前**就抛了 ✓✓。
+
+  **修法**：类型检查放到最前 ✓。现在是 `invalid column letter: undefined` ✓ ——
+  一个**能指出是哪个参数错了**的错误 ✓✓。
+
+  **回归测试**（按你说的：把真实失败轨迹转成测试 ✓）：用**那条计划本身** ✓，
+  断言抛的是 **plain Error 而不是 TypeError** ✓。**验证过会红** ✓
+  （`threw TypeError, not a plain Error` ✓）。
+
+- 测试 535 → **536 通过**。
+
 - **⚠️ 基准跑出「通过率掉 20 个点」—— 原因不是代码，是我把并发开太高撞了限流。**
 
   用**并发 8** 重跑 144 个任务 ✓，结果 **32 个从通过变失败** ✗、只有 4 个反向 ✓ → 通过率

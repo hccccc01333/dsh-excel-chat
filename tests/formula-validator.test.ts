@@ -92,6 +92,25 @@ test('column helpers round-trip', () => {
   assert.equal(numberToColumn(columnToNumber('ZZ')), 'ZZ')
 })
 
+test('a missing column names the argument instead of crashing', () => {
+  // From a real benchmark failure. The model planned
+  //   freezeFormulas(range="订单!B2:B3") -> deleteColumns(sheet="订单") -> set(...)
+  // omitting deleteColumns' required `column`, and the run died with
+  // "Cannot read properties of undefined (reading 'toUpperCase')" — recorded as an
+  // *execution* failure for what is a malformed plan. The shape check below was already
+  // there; the crash happened before it could run.
+  for (const bad of [undefined, null, 42, {}, []]) {
+    assert.throws(
+      () => columnToNumber(bad as unknown as string),
+      (error: Error) => {
+        assert.ok(!(error instanceof TypeError), `threw ${error.constructor.name}, not a plain Error`)
+        assert.match(error.message, /invalid column letter/)
+        return true
+      },
+    )
+  }
+})
+
 test('parses cell ids', () => {
   assert.deepEqual(parseCellId('D4'), { sheet: 'SHEET1', column: 'D', row: 4 })
   assert.deepEqual(parseCellId('Sales!D4'), { sheet: 'SALES', column: 'D', row: 4 })

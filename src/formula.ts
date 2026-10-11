@@ -40,8 +40,16 @@ export function canonicalCellId(sheet: string | null, column: string, row: numbe
  * keeps the error next to the argument that caused it.
  */
 export function columnToNumber(column: string): number {
-  const normalized = column.toUpperCase()
-  if (!/^[A-Z]{1,3}$/.test(normalized)) throw new Error(`invalid column letter: ${column}`)
+    // The type check comes first, and it is not pedantry: `undefined.toUpperCase()` throws
+    // before the shape check below can run, so a plan that omits the field crashes with
+    // "Cannot read properties of undefined" instead of naming the argument that was wrong.
+    // A missing `column` on deleteColumns was exactly that — an execution failure in the
+    // report for what is really a malformed plan.
+    if (typeof column !== 'string') {
+      throw new Error(`invalid column letter: ${JSON.stringify(column)}`)
+    }
+    const normalized = column.toUpperCase()
+    if (!/^[A-Z]{1,3}$/.test(normalized)) throw new Error(`invalid column letter: ${column}`)
   let value = 0
   for (const char of normalized) {
     value = value * 26 + (char.charCodeAt(0) - 64)
