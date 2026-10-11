@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- **P0：修 Windows CI —— 换行符现在由 `.gitattributes` 决定，而不是由工作流步骤。**
+
+  Windows runner 默认 `core.autocrlf=true` ✓ → checkout 时把文本文件写成 **CRLF** ✗ →
+  `npm run build:bundle` 用 **LF** 重新生成 `bundle/dist` ✗ →
+  CI 里那句 `git diff --exit-code bundle/dist` 看到**每一行都变了** ✗✓ → **红** ✗。
+
+  **而工作流里那句 `git config core.autocrlf false` 修不了它** ✗✓ ——
+  **它跑在 checkout 之后** ✓：等它执行时，转换**已经发生**了 ✓。
+  **`.gitattributes` 是唯一在 checkout 时生效的地方** ✓✓：
+
+  ```
+  * text=auto eol=lf
+  bundle/dist/** text eol=lf      # tsc 生成的就是 LF
+  *.sh text eol=lf                # shebang 在 CRLF 下会坏
+  *.png binary                    # 二进制不许被规范化
+  ```
+
+  顺手把工作流里那个**无效步骤删掉** ✓，并写明它为什么无效 ✓（免得下次有人再加回来 ✓）。
+
+  **`git add --renormalize .` 只动了一个文件** ✓ —— `README.md`（**205 行的纯换行改动** ✓），
+  说明仓库里绝大多数 blob 本来就是 LF ✓✓；索引里 CRLF 文件数为 **0** ✓。
+
+- 测试 532 通过。
+
 - **Web 面板的两个缺口写进了「已知限制」，并且说明了为什么没修。**
 
   与其让它们当隐藏的坑，不如把边界说清楚：

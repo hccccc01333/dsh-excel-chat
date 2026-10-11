@@ -39,11 +39,11 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      # The repository keeps LF. A checkout that rewrites line endings makes the
-      # rebuild check below compare files that differ only in CRLF.
-      - name: Keep line endings as committed
-        run: git config core.autocrlf false
-
+      # No `git config core.autocrlf false` here. It cannot work: every step runs after
+      # the checkout, so by the time it executes the conversion has already happened. Line
+      # endings are pinned in .gitattributes, which git reads at checkout time — that is
+      # the only place the setting takes effect, and it is why the rebuild check below is
+      # stable on Windows.
       - name: Install (immutable)
         run: npm ci
 
