@@ -226,3 +226,12 @@ The tool accepts either `cells` (a map) or `path` (an absolute `.xlsx` path) —
   (e.g. `1E5` inside an expression before a real cell ref) may still mis-parse.
 - Whole-column references (`Sales!$H:$H`) do not produce cell-level dependency edges.
 - Range edges are enumerated only up to 10,000 cells; larger ranges contribute start/end edges only.
+- **The web panel edits the first sheet only.** The grid library's edit event carries a row
+  and a column but no sheet identity, and its instance exposes only the sheet it was built
+  with. An edit made while another sheet is on screen is therefore reported against the
+  first one. Everything reachable through the tools and the CLI is unaffected.
+- **Undo restores the file but not the panel.** `/excel-undo` puts the workbook back, and
+  the grid goes on showing the pre-undo data until the file is read again. A command result
+  carries `kind`, `text` and `sourceEventSeq` and nothing else, so the panel has no channel
+  to ask for a fresh read — closing this needs a capability the host does not expose yet.
+
