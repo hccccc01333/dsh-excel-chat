@@ -10,13 +10,13 @@
 > 当前语料共 **144** 个任务（编辑 77 / 分析 27 / 公式 22 / 工作流 18），
 > 而 `deepseek-chat` 用了 100 个、`glm-5.3-flash` 用了 100 个。
 > 语料增长的部分大多来自此前**完全没有覆盖**的操作族 ——
-> 也就是说旧百分比是在**更容易的题面**上得到的。当前语料已有实测结果：`step-5-preview-free` 44.4%。
+> 也就是说旧百分比是在**更容易的题面**上得到的。当前语料已有实测结果：`step-5-preview-free` 88.9%。
 
 | 模型 | 日期 | 轮数 | 任务成功率 | 平均准确率 | 完整性率 | 编辑 | 分析 | 公式 | 工作流 | 最大失败源 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | deepseek-chat | 2026-10-07 | 3 | **52%** | 61% | 93% | 65.7% | 28% | 68.2% | 38.9% | Verification 33 |
 | glm-5.3-flash | 2026-10-07 | 3 | **86%** | 88.5% | 99% | 85.7% | 84% | 95.5% | 77.8% | Argument 9 |
-| step-5-preview-free | 2026-10-10 | 3 | **44.4%** | 47.9% | 59% | 48.1% | 18.5% | 72.7% | 33.3% | Execution 58 |
+| step-5-preview-free | 2026-10-11 | 3 | **88.9%** | 91.7% | 97.2% | 85.7% | 85.2% | 100% | 94.4% | Replan 9 |
 
 任务成功率 = 全部断言通过且公式异常为 0；平均准确率 = 断言通过比例；
 完整性率 = 公式异常为 0 的任务比例。语料共 144 个文件级任务
@@ -92,7 +92,7 @@ npm run bench:report
 
 - **DeepSeek 基线（v0.36 前提示词）**：docs/benchmark.md 的 v0.35/v0.37 对比表转录。原始 JSONL 未随仓库提交，所以这一行不能由脚本重新生成。
 - **glm-5.3-flash（v0.37 提示词）**：docs/benchmark.md 的 v0.37 全量实测转录。换模型与换提示词同时发生，86% 是两者叠加的结果，不是提示词的单独贡献。托管端点限流严重，该轮依赖 JSONL 断点续跑逐任务补齐。原始 JSONL 未随仓库提交。
-- **step-5-preview-free**：OpenCode Go 免费期实测，LLM_BENCH_CONCURRENCY=8，原始逐任务结果见 bench-results/step-5-preview-free.jsonl。
+- **step-5-preview-free**：OpenCode Go 免费期实测。LLM_MAX_TOKENS=32768，LLM_BENCH_CONCURRENCY=8。原始逐任务结果见 bench-results/step-5-preview-free.jsonl。
 
 **可比性**：换模型、换提示词、换重规划轮数都会改变结果。上表每行都记了模型与轮数；
 提示词版本见 [CHANGELOG](../CHANGELOG.md) 与 [benchmark.md](benchmark.md)。

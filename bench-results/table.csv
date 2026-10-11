@@ -1,4 +1,4 @@
 file,label,model,provider,date,rounds,total,success,successRate,meanAccuracy,integrityRate,editing,analysis,formula,workflow,topFailure
 2026-10-07-deepseek-chat.json,DeepSeek 基线（v0.36 前提示词）,deepseek-chat,deepseek,2026-10-07,3,100,52,0.52,0.61,0.93,0.657,0.28,0.682,0.389,verification
 2026-10-07-glm-5.3-flash.json,glm-5.3-flash（v0.37 提示词）,glm-5.3-flash,bai,2026-10-07,3,100,86,0.86,0.885,0.99,0.857,0.84,0.955,0.778,argument
-2026-10-10-step-5-preview-free.json,step-5-preview-free,step-5-preview-free,opencode-go,2026-10-10,3,144,64,0.4444444444444444,0.4785879629629629,0.5902777777777778,0.4805194805194805,0.18518518518518517,0.7272727272727273,0.3333333333333333,execution
+2026-10-11-step-5-preview-free.json,step-5-preview-free,step-5-preview-free,opencode-go,2026-10-11,3,144,128,0.8888888888888888,0.9172453703703705,0.9722222222222222,0.8571428571428571,0.8518518518518519,1,0.9444444444444444,replan
