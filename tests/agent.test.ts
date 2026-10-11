@@ -231,3 +231,61 @@ test('a failing round tells the next round which assertion failed and why', asyn
   assert.match(feedback, /0/, 'and what was actually there')
   assert.equal(result.achieved, true)
 })
+
+test('a round that changes nothing does not undo an earlier round that did the work', async () => {
+  // The 11 tasks this reproduces: the workbook ends up correct, every assertion passes,
+  // and the run still reports achieved=false. The cause is that `changed` compares the
+  // round's output against that round's own input, so a final round whose plan is a no-op
+  // reads as "nothing happened" — even when the previous round already finished the job.
+  //
+  // The guard itself is worth keeping: a run where nothing ever changed has not achieved
+  // anything, and calling that success would be worse than the bug. What is wrong is
+  // scoping it to one round when the question is about the whole run.
+  const path = await makeWorkbook()
+  const planner = fakePlanner(
+    [
+      // Round 1 does the work.
+      [{ name: 'fill', operations: [{ op: 'fillMissing', range: '订单!A2:B4', mode: 'value', value: 0 }] }],
+      // Round 2 asks for the same thing again — a no-op, because it is already done.
+      [{ name: 'fill again', operations: [{ op: 'fillMissing', range: '订单!A2:B4', mode: 'value', value: 0 }] }],
+    ],
+    [
+      { achieved: false, reason: '还没检查' },
+      { achieved: true, reason: '完成' },
+    ],
+  )
+  const result = await runAgentTask(path, { goal: '把金额空值填 0', planner, maxRounds: 2 })
+
+  // The evidence says the goal was reached…
+  assert.equal(result.finalAnomalies, 0)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(result.outputPath)
+  assert.equal(workbook.getWorksheet('订单')!.getCell('B3').value, 0)
+
+  // …so the run should say so. A final no-op round is not evidence against it.
+  assert.equal(result.achieved, true)
+  assert.equal(result.rounds.length, 2)
+})
+
+test('a run in which nothing ever changed is still not achieved', async () => {
+  // The other half of the guard, and the reason it was not simply deleted. A no-op final
+  // round must not sink a run that did the work — but a run that never changed anything at
+  // all has not achieved the goal, and reporting success there would be a worse failure
+  // than the one being fixed. `changed` now asks the run-level question; this pins that the
+  // question still has a "no" answer.
+  const path = await makeWorkbook()
+  const planner = fakePlanner(
+    [
+      [{ name: 'noop', operations: [{ op: 'set', cells: { '订单!A1': '区域' } }] }],
+      [{ name: 'noop again', operations: [{ op: 'set', cells: { '订单!A1': '区域' } }] }],
+    ],
+    [
+      { achieved: true, reason: '完成' },
+      { achieved: true, reason: '完成' },
+    ],
+  )
+  const result = await runAgentTask(path, { goal: '什么都不做', planner, maxRounds: 2 })
+
+  assert.equal(result.achieved, false, 'nothing changed, so nothing was achieved')
+  assert.match(result.rounds.at(-1)!.verdict.reason, /没有实质变化/)
+})

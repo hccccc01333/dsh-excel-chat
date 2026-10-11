@@ -99,16 +99,24 @@ export async function runAgentTask(
     let currentPath = path
     const rounds: AgentRoundResult[] = []
     let achieved = false
-    let previousPlan: PlanStep[] | undefined
-    let previousResult: TaskResult | undefined
-    let verifierNote: string | undefined
-  
+      let previousPlan: PlanStep[] | undefined
+      let previousResult: TaskResult | undefined
+      let verifierNote: string | undefined
+
+      // The fingerprint of the file the run started from, kept for the whole run.
+      //
+      // A round is allowed to change nothing: the previous round may already have done the
+      // work, and the planner asked for it again. Comparing a round's output against that
+      // round's own input then reads as "nothing happened" — which is true of the round and
+      // false of the run. Eleven benchmark tasks ended up correct, passed every assertion,
+      // and were still reported as not achieved for exactly this reason.
+      const originalFingerprint = await workbookFingerprint(path)
+
     for (let round = 1; round <= maxRounds; round++) {
       const beforeProfile = await profileWorkbook(currentPath)
       const semanticProfile = await buildWorkbookSemanticProfile(currentPath)
-      const beforeValidation = await validateWorkbookFile(currentPath)
-      const beforeFingerprint = await workbookFingerprint(currentPath)
-      const planContext: AgentPlanContext = {
+        const beforeValidation = await validateWorkbookFile(currentPath)
+        const planContext: AgentPlanContext = {
         goal: options.goal,
         path: currentPath,
         round,
@@ -161,7 +169,13 @@ export async function runAgentTask(
       const afterProfile = await profileWorkbook(result.outputPath)
       const afterValidation = await validateWorkbookFile(result.outputPath)
       const cellSnapshot = await cellSnapshotOf(result.outputPath)
-      const changed = (await workbookFingerprint(result.outputPath)) !== beforeFingerprint
+      // Whether the file differs from where the run started — not from where this round
+      // started. A round is allowed to change nothing: the previous round may already have
+      // done the work and the planner asked for it again. Comparing against the round's own
+      // input then reads as "nothing happened", which is true of the round and false of the
+      // run. Eleven benchmark tasks ended up correct, passed every assertion, and were still
+      // reported as not achieved for exactly that reason.
+      const changed = (await workbookFingerprint(result.outputPath)) !== originalFingerprint
       const deterministicVerification = options.deterministicAssertions === undefined
         ? undefined
         : await verifyWorkbookAssertions(result.outputPath, options.deterministicAssertions)
@@ -187,6 +201,9 @@ export async function runAgentTask(
         anomalies: anomalyNote,
         changed: changed ? t('有') : t('没有'),
       })
+      // The guard stays. A run in which nothing ever changed has not achieved anything, and
+      // calling that success would be worse than the bug it would fix. What it may not do is
+      // punish a run for a final round that had nothing left to do.
       if (!changed || afterValidation.anomalies.length > 0) {
         verdict = { achieved: false, reason: t('{reason}（确定性校验：{note}）', { reason: verdict.reason, note: deterministicNote }) }
       }

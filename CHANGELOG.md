@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- **P1：修「结果对但 `achieved=false`」—— 11 个任务的真实原因。**
+
+  144 个任务里有 **11 个**：**工作簿是对的** ✓、**断言全过** ✓、**公式异常为 0** ✓，
+  却报 `achieved=false` ✗。而且**全部用了 2–3 轮**（都重规划过 ✓）—— 这个共同点指向了原因。
+
+  `src/agent.ts` 里的判定是：
+
+  ```ts
+  const changed = (await workbookFingerprint(result.outputPath)) !== beforeFingerprint
+  if (!changed || afterValidation.anomalies.length > 0) { verdict = { achieved: false, ... } }
+  ```
+
+  **`beforeFingerprint` 是「这一轮开始时」的指纹** ✗ —— 于是：
+  **前面某轮已经把活干完了 ✓，最后一轮的计划是个空操作 ✗ → `changed=false` ✗
+  → 整轮运行被标成未达成 ✗**，尽管文件是对的 ✓✓。
+
+  **这是「这一轮」和「整轮运行」的混淆** ✓ —— 两者都对，但**回答的不是同一个问题** ✓。
+
+  **修法**：`changed` 改为对比**运行开始时的文件** ✓✓，也就是「整轮有没有实质变化」✓。
+
+  **守卫保留** ✓✓（按你说的，不能简单删掉 ✓）：**全程没有任何变化的运行，依然判定未达成** ✓
+  —— 那确实什么都没做到 ✓，把它算成功比这个 bug 更糟 ✓。
+  改的只是**问题的范围**，不是**问题的严格性** ✓。
+
+  **两条测试都验证过** ✓：
+  - 空操作的最后一轮 **不会**拖垮已完成工作的运行 ✓（改前**失败** ✓ —— 先复现了机制才动手 ✓）
+  - **全程无变化**的运行**仍然** `achieved=false` ✓（守住底线 ✓）
+
+- 测试 532 → **534 通过**。
+
 - **P0：修 Windows CI —— 换行符现在由 `.gitattributes` 决定，而不是由工作流步骤。**
 
   Windows runner 默认 `core.autocrlf=true` ✓ → checkout 时把文本文件写成 **CRLF** ✗ →
