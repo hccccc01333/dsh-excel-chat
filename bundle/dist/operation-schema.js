@@ -68,7 +68,7 @@ export const excelOperationSchema = {
         }),
         opSchema('copyRange', {
             source: rangeSchema,
-            target: text('Destination top-left cell id, e.g. "Sheet1!E2".', true),
+            target: text('Destination: a top-left cell id like "Sheet1!E2", or a range of the same size as the source like "Sheet1!E2:G4".', true),
             move: bool('Set true to clear the source range after copying.'),
             valuesOnly: bool('Paste values only: formulas contribute their last cached result (default false).'),
         }),

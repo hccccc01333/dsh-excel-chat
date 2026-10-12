@@ -43,13 +43,29 @@ export function copyRange(workbook, sourceRange, targetCell, move, valuesOnly = 
     const targetSheetName = bang >= 0 ? targetCell.slice(0, bang) : parsed.sheet.name;
     const targetBody = bang >= 0 ? targetCell.slice(bang + 1) : targetCell;
     const match = /^([A-Za-z]{1,3})(\d+)$/.exec(targetBody);
-    if (!match)
+    // A range target is accepted and means "paste the block starting at its top-left".
+    // `copyRange(source="订单!C2:C4", target="订单!B2:B4")` is how the model expressed
+    // "fill down", and rejecting it cost a benchmark task: the strategy was right and the
+    // tool was narrower than the operation. When the target is a range its size must match
+    // the source — a three-row block pasted into two rows silently drops a row, and that is
+    // worth refusing rather than trimming.
+    const targetRange = match ? null : /^([A-Za-z]{1,3})(\d+):([A-Za-z]{1,3})(\d+)$/.exec(targetBody);
+    if (!match && !targetRange)
         throw new Error(`invalid target cell: ${targetCell}`);
     const targetSheet = findSheet(workbook, targetSheetName);
     if (!targetSheet)
         throw new Error(`sheet not found: ${targetSheetName}`);
-    const targetCol = columnToNumber(match[1]);
-    const targetRow = Number(match[2]);
+    if (targetRange) {
+        const rows = Number(targetRange[4]) - Number(targetRange[2]) + 1;
+        const cols = columnToNumber(targetRange[3]) - columnToNumber(targetRange[1]) + 1;
+        const sourceRows = parsed.endRow - parsed.startRow + 1;
+        const sourceCols = parsed.endCol - parsed.startCol + 1;
+        if (rows !== sourceRows || cols !== sourceCols) {
+            throw new Error(`copyRange target ${targetCell} is ${rows}x${cols} but the source is ${sourceRows}x${sourceCols}`);
+        }
+    }
+    const targetCol = columnToNumber((match ?? targetRange)[1]);
+    const targetRow = Number((match ?? targetRange)[2]);
     // Snapshot the source block before writing: copying onto an overlapping
     // range (down/right) would otherwise read cells that earlier writes already
     // replaced, corrupting the result.

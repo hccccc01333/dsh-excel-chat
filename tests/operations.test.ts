@@ -327,7 +327,39 @@ test('copyRange copies values and shifts formulas by the destination offset', as
   assert.equal(sheet.getCell('G3').formula, 'E3-F3')
 })
 
-test('copyRange with move clears the source range', async () => {
+  test('copyRange accepts a range target of matching size', async () => {
+    // From a real benchmark failure. The model planned
+    //   ... set C2:C4 to IF formulas ... then copyRange(source="订单!C2:C4", target="订单!B2:B4")
+    // and got "invalid target cell: 订单!B2:B4". The strategy was wrong for other reasons —
+    // it needed valuesOnly, because copyRange shifts relative references by design — but the
+    // tool was narrower than the operation: a range-to-range paste is the natural spelling
+    // of "put this block there", and the anchor is the top-left either way.
+    const path = await makeWorkbook(formulaFixture())
+    const outPath = join(join(path, '..'), 'copied-range.xlsx')
+    await applyOperationsToWorkbook(path, [
+      { op: 'copyRange', source: 'Sheet1!B2:D3', target: 'Sheet1!E2:G3' },
+    ], outPath)
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.readFile(outPath)
+    const sheet = workbook.getWorksheet('Sheet1')!
+    assert.equal(sheet.getCell('E2').value, 10)
+    assert.equal(sheet.getCell('G2').formula, 'E2-F2')
+  })
+
+  test('copyRange refuses a range target that cannot hold the source', async () => {
+    // The size check is the reason accepting a range is safe. A 3x3 block pasted into a
+    // 2x3 target would silently drop a row, and a silent drop is worse than a refusal.
+    const path = await makeWorkbook(formulaFixture())
+    const outPath = join(join(path, '..'), 'mismatch.xlsx')
+    await assert.rejects(
+      () => applyOperationsToWorkbook(path, [
+        { op: 'copyRange', source: 'Sheet1!B2:D3', target: 'Sheet1!E2:G2' },
+      ], outPath),
+      /is 1x3 but the source is 2x3/,
+    )
+  })
+
+  test('copyRange with move clears the source range', async () => {
   const path = await makeWorkbook(formulaFixture())
   const outPath = join(join(path, '..'), 'moved.xlsx')
   await applyOperationsToWorkbook(path, [
