@@ -2,6 +2,52 @@
 
 ## Unreleased
 
+- **`argument` 批次（1/3）：schema 声明必填、校验层却不管 —— 四个结构操作的 `count` 缺失时静默什么都不删。**
+
+  `structure-delete-rows`（「删除订单表第 2 行」）实测 **0/4 断言，且不报任何错**：
+
+  ```
+  deleteRows(sheet="订单", row=2)        // 没有 count
+  ```
+
+  `operation-schema.ts` 把 `count` 标成 `required: true`，但校验其实发生在
+  `plan-schema.ts` 的**另一份手写表** `REQUIRED_NUMBERS` 里 —— 两份清单漂了：
+  schema 里必填的**数字字段共 17 个，校验表只覆盖 11 个**，缺的正好是
+  `insertRows`/`deleteRows`/`insertColumns`/`deleteColumns` 的 `row`/`count`；
+  数组类 13 个则缺 `clear.cells`。
+
+  **后果是静默的**：`undefined < 1` 为 **false**，守卫直接放行，
+  于是 `sheet.spliceRows(2, undefined)` —— **一行没删、一个字没说**。
+
+  **改法分两层**：
+  1. 校验层补上这 6 个数字与 `clear.cells` —— 缺字段现在报
+     `deleteRows 缺少必填数字 count`，模型能在重规划轮里改。
+  2. 执行层加 `assertPositiveSpan` —— `applyOperationsToWorkbook` 不经校验也能被调用，
+     这一层同样不允许静默降级。
+
+  **新增守卫钉住这条不变量**：`every schema-required number and array is enforced by the
+  sanitizer` 遍历 schema，断言每个必填数字/数组都被校验表覆盖 —— 以后 schema 加必填字段
+  忘了同步会直接变红，不再靠自觉。**只钉数字和数组**：缺字符串多半下游会**响亮地**失败
+  （`sheet not found`、`invalid column letter`）或已有 salvage（`sheet` 回落到首表），
+  缺对象也常能 salvage（`crosstab` 的扁平 `metricColumn`）—— 只有这两种形状的缺失是**静默**的。
+
+  **三条测试都验证过会红**（回退 `REQUIRED_NUMBERS`、回退 `assertPositiveSpan` 各自变红）。
+
+- **`argument` 批次（2/3）：`sheet-group-rows` 的描述没说清是哪几行。**
+
+  原描述「把明细行分到一组」而表里正好有 3 行明细 —— 分 2–3 行和分 3–4 行都说得通，
+  规范没给判据。**改法是让描述成为完整规范**（与 v0.37 那批「把表名写进描述」同一手法），
+  而不是靠提示词约束。
+
+- **`argument` 批次（3/3）：`analysis-subtotal` 是测量假阳性 —— 模型的计划是对的。**
+
+  复现实测：`subtotal` 省略 `addGrandTotal`（schema 文档写的就是 *default true*，
+  执行器 `?? true`，规划器提示词的示例也**故意省略**它）→ **4/4 断言全过**。
+  但 `diffOperationArgs` 拿**原始对象**逐字段比较，于是把「省略了有默认值的字段」
+  报成参数错误。**这是评测口径的问题，改动落在评测侧，不随本次提交。**
+
+- 测试 539 → **542 通过**。
+
 - **P1：`copyRange` 现在接受区域目标 —— 16 个失败任务里的第 2 个「执行异常」。**
 
   模型的真实计划：

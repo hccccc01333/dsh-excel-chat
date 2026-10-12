@@ -12,6 +12,23 @@ import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormu
 import type { OperationWarning } from '../operation-types.ts'
 import { absoluteColumnRef, cellContentOf, findSheet, parseRange, resolveCell, shiftFormulaReferences, writeContent } from './core.ts'
 
+/**
+ * Reject a start/count pair that is not a positive number.
+ *
+ * `undefined < 1` is false, so the old inline comparison let a missing `count` through
+ * to `sheet.spliceRows(row, undefined)` — which removes nothing and reports no error.
+ * The planner path is guarded by the schema, but this layer must not assume it: the
+ * whole point of the check is that a malformed call fails loudly here instead of
+ * quietly doing nothing.
+ */
+export function assertPositiveSpan(kind: string, first: unknown, label: string, count: unknown): void {
+  const start = Number(first)
+  const size = Number(count)
+  if (!Number.isFinite(start) || start < 1 || !Number.isFinite(size) || size < 1) {
+    throw new Error(`invalid ${kind}: ${label}=${String(first)} count=${String(count)}`)
+  }
+}
+
 /** Delete rows with the same reference-shift semantics as the deleteRows op. */
 export function deleteRowsFromSheet(
   workbook: ExcelJS.Workbook,
@@ -23,7 +40,7 @@ export function deleteRowsFromSheet(
 ): void {
   const sheet = findSheet(workbook, sheetName)
   if (!sheet) throw new Error(`sheet not found: ${sheetName}`)
-  if (start < 1 || count < 1) throw new Error(`invalid deleteRows: row=${start} count=${count}`)
+  assertPositiveSpan('deleteRows', start, 'row', count)
   const end = start + count - 1
   for (const formulaCell of collectDeletedRangeRefs(workbook, sheetName, start, end)) {
     warnings.push({ op: opIndex, message: t('公式 {cell} 引用了 {sheet} 中被删除的行', { cell: formulaCell, sheet: sheetName }) })
@@ -44,7 +61,7 @@ export function deleteColumnsFromSheet(
 ): void {
   const sheet = findSheet(workbook, sheetName)
   if (!sheet) throw new Error(`sheet not found: ${sheetName}`)
-  if (column < 1 || count < 1) throw new Error(`invalid deleteColumns: column=${column} count=${count}`)
+  assertPositiveSpan('deleteColumns', column, 'column', count)
   const end = column + count - 1
   for (const formulaCell of collectDeletedColumnRefs(workbook, sheetName, column, end)) {
     warnings.push({ op: opIndex, message: t('公式 {cell} 引用了 {sheet} 中被删除的列', { cell: formulaCell, sheet: sheetName }) })

@@ -23,7 +23,7 @@ export * from './operation-types.ts'
 import type { ExcelOperation, ExcelStyle, OperationWarning, ApplyOperationsResult, OperateResult } from './operation-types.ts'
 
 import { RANGE_LINE, findSheet, resolveCell, writeContent, parseRange, shiftFormulaReferences, cellContentOf, qualifySheetName, absoluteColumnRef, properCase, normalizeTextValue, similarity, parseTargetCell, splitByWidth } from './op/core.ts'
-import { deleteColumnsFromSheet, deleteRowsFromSheet, shiftWorkbookColumns, shiftWorkbookRows } from './op/structure.ts'
+import { assertPositiveSpan, deleteColumnsFromSheet, deleteRowsFromSheet, shiftWorkbookColumns, shiftWorkbookRows } from './op/structure.ts'
 import { sortRange } from './op/sorting.ts'
 import { addTable, applyConditionalFormatting, applyDataValidation, applyStyle, excelStyleToWorkbookStyle, normalizeColor } from './op/formatting.ts'
 import { applyFilterToRange, applyMailMerge, matchesCriterion } from './op/filters.ts'
@@ -131,7 +131,7 @@ export async function applyOperationsToWorkbook(
       case 'insertRows': {
         const sheet = findSheet(workbook, operation.sheet)
         if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
-        if (operation.row < 1 || operation.count < 1) throw new Error(`invalid insertRows: row=${operation.row} count=${operation.count}`)
+        assertPositiveSpan('insertRows', operation.row, 'row', operation.count)
         sheet.spliceRows(operation.row, 0, ...Array.from({ length: operation.count }, () => []))
         shiftWorkbookRows(workbook, sheet.name, operation.row, operation.count)
         break
@@ -144,7 +144,7 @@ export async function applyOperationsToWorkbook(
         const sheet = findSheet(workbook, operation.sheet)
         if (!sheet) throw new Error(`sheet not found: ${operation.sheet}`)
         const columnNumber = columnToNumber(operation.column)
-        if (columnNumber < 1 || operation.count < 1) throw new Error(`invalid insertColumns: column=${operation.column} count=${operation.count}`)
+        assertPositiveSpan('insertColumns', columnNumber, 'column', operation.count)
         sheet.spliceColumns(columnNumber, 0, ...Array.from({ length: operation.count }, () => []))
         shiftWorkbookColumns(workbook, sheet.name, columnNumber, operation.count)
         break

@@ -12,7 +12,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 export * from './operation-types.js';
 import { findSheet, resolveCell, writeContent, parseRange, cellContentOf, qualifySheetName, properCase, normalizeTextValue, similarity, splitByWidth } from './op/core.js';
-import { deleteColumnsFromSheet, deleteRowsFromSheet, shiftWorkbookColumns, shiftWorkbookRows } from './op/structure.js';
+import { assertPositiveSpan, deleteColumnsFromSheet, deleteRowsFromSheet, shiftWorkbookColumns, shiftWorkbookRows } from './op/structure.js';
 import { sortRange } from './op/sorting.js';
 import { addTable, applyConditionalFormatting, applyDataValidation, applyStyle, normalizeColor } from './op/formatting.js';
 import { applyFilterToRange, applyMailMerge, matchesCriterion } from './op/filters.js';
@@ -94,8 +94,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
                     throw new Error(`sheet not found: ${operation.sheet}`);
-                if (operation.row < 1 || operation.count < 1)
-                    throw new Error(`invalid insertRows: row=${operation.row} count=${operation.count}`);
+                assertPositiveSpan('insertRows', operation.row, 'row', operation.count);
                 sheet.spliceRows(operation.row, 0, ...Array.from({ length: operation.count }, () => []));
                 shiftWorkbookRows(workbook, sheet.name, operation.row, operation.count);
                 break;
@@ -109,8 +108,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 if (!sheet)
                     throw new Error(`sheet not found: ${operation.sheet}`);
                 const columnNumber = columnToNumber(operation.column);
-                if (columnNumber < 1 || operation.count < 1)
-                    throw new Error(`invalid insertColumns: column=${operation.column} count=${operation.count}`);
+                assertPositiveSpan('insertColumns', columnNumber, 'column', operation.count);
                 sheet.spliceColumns(columnNumber, 0, ...Array.from({ length: operation.count }, () => []));
                 shiftWorkbookColumns(workbook, sheet.name, columnNumber, operation.count);
                 break;

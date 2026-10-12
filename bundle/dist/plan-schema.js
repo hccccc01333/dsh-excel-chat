@@ -229,7 +229,7 @@ const REQUIRED_STRINGS = {
     addSparklines: ['dataRange', 'locationRange'],
     insertImage: ['cell'],
 };
-const REQUIRED_ARRAYS = {
+export const REQUIRED_ARRAYS = {
     sortRange: ['keys'],
     filterToRange: ['criteria'],
     aggregateReport: ['metrics'],
@@ -241,8 +241,17 @@ const REQUIRED_ARRAYS = {
     joinSheets: ['valueColumns', 'outputColumns'],
     hideColumns: ['columns'],
     rowPageBreaks: ['rows'],
+    clear: ['cells'],
 };
-const REQUIRED_NUMBERS = {
+/**
+ * Fields the schema marks `required: true` and that this pass must therefore reject
+ * when they are absent. Kept next to the code that enforces it, but exported so
+ * `tests/plan-schema.test.ts` can hold it against `excelOperationSchema` — the two
+ * drifted once (the four structure ops' `row`/`count` were required in the schema and
+ * unenforced here), and a missing row count used to reach the handler as `undefined`,
+ * pass `count < 1`, and silently delete nothing.
+ */
+export const REQUIRED_NUMBERS = {
     freezePanes: ['row'],
     splitColumn: ['startRow'],
     setColumnWidth: ['width'],
@@ -251,6 +260,10 @@ const REQUIRED_NUMBERS = {
     groupRows: ['start', 'end'],
     setZoom: ['zoom'],
     moveSheet: ['position'],
+    insertRows: ['row', 'count'],
+    deleteRows: ['row', 'count'],
+    insertColumns: ['count'],
+    deleteColumns: ['count'],
 };
 const REQUIRED_STRING_EXTRA = {
     freezePanes: ['sheet', 'column'],

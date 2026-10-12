@@ -8,6 +8,16 @@
  */
 import ExcelJS from 'exceljs';
 import type { OperationWarning } from '../operation-types.ts';
+/**
+ * Reject a start/count pair that is not a positive number.
+ *
+ * `undefined < 1` is false, so the old inline comparison let a missing `count` through
+ * to `sheet.spliceRows(row, undefined)` — which removes nothing and reports no error.
+ * The planner path is guarded by the schema, but this layer must not assume it: the
+ * whole point of the check is that a malformed call fails loudly here instead of
+ * quietly doing nothing.
+ */
+export declare function assertPositiveSpan(kind: string, first: unknown, label: string, count: unknown): void;
 /** Delete rows with the same reference-shift semantics as the deleteRows op. */
 export declare function deleteRowsFromSheet(workbook: ExcelJS.Workbook, sheetName: string, start: number, count: number, warnings: OperationWarning[], opIndex: number): void;
 /** Delete columns with the same reference-shift semantics as the deleteColumns op. */

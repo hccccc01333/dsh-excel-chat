@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ENUM_ALIASES, buildHeaderIndex, sanitizeAssertions, sanitizeOperations, sanitizePlan } from '../src/plan-schema.ts'
+import { ENUM_ALIASES, REQUIRED_ARRAYS, REQUIRED_NUMBERS, buildHeaderIndex, sanitizeAssertions, sanitizeOperations, sanitizePlan } from '../src/plan-schema.ts'
 import { excelOperationSchema } from '../src/operation-schema.ts'
 
 test('sanitizeOperations gives a tool call the same error the planner gets', () => {
@@ -62,6 +62,55 @@ test('sanitizePlan throws when a required array field is missing', () => {
     name: 's',
     operations: [{ op: 'aggregateReport', source: '订单!A1:B4', groupColumn: 'A' }],
   }], ['订单']), /缺少必填数组 metrics/)
+})
+
+test('a structure operation without a count is rejected, not silently skipped', () => {
+  // `deleteRows(sheet, row)` with no count used to reach
+  // `sheet.spliceRows(2, undefined)` — `undefined < 1` is false, so the guard let it
+  // through, nothing was deleted, and nothing was reported. The task scored 0/4 with
+  // no error to explain why. The schema already called `count` required; now the
+  // sanitizer enforces the same list, so the failure names the missing field.
+  assert.throws(
+    () => sanitizePlan([{ operations: [{ op: 'deleteRows', sheet: '订单', row: 2 }] }], ['订单']),
+    /deleteRows 缺少必填数字 count/,
+  )
+  assert.throws(
+    () => sanitizePlan([{ operations: [{ op: 'insertRows', sheet: '订单', count: 1 }] }], ['订单']),
+    /insertRows 缺少必填数字 row/,
+  )
+  assert.throws(
+    () => sanitizePlan([{ operations: [{ op: 'deleteColumns', sheet: '订单', column: 'B' }] }], ['订单']),
+    /deleteColumns 缺少必填数字 count/,
+  )
+  // A complete plan still passes, and string counts are coerced as before.
+  const ok = sanitizePlan([{ operations: [{ op: 'deleteRows', sheet: '订单', row: '2', count: '1' }] }], ['订单'])
+  assert.equal((ok.steps[0]!.operations[0] as Record<string, unknown>).count, 1)
+})
+
+/**
+ * The schema says which fields are required; this pass says which it enforces. Both are
+ * hand-kept, and they drifted: the four structure ops marked `row`/`count` required in
+ * the schema while `REQUIRED_NUMBERS` omitted them, so a plan with no count validated
+ * cleanly and then deleted nothing.
+ *
+ * Only numbers and arrays are held to this. A missing string usually fails loudly
+ * downstream (`sheet not found`, `invalid column letter`) or has a salvage path
+ * (`sheet` falls back to the first sheet), and a missing object often has one too
+ * (`crosstab`'s flat `metricColumn`). Numbers and arrays are the two shapes whose
+ * absence degrades *silently*, so they are the two this guard pins.
+ */
+test('every schema-required number and array is enforced by the sanitizer', () => {
+  const unenforced: string[] = []
+  for (const branch of excelOperationSchema.oneOf as unknown as Array<Record<string, unknown>>) {
+    const properties = branch.properties as Record<string, Record<string, unknown>>
+    const op = (properties.op.enum as string[])[0]!
+    for (const [key, spec] of Object.entries(properties)) {
+      if (key === 'op' || spec.required !== true) continue
+      if (spec.type === 'number' && !(REQUIRED_NUMBERS[op] ?? []).includes(key)) unenforced.push(`${op}.${key} (number)`)
+      if (spec.type === 'array' && !(REQUIRED_ARRAYS[op] ?? []).includes(key)) unenforced.push(`${op}.${key} (array)`)
+    }
+  }
+  assert.deepEqual(unenforced, [], 'schema-required fields the sanitizer would let through')
 })
 
 test('sanitizePlan requires freezePanes row and column', () => {

@@ -18,6 +18,16 @@ import type { WorkbookAssertion } from './verifier.ts';
  * valid-looking wrong value into somebody's workbook.
  */
 export declare const ENUM_ALIASES: Record<string, Record<string, string>>;
+export declare const REQUIRED_ARRAYS: Record<string, string[]>;
+/**
+ * Fields the schema marks `required: true` and that this pass must therefore reject
+ * when they are absent. Kept next to the code that enforces it, but exported so
+ * `tests/plan-schema.test.ts` can hold it against `excelOperationSchema` — the two
+ * drifted once (the four structure ops' `row`/`count` were required in the schema and
+ * unenforced here), and a missing row count used to reach the handler as `undefined`,
+ * pass `count < 1`, and silently delete nothing.
+ */
+export declare const REQUIRED_NUMBERS: Record<string, string[]>;
 export interface SanitizedPlan {
     steps: PlanStep[];
     notes: string[];

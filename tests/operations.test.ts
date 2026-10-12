@@ -2364,3 +2364,30 @@ test('unprotectSheet removes protection, whatever password is supplied', async (
   const protectedFiles = unzipSync(new Uint8Array(await readFile(protectedPath)))
   assert.match(strFromU8(protectedFiles['xl/worksheets/sheet1.xml']!), /<sheetProtection/)
 })
+
+/**
+ * The executor refuses a structure operation whose span is not a positive number.
+ *
+ * `sanitizePlan` now rejects a missing `count`, but the executor is reachable without
+ * it (`applyOperationsToWorkbook` is called directly by tests and by the offline
+ * benchmark). `undefined < 1` is false, so the old inline guard let the value through to
+ * `sheet.spliceRows(row, undefined)`, which removes nothing and reports nothing — the
+ * task then fails its assertions with no error to explain why. Guarding here too means
+ * no path can degrade silently, whatever the caller did upstream.
+ */
+test('a structure operation with no count is refused by the executor itself', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('订单')
+    sheet.getCell('A1').value = '产品'
+    sheet.getCell('A2').value = '苹果'
+  })
+  const outPath = join(join(path, '..'), 'bad-span.xlsx')
+  await assert.rejects(
+    () => applyOperationsToWorkbook(path, [{ op: 'deleteRows', sheet: '订单', row: 2 } as ExcelOperation], outPath),
+    /invalid deleteRows: row=2 count=undefined/,
+  )
+  await assert.rejects(
+    () => applyOperationsToWorkbook(path, [{ op: 'insertColumns', sheet: '订单', column: 'B' } as ExcelOperation], outPath),
+    /invalid insertColumns: column=2 count=undefined/,
+  )
+})
