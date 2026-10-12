@@ -92,7 +92,8 @@ DEEPSEEK_API_KEY=ollama DEEPSEEK_BASE_URL=http://localhost:11434/v1 \
 | Planning Error | 步骤缺失/顺序错误 / 计划结构无效 | 空计划、缺关键步骤、planner 报错 |
 | Tool Selection Error | 该用专用工具却用通用操作 | 期望 `aggregateReport` 却只用了 `set`/`fill` 等 |
 | Argument Error | schema/range/column 参数错误 | 操作名正确但参数与期望不一致 |
-| Execution Error | Excel 引擎本身出错 | agent 崩溃且错误非规划类 |
+| Execution Error | Excel 引擎本身出错 | agent 崩溃，且错误既非规划类也非服务端 |
+| Infrastructure Error | **模型服务端不可用**，与规划器无关 | 崩溃信息含 `server_error` / `Upstream request failed` / 限流 |
 | Verification Error | 没完成却判完成 | 验证器判定达成但最终断言失败 |
 | Replan Error | 第一轮失败后没有纠正 | 多轮重规划仍未达成 |
 

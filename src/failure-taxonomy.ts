@@ -12,6 +12,7 @@ export type FailureCategory =
   | 'tool-selection'
   | 'argument'
   | 'execution'
+  | 'infrastructure'
   | 'verification'
   | 'replan'
   | 'other'
@@ -23,6 +24,7 @@ export const FAILURE_CATEGORY_LABELS: Record<FailureCategory, string> = {
   'tool-selection': 'Tool Selection Error',
   argument: 'Argument Error',
   execution: 'Execution Error',
+  infrastructure: 'Infrastructure Error',
   verification: 'Verification Error',
   replan: 'Replan Error',
   other: 'Other',
@@ -68,6 +70,18 @@ const GENERIC_OPS = new Set(['set', 'fill', 'style', 'sortRange', 'clear'])
 export function classifyFailure(evidence: FailureEvidence): FailureClassification {
   if (evidence.crashed) {
     const message = evidence.error ?? ''
+    // The provider failing is not the planner failing. This gateway answers 429 for an
+    // upstream outage as well as for a rate limit, and the status alone cannot tell them
+    // apart — the body can:
+    //   {"error":{"type":"server_error","message":"Upstream request failed: Endpoint is unavailable."}}
+    // Without this branch every such task lands in `execution` and the report reads as if
+    // the planner broke, which is how two reruns were nearly diagnosed as a regression.
+    if (/server_error|Upstream request failed|Endpoint is unavailable|rate.?limit/i.test(message)) {
+      return {
+        category: 'infrastructure',
+        detail: t('服务端不可用（不是规划器的问题）：{message}', { message: message.slice(0, 200) }),
+      }
+    }
     if (evidence.errorKind === 'planning' || /planner|sanitize|schema|empty plan/i.test(message)) {
       return { category: 'planning', detail: t('规划器/计划结构错误：{message}', { message: message.slice(0, 200) }) }
     }

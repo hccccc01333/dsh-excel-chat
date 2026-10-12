@@ -381,6 +381,7 @@ const EN: Record<string, string> = {
 
   // failure-taxonomy.ts
   '规划器/计划结构错误：{message}': 'Planner / plan-structure error: {message}',
+  '服务端不可用（不是规划器的问题）：{message}': 'Provider unavailable (not a planner failure): {message}',
   '参数错误：{message}': 'Argument error: {message}',
   '执行异常：{message}': 'Execution error: {message}',
   '验证器判定目标已达成，但断言只过 {passed}/{total}，完整性异常 {integrity}':

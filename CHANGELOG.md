@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- **⚠️ 两次重跑都作废：不是限流，是上游宕机 —— 而我把它判成了限流。**
+
+  两次失败里的 **429**，**body 全是同一句**：
+
+  ```
+  429  {"error":{"type":"server_error",
+        "message":"Upstream request failed: Endpoint is unavailable."}}
+  ```
+
+  - 第一次（并发 8）：**15 个**，全是它
+  - 第二次（并发 2）：**70 个**，全是它
+
+  **同一个上游故障** —— **和并发无关**。**我只看状态码、没看 body 就下了「限流」的结论** ✗✓。
+  这个网关**把 429 同时用于限流和上游错误** ✓ —— **状态码是有歧义的** ✓✓。
+
+  实测佐证：**单次调用 200** ✓、**连续 10 次全 429** ✗、**等 45 秒仍 429** ✗ →
+  **不是短窗口限流，是持续不可用** ✓✓。
+
+- **修法：按 body 分类，新增 `Infrastructure Error`。**
+
+  之前**任何**非规划/参数的崩溃都落进 `Execution Error` ✗✓ —— 于是**服务端宕机读起来像规划器崩了** ✗。
+  两次重跑差点被诊断成「代码回归」 ✓，就是这条造成的 ✓✓。
+
+  现在 `server_error` / `Upstream request failed` / 限流 → **`Infrastructure Error`** ✓✓，
+  与规划器的分数**分开计** ✓。分类表已同步到 `docs/benchmark.md` ✓。
+
+  **回归测试用真实的错误 body** ✓，**验证过会红** ✓
+  （`expected: 'infrastructure' / actual: 'execution'` ✓）。
+
+- 顺带：新增 `t()` 文案时被 **i18n 守卫拦下** ✓（漏了英文翻译 ✓）—— 守卫在正常工作 ✓。
+
+- 测试 536 → **537 通过**。
+
 - **P1：修 `structure-delete-columns-shifts-formula` —— 一个缺字段的计划崩成了 TypeError。**
 
   16 个失败任务里的**两个「执行异常」之一** ✓。模型的实际计划是：

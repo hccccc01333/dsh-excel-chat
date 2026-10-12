@@ -28,6 +28,25 @@ test('classifyFailure maps a crashed engine error to execution', () => {
   assert.equal(result.category, 'execution')
 })
 
+test('classifyFailure maps an upstream outage to infrastructure, not to the planner', () => {
+  // The real body, taken from two benchmark reruns. This gateway answers 429 for an
+  // upstream outage as well as for a rate limit, so the status code cannot be trusted to
+  // tell them apart — every one of these landed in `execution`, and the resulting 44% and
+  // 69% runs read as if the planner had regressed when the provider was simply down.
+  const outage =
+    'LLM API https://opencode.ai/zen/go/v1 returned 429: ' +
+    '{"error":{"type":"server_error","message":"Upstream request failed: Endpoint is unavailable."}}'
+  const result = classifyFailure(evidence({ crashed: true, error: outage }))
+  assert.equal(result.category, 'infrastructure')
+  assert.match(result.detail, /服务端不可用/)
+
+  // A genuine rate limit is also the provider's doing, and also not the planner's.
+  const limited = classifyFailure(
+    evidence({ crashed: true, error: 'LLM API https://x/v1 returned 429: {"error":{"type":"rate_limit_exceeded"}}' }),
+  )
+  assert.equal(limited.category, 'infrastructure')
+})
+
 test('classifyFailure maps an invalid plan to planning', () => {
   const result = classifyFailure(evidence({ crashed: true, error: 'planner returned an empty plan' }))
   assert.equal(result.category, 'planning')
