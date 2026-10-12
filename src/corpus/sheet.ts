@@ -95,7 +95,7 @@ export const sheetTasks: FileBenchmarkTask[] = [
     id: 'sheet-group-rows',
     category: 'editing',
     name: '按行分组收起明细',
-    description: '把明细行分到一组，方便折叠查看。',
+    description: '把订单表最后两行（第 3、4 行）分到一组，方便折叠查看。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'sheet-group-rows', [order(three)]),
     operations: [{ op: 'groupRows', sheet: '订单', start: 3, end: 4, level: 1 }],
     checks: [
