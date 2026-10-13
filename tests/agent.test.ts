@@ -289,3 +289,26 @@ test('a run in which nothing ever changed is still not achieved', async () => {
   assert.equal(result.achieved, false, 'nothing changed, so nothing was achieved')
   assert.match(result.rounds.at(-1)!.verdict.reason, /没有实质变化/)
 })
+
+/**
+ * The note for a rejected plan carries the plan itself.
+ *
+ * `计划无效：…缺少必填字段 from` says what was wrong but not what the model wrote, and a
+ * rejected plan clears `previousPlan` — so without this the model had nothing to correct
+ * against and repeated the same plan. The note is the only channel it has.
+ */
+test('the note for a rejected plan carries the plan itself', async () => {
+  const path = await makeWorkbook()
+  const planner = fakePlanner(
+    [
+      [{ name: 'bad', operations: [{ op: 'groupColumns', sheet: '订单' } as never] }],
+      [{ name: 'fill', operations: [{ op: 'fillMissing', range: '订单!A2:B4', mode: 'value', value: 0 }] }],
+    ],
+    [{ achieved: true, reason: '完成' }],
+  )
+  const result = await runAgentTask(path, { goal: '按列分组', planner, maxRounds: 2 })
+  assert.equal(result.achieved, true)
+  const note = planner.seen[1]!.verifierNote ?? ''
+  assert.match(note, /groupColumns 缺少必填字段 from/)
+  assert.match(note, /"op":"groupColumns"/)
+})

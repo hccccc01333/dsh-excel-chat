@@ -75,7 +75,8 @@ const PARAM_REFERENCE = [
   'freezeFormulas: {"op":"freezeFormulas","range":"订单!D2:D9"}',
   'hideRows: {"op":"hideRows","sheet":"订单","from":2,"to":9,"hidden":true}',
   'hideColumns: {"op":"hideColumns","sheet":"订单","columns":["C"],"hidden":true}',
-  'groupRows: {"op":"groupRows","sheet":"订单","start":3,"end":6,"collapse":true}',
+  'groupRows: {"op":"groupRows","sheet":"订单","start":3,"end":6,"collapse":true}（行分组用 start/end）',
+  'groupColumns: {"op":"groupColumns","sheet":"订单","from":"B","to":"C","level":1}（列分组用 from/to，不要照抄 groupRows 的 start/end）',
   'autoFitColumnWidths: {"op":"autoFitColumnWidths","sheet":"订单"}',
   'freezePanes: {"op":"freezePanes","sheet":"订单","row":2,"column":"A"}',
   'pageSetup: {"op":"pageSetup","sheet":"订单","printArea":"A1:F40","orientation":"landscape","fitToWidth":1}',
@@ -135,11 +136,17 @@ export function createLlmPlanner(llm: LlmText): AgentPlanner {
         `文件概览：${context.profileSummary}`,
         `语义画像：${context.semanticSummary ?? '（无）'}`,
         `公式校验：${context.validationSummary}`,
+        // The note has to reach the prompt even when there is no previous plan to show.
+        // It used to sit inside the `previousPlan` branch below, and a *rejected* plan
+        // clears `previousPlan` (agent.ts) — so the model was told nothing about why it
+        // failed, replanned blind, and repeated the same mistake until the round budget
+        // ran out. `sheet-group-columns` is what that looks like: three rounds, the same
+        // `groupColumns 缺少必填字段 from` every time.
+        ...(context.verifierNote ? [`验证结论：${context.verifierNote}`] : []),
         ...(context.previousPlan
           ? [
               `上一轮计划：${JSON.stringify(context.previousPlan)}`,
               `上一轮结果：${JSON.stringify(context.previousResult)}`,
-              `验证结论：${context.verifierNote ?? ''}`,
               '如果上一轮未达成目标，请根据验证结论修正计划（可追加或修改步骤）。',
             ]
           : []),

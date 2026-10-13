@@ -446,3 +446,49 @@ test('every enum alias targets a value its field allows', () => {
   }
   assert.deepEqual(problems, [])
 })
+
+/**
+ * Sibling field names, salvaged before the required-field check.
+ *
+ * `groupRows` spells its span `start`/`end`; `groupColumns` spells the same idea
+ * `from`/`to`, and the two examples sit next to each other in the planner's reference.
+ * A model that reaches for the sibling's names is not expressing a different intent, so
+ * the slip is mapped rather than failed — the same salvage `renameSheet` does with
+ * `sheet` → `oldName`.
+ *
+ * That one had never fired: both it and the `addSheet` family sat *after* the
+ * required-field loop, which throws first, so the code could not do what it said.
+ */
+test('a sibling field name is salvaged before the required-field check', () => {
+  const rows = sanitizePlan([{ operations: [{ op: 'groupColumns', sheet: '订单', start: 'B', end: 'C' }] }], ['订单'])
+  const span = rows.steps[0]!.operations[0] as Record<string, unknown>
+  assert.equal(span.from, 'B')
+  assert.equal(span.to, 'C')
+
+  // A lone column names both ends of the span.
+  const single = sanitizePlan([{ operations: [{ op: 'groupColumns', sheet: '订单', column: 'B' }] }], ['订单'])
+  const one = single.steps[0]!.operations[0] as Record<string, unknown>
+  assert.equal(one.from, 'B')
+  assert.equal(one.to, 'B')
+
+  // `groupColumns` is the one operation whose from/to are column letters, so a header
+  // name written there resolves like any other column field.
+  const header = sanitizePlan([{ operations: [{ op: 'groupColumns', sheet: '订单', from: '数量', to: '数量' }] }] as never, ['订单'], HEADERS)
+  assert.equal((header.steps[0]!.operations[0] as Record<string, unknown>).from, 'E')
+
+  // A plan that names neither end is still rejected — the salvage is not a blanket pass.
+  assert.throws(
+    () => sanitizePlan([{ operations: [{ op: 'groupColumns', sheet: '订单' }] }], ['订单']),
+    /groupColumns 缺少必填字段 from/,
+  )
+})
+
+test('renameSheet accepts the sheet field it was always meant to salvage', () => {
+  const fixed = sanitizePlan([{ operations: [{ op: 'renameSheet', sheet: '订单', newName: '销售' }] }], ['订单'])
+  const operation = fixed.steps[0]!.operations[0] as Record<string, unknown>
+  assert.equal(operation.oldName, '订单')
+  assert.equal(operation.newName, '销售')
+
+  const named = sanitizePlan([{ operations: [{ op: 'addSheet', sheet: '汇总' }] }], ['订单'])
+  assert.equal((named.steps[0]!.operations[0] as Record<string, unknown>).name, '汇总')
+})

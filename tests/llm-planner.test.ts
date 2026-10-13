@@ -205,3 +205,50 @@ test('every example in the planner prompt satisfies the operation schema', async
   }
   assert.deepEqual(problems, [])
 })
+
+/**
+ * The verifier note has to reach the prompt even when there is no previous plan to show.
+ *
+ * It used to live inside the `previousPlan` branch, and a *rejected* plan clears
+ * `previousPlan` (agent.ts) — so the model was told nothing about why its plan failed,
+ * replanned blind, and repeated the same mistake for the rest of the round budget.
+ * `sheet-group-columns` spent all three rounds on `groupColumns 缺少必填字段 from`.
+ */
+test('the verifier note reaches the planner even without a previous plan', async () => {
+  let captured = ''
+  const planner = createLlmPlanner(async (prompt) => {
+    captured = prompt
+    return JSON.stringify({ steps: [{ name: 's', operations: [{ op: 'set', cells: { '订单!A1': 'x' } }] }] })
+  })
+  await planner.plan({
+    goal: '把数量列分到一组',
+    path: 'D:/sales.xlsx',
+    round: 2,
+    sheetNames: ['订单'],
+    profileSummary: '订单：3 行 × 2 列',
+    validationSummary: '0 个公式异常',
+    previousPlan: undefined,
+    previousResult: undefined,
+    verifierNote: '计划无效：groupColumns 缺少必填字段 from。请修正后重新规划。',
+  })
+  assert.match(captured, /groupColumns 缺少必填字段 from/)
+})
+
+test('the planner reference spells out how groupColumns differs from groupRows', async () => {
+  let captured = ''
+  const planner = createLlmPlanner(async (prompt) => {
+    captured = prompt
+    return JSON.stringify({ steps: [{ name: 's', operations: [] }] })
+  })
+  await planner.plan({
+    goal: '按列分组',
+    path: 'D:/x.xlsx',
+    round: 1,
+    sheetNames: ['订单'],
+    profileSummary: '',
+    validationSummary: '',
+  })
+  // groupRows uses start/end and groupColumns uses from/to, and the two sit next to each
+  // other — the sibling example has to be there, or the model copies the wrong names.
+  assert.match(captured, /groupColumns: \{"op":"groupColumns"[^\n]*"from":"B","to":"C"/)
+})

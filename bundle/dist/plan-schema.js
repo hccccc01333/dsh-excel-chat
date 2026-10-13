@@ -459,7 +459,10 @@ export function sanitizePlan(steps, sheetNames, headers = {}) {
             // Header names where column letters belong. Runs after the sheet-name
             // salvage so the lookup uses the sheet the operation actually targets.
             const columnSheet = typeof raw.sheet === 'string' ? raw.sheet : firstSheet;
-            for (const key of COLUMN_FIELDS) {
+            // `groupColumns` is the one operation whose `from`/`to` hold column letters;
+            // everywhere else they hold row numbers, so they cannot join the shared list.
+            const columnFields = operation.op === 'groupColumns' ? [...COLUMN_FIELDS, 'from', 'to'] : COLUMN_FIELDS;
+            for (const key of columnFields) {
                 const value = raw[key];
                 if (typeof value !== 'string')
                     continue;
@@ -581,6 +584,48 @@ export function sanitizePlan(steps, sheetNames, headers = {}) {
                 }
                 raw.style = style;
             }
+            // Field-name salvage for the operations whose siblings spell the same idea
+            // differently. It has to run *before* the required-field checks below: a salvage
+            // placed after them can never fire, because the check throws first. `renameSheet`
+            // and `addSheet` sat in that position and had been dead code.
+            if (operation.op === 'renameSheet') {
+                if (raw.oldName === undefined && raw.sheet !== undefined)
+                    raw.oldName = raw.sheet;
+                if (raw.newName === undefined && raw.target !== undefined)
+                    raw.newName = raw.target;
+            }
+            if (['addSheet', 'deleteSheet', 'hideSheet', 'setTabColor', 'protectSheet', 'unprotectSheet', 'duplicateSheet'].includes(operation.op)) {
+                if (raw.name === undefined && raw.sheet !== undefined)
+                    raw.name = raw.sheet;
+                if (operation.op === 'duplicateSheet' && raw.newName === undefined && raw.target !== undefined)
+                    raw.newName = raw.target;
+            }
+            if (operation.op === 'groupColumns') {
+                // `groupRows` spells its span `start`/`end`; `groupColumns` spells the same idea
+                // `from`/`to`, and the two examples sit next to each other in the planner's
+                // reference — so reaching for the sibling's names is a slip, not a different
+                // intent. Map it, the way `renameSheet` maps `sheet` onto `oldName`.
+                const rename = (from, to) => {
+                    const value = raw[from];
+                    if (raw[to] === undefined && typeof value === 'string') {
+                        raw[to] = value;
+                        notes.push(t('{op} 的 {from} 已改名为 {to}', { op: operation.op, from, to }));
+                    }
+                };
+                rename('start', 'from');
+                rename('end', 'to');
+                // A lone column names both ends of the span.
+                const only = typeof raw.column === 'string'
+                    ? raw.column
+                    : (Array.isArray(raw.columns) && raw.columns.length === 1 && typeof raw.columns[0] === 'string' ? raw.columns[0] : undefined);
+                if (only !== undefined && (raw.from === undefined || raw.to === undefined)) {
+                    if (raw.from === undefined)
+                        raw.from = only;
+                    if (raw.to === undefined)
+                        raw.to = only;
+                    notes.push(t('groupColumns 的 column 已用作分组范围的两端'));
+                }
+            }
             for (const key of REQUIRED_NUMBERS[operation.op] ?? []) {
                 const value = raw[key];
                 if (value === undefined || value === null || value === '') {
@@ -639,18 +684,6 @@ export function sanitizePlan(steps, sheetNames, headers = {}) {
                     raw.value = raw.fillValue;
                     notes.push(t('fillMissing 的 fillValue 已改为 value'));
                 }
-            }
-            if (operation.op === 'renameSheet') {
-                if (raw.oldName === undefined && raw.sheet !== undefined)
-                    raw.oldName = raw.sheet;
-                if (raw.newName === undefined && raw.target !== undefined)
-                    raw.newName = raw.target;
-            }
-            if (['addSheet', 'deleteSheet', 'hideSheet', 'setTabColor', 'protectSheet', 'unprotectSheet', 'duplicateSheet'].includes(operation.op)) {
-                if (raw.name === undefined && raw.sheet !== undefined)
-                    raw.name = raw.sheet;
-                if (operation.op === 'duplicateSheet' && raw.newName === undefined && raw.target !== undefined)
-                    raw.newName = raw.target;
             }
             if (operation.op === 'filterToRange' && typeof raw.target === 'string' && !raw.target.includes('!') && !CELL_OR_RANGE.test(raw.target)) {
                 raw.target = `${raw.target}!A1`;

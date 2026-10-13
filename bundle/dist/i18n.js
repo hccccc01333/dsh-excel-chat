@@ -231,6 +231,8 @@ const EN = {
     // agent.ts
     '{count} 个公式异常': '{count} formula anomalies',
     '计划无效：{message}。请修正后重新规划。': 'Invalid plan: {message}. Fix it and plan again.',
+    '计划无效：{message}。你提交的计划：{plan}。请修正后重新规划。': 'Invalid plan: {message}. The plan you submitted: {plan}. Fix it and plan again.',
+    '（读取不到）': '(unreadable)',
     '{message}（第 {round} 轮计划：{ops}）': '{message} (round {round} plan: {ops})',
     '执行出错：{message}。请修正计划后重新规划。': 'Execution failed: {message}. Fix the plan and plan again.',
     '公式无异常': 'no formula anomalies',
@@ -267,6 +269,8 @@ const EN = {
     'crosstab 的 metric.column 已转为字符串': 'crosstab metric.column was coerced to a string',
     'style 的 horizontal 已改名为 hAlign': 'style horizontal was renamed to hAlign',
     'style 的 vertical 已改名为 vAlign': 'style vertical was renamed to vAlign',
+    '{op} 的 {from} 已改名为 {to}': '{op} {from} was renamed to {to}',
+    'groupColumns 的 column 已用作分组范围的两端': 'groupColumns used its single column for both ends of the span',
     '{op} 的 target 已扩展为 {target}': '{op} target was expanded to {target}',
     '{op} 的 {field} 已包装为数组': '{op} {field} was wrapped in an array',
     'fillMissing 已补 mode=value': 'fillMissing defaulted to mode=value',

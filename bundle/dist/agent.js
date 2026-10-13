@@ -56,9 +56,11 @@ export async function runAgentTask(path, options) {
             };
             let plan;
             let planAssertions = [];
+            let submitted;
             try {
                 const rawPlan = await options.planner.plan(planContext);
                 const steps = Array.isArray(rawPlan) ? rawPlan : rawPlan.steps;
+                submitted = steps;
                 if (!steps || steps.length === 0)
                     throw new Error('planner returned an empty plan');
                 // The profile is already in hand, so header→column salvage costs nothing
@@ -73,7 +75,14 @@ export async function runAgentTask(path, options) {
             catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 if (round < maxRounds) {
-                    verifierNote = t('计划无效：{message}。请修正后重新规划。', { message });
+                    // The rejected plan goes into the note. Without it the model is told only that
+                    // its plan was invalid, and it has to remember what it wrote — which it does
+                    // not, so it repeats the mistake. `sheet-group-columns` spent all three rounds
+                    // on the same missing field.
+                    verifierNote = t('计划无效：{message}。你提交的计划：{plan}。请修正后重新规划。', {
+                        message,
+                        plan: describeSubmittedPlan(submitted),
+                    });
                     previousPlan = undefined;
                     previousResult = undefined;
                     continue;
@@ -181,6 +190,26 @@ function summarizeProfile(profile) {
         const headers = sheet.columns.filter((column) => column.header).map((column) => column.header).slice(0, 8).join(' / ');
         return t('{sheet}：{rows} 行 × {columns} 列', { sheet: sheet.sheet, rows: sheet.dataRows, columns: sheet.columnCount }) + (headers ? t('，表头 {headers}', { headers }) : '');
     }).join(listSeparator('semicolon'));
+}
+/**
+ * The plan a rejected round submitted, rendered for the retry note.
+ *
+ * The note used to say only that the plan was invalid, leaving the model to recall what
+ * it had written. A plan that fails validation is exactly the case where it needs to see
+ * the offending fields — `groupColumns` with `start`/`end` instead of `from`/`to` is
+ * invisible in the message `缺少必填字段 from` alone. Capped so a runaway plan cannot
+ * bloat every later prompt in the run.
+ */
+function describeSubmittedPlan(submitted) {
+    if (submitted === undefined)
+        return t('（读取不到）');
+    try {
+        const text = JSON.stringify(submitted);
+        return text.length > 600 ? `${text.slice(0, 600)}…` : text;
+    }
+    catch {
+        return t('（读取不到）');
+    }
 }
 function summarizePlanOps(steps) {
     const parts = [];
