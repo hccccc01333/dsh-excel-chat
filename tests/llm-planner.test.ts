@@ -252,3 +252,30 @@ test('the planner reference spells out how groupColumns differs from groupRows',
   // other — the sibling example has to be there, or the model copies the wrong names.
   assert.match(captured, /groupColumns: \{"op":"groupColumns"[^\n]*"from":"B","to":"C"/)
 })
+
+test('a replanning round is told the file already carries the last plan', async () => {
+  let captured = ''
+  const planner = createLlmPlanner(async (prompt) => {
+    captured = prompt
+    return JSON.stringify({ steps: [{ name: 's', operations: [] }] })
+  })
+  await planner.plan({
+    goal: '分类汇总',
+    path: 'D:/sales.xlsx',
+    round: 2,
+    sheetNames: ['订单'],
+    profileSummary: '订单：4 行 × 2 列',
+    validationSummary: '0 个公式异常',
+    previousPlan: [{
+      name: 's',
+      operations: [{ op: 'subtotal', sheet: '订单', range: '订单!A1:B4', groupColumn: 'A', summaryColumns: [{ column: 'B', function: 'sum' }] }],
+    }],
+    previousResult: { outputPath: 'D:/out.xlsx', steps: [], finalAnomalies: 0 },
+    verifierNote: '确定性断言未全部通过（2/4）：订单!A7 期望 总计',
+  })
+  // Re-emitting the whole plan runs every step a second time, and the second run is not a
+  // no-op — so the prompt has to say the profile is the state *after* the last plan.
+  assert.match(captured, /已经写进文件/)
+  assert.match(captured, /不要再输出一遍/)
+  assert.match(captured, /确定性断言未全部通过/)
+})

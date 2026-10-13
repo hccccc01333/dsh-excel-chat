@@ -187,3 +187,28 @@ test('a rate limit backs off in minutes, not seconds', () => {
   // An explicitly larger base is respected for rate limits too, rather than being capped.
   assert.equal(retryDelayMsFor(error, 120_000, 1), 120_000)
 })
+
+/**
+ * A failed task keeps what each round planned and what the next round was told.
+ *
+ * The `replan` verdict says only that the rounds ran out. Whether the model repeated a
+ * step, fixed the wrong field, or never saw the reason is invisible afterwards — so a
+ * replan failure could only be re-run and guessed at. This is the record that makes it
+ * diagnosable.
+ */
+test('a failed task records each round and the note the next one was handed', async () => {
+  const task = corpusTasks.find((entry) => entry.id === 'analysis-subtotal')!
+  const planner: AgentPlanner = {
+    plan: async (context) => context.round === 1
+      ? [{ name: 'wrong', operations: [{ op: 'addSheet', name: 'Top3' }] }]
+      : [{ name: 'canonical', operations: task.operations }],
+    verify: async () => ({ achieved: true, reason: 'ok' }),
+  }
+  const result = await runLlmTask(task, { planner, maxRounds: 2 })
+  assert.equal(result.rounds, 2)
+  assert.equal(result.trace?.length, 2)
+  assert.match(result.trace![0]!.ops, /"op":"addSheet"/)
+  // The note is the verifier's own wording, which is what the planner is handed.
+  assert.match(result.trace![0]!.note, /确定性断言未全部通过/)
+  assert.match(result.trace![1]!.ops, /"op":"subtotal"/)
+})

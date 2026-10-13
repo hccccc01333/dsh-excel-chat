@@ -138,7 +138,15 @@ export function createLlmPlanner(llm) {
                     ? [
                         `上一轮计划：${JSON.stringify(context.previousPlan)}`,
                         `上一轮结果：${JSON.stringify(context.previousResult)}`,
-                        '如果上一轮未达成目标，请根据验证结论修正计划（可追加或修改步骤）。',
+                        // The profile above is the *output* of that plan, not its input. Saying so
+                        // matters: a model that re-emits the whole corrected plan runs every step a
+                        // second time, and the second run is not a no-op — a subtotal is inserted
+                        // twice, a crosstab is built again on a sheet that already exists, a row is
+                        // inserted twice. The old wording ("可追加或修改步骤") read as "emit it all
+                        // again", which is how a nearly-right plan turns into a worse one.
+                        '注意：上面的「文件概览」是上一轮执行**之后**的状态，那些改动已经写进文件了。',
+                        '请只输出**还需要做**的步骤。已经成功、无需改动的操作不要再输出一遍（重复执行会叠加：小计算两遍、交叉表建两张、行插两次）。',
+                        '如果某个已执行的操作本身参数不对，可以重新输出它 —— 但要先判断它是否可重复执行。',
                     ]
                     : []),
                 `可用操作（按用途分组）：\n${OPERATION_CATALOG}`,

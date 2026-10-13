@@ -3,7 +3,7 @@ import { dirname } from 'node:path'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { runAgentTask, type AgentPlanner, type AgentTaskResult } from './agent.ts'
+import { runAgentTask, type AgentPlanner, type AgentTaskResult, type PlanStep } from './agent.ts'
 import { t } from './i18n.ts'
 import { PlanSchemaError } from './plan-schema.ts'
 import { evaluateTaskChecks, type FileBenchmarkTask } from './file-benchmark.ts'
@@ -29,6 +29,22 @@ export interface LlmTaskResult {
   error: string | null
   /** Failure classification for failed tasks; null for successful ones. */
   failure: FailureClassification | null
+  /**
+   * One entry per executed round: the operations it ran and the note the next round was
+   * handed. Only the final round's note is ever shown in a failure message, and the
+   * taxonomy's `replan` verdict ("ran out of rounds") says nothing about *why* the model
+   * never corrected — so without this a replan failure cannot be diagnosed after the fact,
+   * only re-run and guessed at.
+   */
+  trace?: LlmRoundTrace[]
+}
+
+export interface LlmRoundTrace {
+  round: number
+  /** The round's operations as JSON, capped so a runaway plan cannot dominate the file. */
+  ops: string
+  /** The note the planner receives on the next round. */
+  note: string
 }
 
 export interface LlmBenchmarkReport {
@@ -45,6 +61,18 @@ export interface LlmBenchmarkReport {
 /** Flatten every operation the agent actually executed across all rounds. */
 function flattenExecutedOps(agent: AgentTaskResult): ExcelOperation[] {
   return agent.rounds.flatMap((round) => round.plan.flatMap((step) => step.operations))
+}
+
+/**
+ * One round's operations, as JSON, capped.
+ *
+ * The arguments are kept, not just the names: whether a replan failure came from running
+ * the same operation twice or from getting a field wrong is exactly the distinction the
+ * names alone cannot make.
+ */
+function renderRoundOps(plan: PlanStep[]): string {
+  const text = plan.flatMap((step) => step.operations).map((operation) => JSON.stringify(operation)).join(' ')
+  return text.length > 500 ? `${text.slice(0, 500)}…` : text
 }
 
 /** Shallow-compare canonical ops against executed ops of the same name. */
@@ -124,6 +152,11 @@ export async function runLlmTask(
       achieved: agent.achieved,
       error: null,
       failure,
+      trace: agent.rounds.map((entry) => ({
+        round: entry.round,
+        ops: renderRoundOps(entry.plan),
+        note: entry.verdict.reason,
+      })),
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
