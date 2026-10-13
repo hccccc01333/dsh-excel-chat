@@ -97,7 +97,11 @@ export const analysisTasks: FileBenchmarkTask[] = [
     id: 'analysis-topn',
     category: 'analysis',
     name: 'Top 3 金额',
-    description: '按金额降序取前三名，输出表名为「Top3」。',
+    // The threshold is spelled out because the planner cannot see cell values: it gets
+    // headers, row counts and column roles, and nothing else. "取前三名" alone asked it to
+    // guess a number that appears nowhere in its context, and the old criterion (`gte 100`)
+    // kept four rows — so the task contradicted its own name and its own checks.
+    description: '把订单表按金额降序排列，取金额前三名（即不低于 200 的行），输出表名为「Top3」。',
     buildInput: (dir) => buildCorpusWorkbook(dir, 'analysis-topn', [{
       name: '订单',
       headers: ['产品', '金额'],
@@ -106,14 +110,15 @@ export const analysisTasks: FileBenchmarkTask[] = [
     operations: [
       { op: 'sortRange', range: '订单!A2:B6', keys: [{ column: 'B', direction: 'desc' }] },
       { op: 'addSheet', name: 'Top3' },
-      { op: 'filterToRange', source: '订单!A1:B6', criteria: [{ column: 'B', operator: 'gte', value: 100 }], target: 'Top3!A1' },
+      { op: 'filterToRange', source: '订单!A1:B6', criteria: [{ column: 'B', operator: 'gte', value: 200 }], target: 'Top3!A1' },
     ],
     checks: [
       { id: 'Top3!A2', expect: 'D' },
       { id: 'Top3!B2', expect: '400' },
       { id: 'Top3!A3', expect: 'B' },
       { id: 'Top3!A4', expect: 'C' },
-      { id: 'Top3!A5', expect: 'A' },
+      // Exactly three data rows: the fourth place must not be copied over.
+      { id: 'Top3!A5', expect: null },
     ],
   },
   {
