@@ -69,6 +69,33 @@ test('the docs do not describe tools that no longer exist', async () => {
   }
 })
 
+/**
+ * Every `excel_*` name mentioned anywhere in the file, not only in a table row.
+ *
+ * `bundle/README.md` is the page npm shows, which makes it the most-read of the three —
+ * and it was the one nothing checked. It lists its tools as bullets rather than as a table,
+ * so the table extractor saw nothing; matching the name anywhere also catches a tool left
+ * behind in a sentence after it was removed.
+ */
+function namesInProse(markdown: string): Set<string> {
+  const found = new Set<string>()
+  for (const match of markdown.matchAll(/`(excel_\w+)`/g)) found.add(match[1]!)
+  return found
+}
+
+test('every registered tool appears on the npm page', async () => {
+  const registered = await registeredTools()
+  const documented = namesInProse(await read('../bundle/README.md'))
+  const missing = registered.filter((tool) => !documented.has(tool)).sort()
+  assert.deepEqual(missing, [], 'these tools are registered but not in bundle/README.md')
+})
+
+test('the npm page does not describe tools that no longer exist', async () => {
+  const registered = new Set(await registeredTools())
+  const stale = [...namesInProse(await read('../bundle/README.md'))].filter((tool) => !registered.has(tool)).sort()
+  assert.deepEqual(stale, [], 'bundle/README.md describes these tools, which are not registered')
+})
+
 test('the planner prompt mentions every operation the schema allows', async () => {
   const prompt = await read('../src/llm-planner.ts')
   const operations = excelOperationSchema.oneOf.map((branch) => branch.properties.op.enum[0]!)

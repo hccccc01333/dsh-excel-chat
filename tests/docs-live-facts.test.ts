@@ -14,8 +14,12 @@ import { fileURLToPath } from 'node:url'
  * CHANGELOG.md is exempt and deliberately so: "483 → 489 tests" there is a historical
  * record of what a release shipped, which stays true. The rule is about live counts, not
  * about the string.
+ *
+ * `bundle/README.md` is here because it is the page npm shows, which makes it the most-read
+ * live document in the project — and it was the one that had drifted, carrying a count
+ * three releases old while the two files above were being kept clean.
  */
-const LIVE_DOCS = ['README.md', 'README.en.md']
+const LIVE_DOCS = ['README.md', 'README.en.md', 'bundle/README.md']
 
 /**
  * "（483 项）", "483 tests", "483 项测试" — a count near the word for tests, or the
