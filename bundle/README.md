@@ -5,6 +5,10 @@
 [![npm version](https://img.shields.io/npm/v/dsh-excel-chat)](https://www.npmjs.com/package/dsh-excel-chat)
 [![GitHub release](https://img.shields.io/github/v/release/hccccc01333/dsh-excel-chat)](https://github.com/hccccc01333/dsh-excel-chat/releases)
 [![license](https://img.shields.io/github/license/hccccc01333/dsh-excel-chat)](https://github.com/hccccc01333/dsh-excel-chat/blob/master/LICENSE)
+[![dsh.so 风险评级与安装验证](https://www.dsh.so/badge/dsh-excel-chat.svg)](https://www.dsh.so/artifact/dsh-excel-chat/)
+
+<sub>第三方（[dsh.so](https://www.dsh.so/artifact/dsh-excel-chat/)）对发布版本做静态安全扫描与
+安装运行验证：当前 **风险 low**、0 条严重/高危/中危发现、未检测到外部凭据。</sub>
 
 ![dsh-excel-chat](https://raw.githubusercontent.com/hccccc01333/dsh-excel-chat/master/assets/banner.png)
 
@@ -38,11 +42,32 @@ dsh plugin --profile demo add dsh-excel-chat
 dsh web --profile demo
 ```
 
+<sub>**想让我们知道有人在用？** 官方命令不上报任何东西，所以我们看不见使用者 ——
+[公开安装计数](https://deepseek1024.com/plugins/hccccc01333/dsh-excel-chat)至今是 0。
+换成社区市场的可追踪 CLI 即可（命令与官方**完全等价**，只是额外上报一条**匿名**安装结果）：</sub>
+
+> `npx dsh1024 plugin --profile demo add dsh-excel-chat`
+
+<sub>第三方工具（MIT），不是本项目的依赖。不想用就忽略，官方命令一直有效。</sub>
+
 从源码或本地目录安装也可以（`prepare` 会自动构建）：
 
 ```sh
 dsh plugin --profile demo add ./bundle
 ```
+
+## 5 分钟上手
+
+仓库里带了一份**没有真实业务数据**的示例工作簿 `examples/sales-ledger.xlsx`
+（10 条编造的订单），里面故意留了一格静默损坏的公式。拖进对话，照着说三句：
+
+1. 「看一下这份台账有没有问题」——它会指出金额列里那一格公式的问题
+2. 「修掉它」——修复后复验（判定是确定性的，不靠模型自我感觉）
+3. 「按区域汇总金额，输出到新表」——生成汇总表，表头加粗、冻结首行
+
+**不想先装 dsh 也行**：克隆仓库后 `npm run demo` 会在示例文件的副本上跑一遍
+「改表 → 体检 → 修复 → 复验 → 输出」，打印引擎的真实输出 —— 这五步都不需要模型。
+输出内容由测试钉住，少一个阶段、或者修复失效了，测试会红。
 
 ### 对话里的快捷命令
 
@@ -84,11 +109,11 @@ dsh-excel-chat-doctor                                    # npm 全局 / npx 可�
 
 ## 可靠性
 
-100 个职场任务的[自建评测语料](https://github.com/hccccc01333/dsh-excel-chat/blob/master/docs/benchmark.md)
-（ExcelBench lite：编辑 / 分析 / 公式 / 多步工作流），goal 模式 + glm-5.3-flash
+144 个职场任务的[自建评测语料](https://github.com/hccccc01333/dsh-excel-chat/blob/master/docs/benchmark.md)
+（ExcelBench lite：编辑 77 / 分析 27 / 公式 22 / 多步工作流 18），goal 模式 + glm-5.3-flash
 全量实测任务成功率 **86%**（DeepSeek 基线 52%）。[逐次跑分的公开结果表](https://github.com/hccccc01333/dsh-excel-chat/blob/master/docs/benchmark-results.md)
 由原始输出生成，任何人都能跑一行加进去；失败归因、复测方式与已知局限
-都写在评测文档里。单元测试 423 项全绿。
+都写在评测文档里。单元测试在 CI 上全绿（`node --test tests/*.test.ts`）。
 
 ## 工具（25 个）
 
@@ -146,7 +171,7 @@ dsh-excel-chat-doctor                                    # npm 全局 / npx 可�
 ![公式静默损坏的检出与修复](https://raw.githubusercontent.com/hccccc01333/dsh-excel-chat/master/assets/before-after.png)
 
 截图都是 DeepSeek Harness Web 里真实模型调用工具后、在消息流工具行内渲染出的结果。
-更多截图、演示动图与架构说明见
+更多截图与架构说明见
 [GitHub 仓库首页](https://github.com/hccccc01333/dsh-excel-chat)。
 
 ## 文档

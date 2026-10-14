@@ -5,6 +5,11 @@
 [![npm version](https://img.shields.io/npm/v/dsh-excel-chat)](https://www.npmjs.com/package/dsh-excel-chat)
 [![GitHub release](https://img.shields.io/github/v/release/hccccc01333/dsh-excel-chat)](https://github.com/hccccc01333/dsh-excel-chat/releases)
 [![license](https://img.shields.io/github/license/hccccc01333/dsh-excel-chat)](LICENSE)
+[![dsh.so risk rating and install verification](https://www.dsh.so/badge/dsh-excel-chat.svg)](https://www.dsh.so/artifact/dsh-excel-chat/)
+
+<sub>A third party ([dsh.so](https://www.dsh.so/artifact/dsh-excel-chat/)) statically scans each
+release and verifies it installs and runs: currently **risk low**, 0 critical/high/medium
+findings, no external credentials detected.</sub>
 
 ![dsh-excel-chat banner](assets/banner.png)
 
@@ -20,12 +25,15 @@ are on [Releases](https://github.com/hccccc01333/dsh-excel-chat/releases).
 
 ![dsh-excel-chat capability overview](assets/feature-grid.png)
 
-![dsh-excel-chat live demo (recorded 2026-08-15)](assets/demo.gif)
+Want to see it run first? Clone the repo and run `npm run demo` — it walks the sample
+workbook through **edit → check → repair → verify → output** and prints the engine's real
+output. No model and no `dsh` install needed. Full output and the walkthrough are in
+[Five-minute start](#five-minute-start).
 
-<sub>Recorded **2026-08-15**, around v0.23, with a real model at the time.
-The plugin is now at v0.42 and both the UI and the operation catalogue have moved on —
-**this shows what the project has done, not what it does today**. A new demo goes up once
-the web editing path settles.</sub>
+<sub>The demo that used to sit here was recorded on 2026-08-15 (around v0.23). The UI and the
+operation catalogue have both moved on since, so it had become more misleading than useful.
+What updates with the version now is `npm run demo`, and a test pins its output — drop a
+stage, or let the repair stop working, and the test goes red. A fresh UI recording is welcome.</sub>
 
 ## Why this exists
 
@@ -51,7 +59,7 @@ genuinely drive Excel — charts, native pivot tables, PDF export — require Wi
 ## Contents
 
 - [Why this exists](#why-this-exists) · [What's new](#whats-new)
-- [In action](#in-action-real-screenshots-from-the-conversation) · [Architecture](#architecture) · [Install and first steps](#install-and-first-steps)
+- [In action](#in-action-real-screenshots-from-the-conversation) · [Architecture](#architecture) · [Five-minute start](#five-minute-start)
 - [Tools](#tools) · [Benchmarks and reliability](#benchmarks-and-reliability)
 - [Known limitations](#known-limitations) · [Links](#links)
 
@@ -95,7 +103,35 @@ The core loop is **understand → operate → verify → repair → re-verify �
 `excel_task`'s goal mode turns that loop into a **Plan → Act → Observe → Verify → Replan**
 agent cycle.
 
-## Install and first steps
+## Five-minute start
+
+### Step 1: see what it does (no `dsh` install)
+
+```sh
+git clone https://github.com/hccccc01333/dsh-excel-chat && cd dsh-excel-chat
+npm install && npm run demo
+```
+
+`npm run demo` runs the whole loop on a copy of the sample workbook and prints the engine's
+real output. The sample ships with Chinese data and headers, and the demo prints in the
+workbook's language, so the output below is verbatim:
+
+```text
+① 改表   「按区域汇总金额，输出到新表」
+         销售台账-汇总：A1「区域」 B1「金额 合计」/ 华东 / 华北 / 华南 / 总计
+② 体检   编辑后自动体检：87 个单元格，14 条公式 —— 检出 1 处异常
+         · 销售台账!G9  [reference-offset]
+③ 修复   销售台账!G9   =E9*F8  →  =E9*F9
+④ 复验   异常 0 —— 公式列重新一致
+⑤ 输出   repaired.xlsx + the audit log (before and after, rollback-able)
+```
+
+Note step ②: that error was **already in the file** — you only asked for a summary, and it
+found the problem on the way past. `examples/sales-ledger.xlsx` is the file in the
+repository — **no real business data**, ten invented orders across three invented regions.
+The demo runs on a temporary copy, so the file in the repository is never touched.
+
+### Step 2: connect it to the conversation
 
 Requires DeepSeek Harness (the `dsh` CLI or the desktop app).
 
@@ -108,6 +144,17 @@ dsh plugin --profile demo add dsh-excel-chat      # from npm
 dsh web --profile demo                             # open the conversation UI
 ```
 
+<sub>**Want us to know someone is using it?** The official command reports nothing, so we
+cannot see users — the plugin's [public install count](https://deepseek1024.com/plugins/hccccc01333/dsh-excel-chat)
+is currently 0. The community store's tracked CLI fixes that: it is the **same command**
+under a different name, and it additionally reports one **anonymous** install result — a
+locally generated install ID, not an account and not a person.</sub>
+
+> `npx dsh1024 plugin --profile demo add dsh-excel-chat`
+
+<sub>It is a third-party tool (MIT, [source](https://github.com/imsai-sh/awesome-deepseek-harness-plugins)),
+not a dependency of this project. Ignore this if you prefer — the official command always works.</sub>
+
 Run the self-check once after installing, to confirm the host package isolation and the
 engine are fine:
 
@@ -117,7 +164,14 @@ dsh-excel-chat-doctor                              # when installed globally / v
 # ~/.dsh/profiles/demo/node_modules/.bin/dsh-excel-chat-doctor
 ```
 
-Then just talk to it:
+Drag `examples/sales-ledger.xlsx` into the conversation and say three things to walk the whole
+loop — **understand → act → verify → repair → re-verify → output**:
+
+1. "Does this ledger have any problems?" — it points at the formula in the amount column
+2. "Fix it" — the repair is followed by a re-check (deterministic, not the model's opinion)
+3. "Summarise the amount by region, into a new sheet" — a summary sheet, bold header, frozen first row
+
+Or say something else, or bring your own file:
 
 - "Turn report.xlsx into a report: margin in column D, totals in column E, bold the header, freeze the first row, add a filter"
 - "Check the formulas in column D of sales.xlsx and fix the wrong ones"
@@ -221,9 +275,10 @@ The tool accepts either `cells` (a map) or `path` (an absolute `.xlsx` path) —
 
 ## Known limitations
 
-- Formula parsing is a lightweight scanner, not a full grammar: quoted strings are stripped,
-  cell-like tokens followed by `(` are treated as function names, and exotic constructs
-  (e.g. `1E5` inside an expression before a real cell ref) may still mis-parse.
+- Formula parsing is a lightweight scanner, not a full grammar: quoted strings are stripped and
+  cell-like tokens followed by `(` are treated as function names. The awkward shapes that
+  approach invites — `1E5` ahead of a real reference, a quote doubled inside a string, `LOG10`
+  — are pinned by tests in `tests/formula.test.ts` rather than left to chance.
 - Whole-column references (`Sales!$H:$H`) do not produce cell-level dependency edges.
 - Range edges are enumerated only up to 10,000 cells; larger ranges contribute start/end edges only.
 - **The web panel edits the first sheet only.** The grid library's edit event carries a row

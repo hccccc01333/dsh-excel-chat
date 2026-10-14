@@ -5,6 +5,10 @@
 [![npm version](https://img.shields.io/npm/v/dsh-excel-chat)](https://www.npmjs.com/package/dsh-excel-chat)
 [![GitHub release](https://img.shields.io/github/v/release/hccccc01333/dsh-excel-chat)](https://github.com/hccccc01333/dsh-excel-chat/releases)
 [![license](https://img.shields.io/github/license/hccccc01333/dsh-excel-chat)](LICENSE)
+[![dsh.so 风险评级与安装验证](https://www.dsh.so/badge/dsh-excel-chat.svg)](https://www.dsh.so/artifact/dsh-excel-chat/)
+
+<sub>第三方（[dsh.so](https://www.dsh.so/artifact/dsh-excel-chat/)）对发布版本做静态安全扫描与
+安装运行验证：当前 **风险 low**、0 条严重/高危/中危发现、未检测到外部凭据。</sub>
 
 ![dsh-excel-chat banner](assets/banner.png)
 
@@ -32,17 +36,19 @@
 ## 目录
 
 - [为什么用它](#为什么用它) · [最近更新](#最近更新)
-- [功能实录](#功能实录对话内真实截图) · [架构](#架构) · [安装与上手](#安装与上手)
+- [功能实录](#功能实录对话内真实截图) · [架构](#架构) · [5 分钟上手](#5-分钟上手)
 - [工具](#工具)（[先看懂文件](#先看懂文件) · [动手改文件](#动手改文件) · [公式体检与修复](#公式体检与修复这个项目的核心) · [对比与图表](#对比与图表)）
 - [评测与可靠性](#评测与可靠性) · [已知限制](#已知限制) · [相关链接](#相关链接)
 
 ![dsh-excel-chat 能力一览](assets/feature-grid.png)
 
-![dsh-excel-chat 真实演示（2026-08-15 录制）](assets/demo.gif)
+想先看它跑起来？克隆仓库后 `npm run demo` 会在示例文件上走完
+**改表 → 体检 → 修复 → 复验 → 输出**，打印引擎的真实输出 —— 不需要模型，也不需要先装 dsh。
+完整输出与上手步骤见 [5 分钟上手](#5-分钟上手)。
 
-<sub>上面的演示录于 **2026-08-15**（约 v0.23 时期），用的是当时的真实模型。
-此后插件已经迭代到 v0.42，界面与操作目录都变了不少 ——
-**它展示的是这个项目做过什么，不是它现在的样子**。新版演示等 Web 编辑链路稳定后再录。</sub>
+<sub>以前这里放的是 2026-08-15 录的演示（约 v0.23），界面和操作目录都已经变了，留着会误导。
+现在随版本一起更新的是 `npm run demo`，并且有测试钉住它的输出
+（少了一个阶段、或者修复失效了，测试会红）。一版新的界面录屏欢迎贡献。</sub>
 
 ## 功能实录（对话内真实截图）
 
@@ -81,7 +87,32 @@ flowchart LR
 核心闭环：**理解 → 操作 → 验证 → 修复 → 复验 → 输出**；`excel_task` 的 goal 模式
 把这条闭环升级为 **Plan → Act → Observe → Verify → Replan** 的 Agent 循环。
 
-## 安装与上手
+## 5 分钟上手
+
+### 第一步：先看它做什么（不用装 dsh）
+
+```sh
+git clone https://github.com/hccccc01333/dsh-excel-chat && cd dsh-excel-chat
+npm install && npm run demo
+```
+
+`npm run demo` 在示例文件的副本上跑一遍完整闭环，打印的是**引擎的真实输出**：
+
+```text
+① 改表   「按区域汇总金额，输出到新表」
+         销售台账-汇总：A1「区域」 B1「金额 合计」/ 华东 / 华北 / 华南 / 总计
+② 体检   编辑后自动体检：87 个单元格，14 条公式 —— 检出 1 处异常
+         · 销售台账!G9  [reference-offset]
+③ 修复   销售台账!G9   =E9*F8  →  =E9*F9
+④ 复验   异常 0 —— 公式列重新一致
+⑤ 输出   repaired.xlsx + 审计日志（改前改后都在，可回滚）
+```
+
+注意第 ② 步：那处错误**表里本来就有** —— 你只让它汇总，它顺手查了出来。
+`examples/sales-ledger.xlsx` 就是仓库里那一份，**没有任何真实业务数据**——
+10 条编造的订单、3 个编造的区域。演示跑在临时副本上，仓库里的文件不会被改动。
+
+### 第二步：接上对话
 
 前提：已安装 DeepSeek Harness（`dsh` CLI 或桌面端）。
 
@@ -94,6 +125,16 @@ dsh plugin --profile demo add dsh-excel-chat      # 从 npm 安装
 dsh web --profile demo                             # 打开对话界面
 ```
 
+<sub>**想让我们知道有人在用？** 官方命令不上报任何东西，所以我们看不见使用者 ——
+这个插件至今的[公开安装计数](https://deepseek1024.com/plugins/hccccc01333/dsh-excel-chat)是 0。
+换成社区市场的可追踪 CLI 即可（命令与官方**完全等价**，只是额外上报一条**匿名**安装结果，
+一个本地生成的安装 ID，不是账号、也不是人）：</sub>
+
+> `npx dsh1024 plugin --profile demo add dsh-excel-chat`
+
+<sub>它是第三方工具（MIT，[源码](https://github.com/imsai-sh/awesome-deepseek-harness-plugins)），
+不是本项目的依赖。不想用就忽略这段，官方命令一直有效。</sub>
+
 装完先自检一次，确认宿主包隔离和引擎都正常：
 
 ```sh
@@ -102,7 +143,14 @@ dsh-excel-chat-doctor                              # npm 全局/npx 可用时
 # ~/.dsh/profiles/demo/node_modules/.bin/dsh-excel-chat-doctor
 ```
 
-然后在对话里直接说：
+把 `examples/sales-ledger.xlsx` 拖进对话，照着说三句，就能走完
+**理解 → 操作 → 验证 → 修复 → 复验 → 输出**：
+
+1. 「看一下这份台账有没有问题」——它会指出金额列里那一格公式的问题
+2. 「修掉它」——修复后复验（这一步的判定是确定性的，不靠模型自我感觉）
+3. 「按区域汇总金额，输出到新表」——生成汇总表，表头加粗、冻结首行
+
+也可以换成别的说法，或者换成你自己的文件：
 
 - “帮我把 report.xlsx 做成报表：D 列毛利、E 列合计、表头加粗、冻结首行、加筛选”
 - “检查 sales.xlsx 的 D 列公式有没有错，不对的修掉”
@@ -202,9 +250,10 @@ goal 模式 + glm-5.3-flash 全量实测成功率 86%（DeepSeek 基线 52%）�
 
 ## 已知限制
 
-- Formula parsing is a lightweight scanner, not a full grammar: quoted strings are stripped,
-  cell-like tokens followed by `(` are treated as function names, and exotic constructs
-  (e.g. `1E5` inside an expression before a real cell ref) may still mis-parse.
+- Formula parsing is a lightweight scanner, not a full grammar: quoted strings are stripped and
+  cell-like tokens followed by `(` are treated as function names. The awkward shapes that
+  approach invites — `1E5` ahead of a real reference, a quote doubled inside a string, `LOG10`
+  — are pinned by tests in `tests/formula.test.ts` rather than left to chance.
 - Whole-column references (`Sales!$H:$H`) do not produce cell-level dependency edges.
 - Range edges are enumerated only up to 10,000 cells; larger ranges contribute start/end edges only.
 - **The web panel edits the first sheet only.** The grid library's edit event carries a row
