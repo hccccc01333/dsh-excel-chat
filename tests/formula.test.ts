@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { canonicalCellId, columnToNumber, normalizeSheet, numberToColumn, parseCellId } from '../src/formula.ts'
+import { canonicalCellId, columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula } from '../src/formula.ts'
 
 test('column letters convert to their 1-based number', () => {
   assert.equal(columnToNumber('A'), 1)
@@ -73,4 +73,36 @@ test('a cell id with a bad column or row is rejected', () => {
     assert.throws(() => parseCellId(id), /invalid cell id/, `should reject ${JSON.stringify(id)}`)
   }
   assert.deepEqual(parseCellId('A1048576'), { sheet: 'SHEET1', column: 'A', row: 1048576 })
+})
+
+/** The A1-style references `parseFormula` finds, as `COLUMNrow`. */
+const refs = (formula: string): string[] =>
+  parseFormula(formula).references.map((ref) => `${ref.start.column}${ref.start.row}`)
+
+/**
+ * The awkward shapes a scanner invites, pinned.
+ *
+ * The README said these "may still mis-parse", and nothing checked it — so the claim could
+ * not be told apart from a stale one. It is stale: every case below parses correctly today.
+ * The tests are here so a rewrite of the scanner has to keep it that way, and so the README's
+ * description of the parser rests on something that actually runs.
+ */
+test('an exponent is not read as a cell reference', () => {
+  assert.deepEqual(refs('=1E5+A1'), ['A1'])
+  assert.deepEqual(refs('=1E5*B2'), ['B2'])
+  assert.deepEqual(refs('=2E10+C3'), ['C3'])
+  assert.deepEqual(refs('=1E5'), [])
+})
+
+test('a function name that looks like a cell is not read as a reference', () => {
+  assert.deepEqual(refs('=LOG10(A1)'), ['A1'])
+  assert.deepEqual(refs('=ATAN2(A1,B1)'), ['A1', 'B1'])
+  assert.deepEqual(refs('=A1*LOG10(B2)'), ['A1', 'B2'])
+})
+
+test('cell-like text inside a string is not a reference', () => {
+  assert.deepEqual(refs('="A1"'), [])
+  // Excel escapes a quote by doubling it, not with a backslash.
+  assert.deepEqual(refs('="x""A1"""&B2'), ['B2'])
+  assert.deepEqual(refs('=IF(A1="""","",A1)'), ['A1', 'A1'])
 })
