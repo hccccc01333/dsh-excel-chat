@@ -1,7 +1,7 @@
 import { columnToNumber, numberToColumn, parseCellId } from '../formula.js';
 import { t } from '../i18n.js';
 import { contentToCellValue } from '../workbook.js';
-import { RANGE_LINE, cellContentOf, findSheet, parseRange, parseTargetCell, resolveCell, shiftFormulaReferences, writeContent } from './core.js';
+import { RANGE_LINE, cellContentOf, findSheet, parseRange, parseTargetCell, requireSheet, resolveCell, shiftFormulaReferences, writeContent } from './core.js';
 export function applyFill(workbook, sourceId, targetRange) {
     const source = resolveCell(workbook, sourceId);
     const sourceCell = parseCellId(sourceId);
@@ -14,7 +14,7 @@ export function applyFill(workbook, sourceId, targetRange) {
     const targetSheetName = rawSheet ?? sourceCell.sheet;
     const sheet = findSheet(workbook, targetSheetName);
     if (!sheet)
-        throw new Error(`sheet not found: ${targetSheetName}`);
+        requireSheet(workbook, targetSheetName);
     const startCol = columnToNumber(match[1]);
     const startRow = Number(match[2]);
     // No colon: filling that one cell, which is a 1×1 target.
@@ -54,7 +54,7 @@ export function copyRange(workbook, sourceRange, targetCell, move, valuesOnly = 
         throw new Error(`invalid target cell: ${targetCell}`);
     const targetSheet = findSheet(workbook, targetSheetName);
     if (!targetSheet)
-        throw new Error(`sheet not found: ${targetSheetName}`);
+        requireSheet(workbook, targetSheetName);
     if (targetRange) {
         const rows = Number(targetRange[4]) - Number(targetRange[2]) + 1;
         const cols = columnToNumber(targetRange[3]) - columnToNumber(targetRange[1]) + 1;
@@ -200,7 +200,7 @@ export function findReplace(workbook, find, replace, sheetName, matchCase) {
     if (sheetName) {
         const sheet = findSheet(workbook, sheetName);
         if (!sheet)
-            throw new Error(`sheet not found: ${sheetName}`);
+            requireSheet(workbook, sheetName);
         visit(sheet);
     }
     else {
@@ -217,7 +217,7 @@ function replaceAllCase(text, find, replace, matchCase) {
 export function duplicateSheet(workbook, name, newName) {
     const source = findSheet(workbook, name);
     if (!source)
-        throw new Error(`sheet not found: ${name}`);
+        requireSheet(workbook, name);
     if (findSheet(workbook, newName))
         throw new Error(`sheet already exists: ${newName}`);
     const copy = workbook.addWorksheet(newName);
@@ -262,7 +262,7 @@ export function applyMerge(workbook, range, unmerge) {
         throw new Error(`merge range requires a sheet: ${range}`);
     const sheet = findSheet(workbook, rawSheet);
     if (!sheet)
-        throw new Error(`sheet not found: ${rawSheet}`);
+        requireSheet(workbook, rawSheet);
     if (unmerge)
         sheet.unMergeCells(body);
     else

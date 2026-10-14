@@ -8,7 +8,7 @@
 import ExcelJS from 'exceljs'
 import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula, type RefPoint } from '../formula.ts'
 import { cellContent, contentToCellValue } from '../workbook.ts'
-import { t } from '../i18n.ts'
+import { listJoin, t } from '../i18n.ts'
 /**
  * A sheet-qualified range body: `A1:B2`, or a bare `A1` meaning that one cell.
  *
@@ -25,10 +25,45 @@ export function findSheet(workbook: ExcelJS.Workbook, name: string): ExcelJS.Wor
   return workbook.worksheets.find((sheet) => normalizeSheet(sheet.name) === normalized)
 }
 
+/**
+ * A bad argument, declared as such instead of being recognised by its wording.
+ *
+ * The benchmark taxonomy used to decide this by matching `/sheet not found/i` against the
+ * message. That made the classification depend on the language the message happened to be
+ * written in, so translating it would have silently moved every such failure into
+ * `execution` — the same "text as a decision rule" trap the planner errors were already
+ * pulled out of. `kind` is the signal; the message is for the reader.
+ */
+export class SheetNotFoundError extends Error {
+  readonly kind = 'argument'
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'SheetNotFoundError'
+  }
+}
+
+/**
+ * The sheet, or an error that names the sheets that do exist.
+ *
+ * `findSheet` returning undefined tells the caller only that their guess was wrong, while
+ * the list they need is already in the workbook. For a person that turns a typo into a dead
+ * end. For the planner it is worse: a message it cannot act on is a round spent guessing
+ * again, which is the shape of the replan failures this project keeps chasing.
+ */
+export function requireSheet(workbook: ExcelJS.Workbook, name: string): ExcelJS.Worksheet {
+  const sheet = findSheet(workbook, name)
+  if (sheet) return sheet
+  const available = workbook.worksheets.map((entry) => entry.name)
+  throw new SheetNotFoundError(
+    t('找不到工作表「{name}」。这个文件里有：{sheets}', { name, sheets: listJoin(available) }),
+  )
+}
+
 export function resolveCell(workbook: ExcelJS.Workbook, id: string): ExcelJS.Cell {
   const parsed = parseCellId(id)
   const sheet = findSheet(workbook, parsed.sheet)
-  if (!sheet) throw new Error(`sheet not found: ${parsed.sheet}`)
+  if (!sheet) requireSheet(workbook, parsed.sheet)
   return sheet.getCell(`${parsed.column}${parsed.row}`)
 }
 
@@ -79,7 +114,7 @@ export function parseRange(workbook: ExcelJS.Workbook, range: string): ParsedRan
   const match = RANGE_LINE.exec(body)
   if (!match) throw new Error(`invalid range: ${range}`)
   const sheet = findSheet(workbook, rawSheet)
-  if (!sheet) throw new Error(`sheet not found: ${rawSheet}`)
+  if (!sheet) requireSheet(workbook, rawSheet)
   const startCol = columnToNumber(match[1]!)
   const startRow = Number(match[2]!)
   return {
@@ -296,7 +331,7 @@ export function parseTargetCell(
   const match = /^([A-Za-z]{1,3})(\d+)$/.exec(body)
   if (!match) throw new Error(`invalid target cell: ${target}`)
   const sheet = findSheet(workbook, sheetName)
-  if (!sheet) throw new Error(`sheet not found: ${sheetName}`)
+  if (!sheet) requireSheet(workbook, sheetName)
   return { sheet, col: columnToNumber(match[1]!), row: Number(match[2]!) }
 }
 

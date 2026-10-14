@@ -1,13 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { columnToNumber, parseCellId } from '../formula.js';
-import { findSheet } from './core.js';
+import { findSheet, requireSheet } from './core.js';
 const IMAGE_EXTENSIONS = new Set(['png', 'jpeg', 'jpg', 'gif']);
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 export async function insertImageIntoSheet(workbook, options) {
     const parsed = parseCellId(options.cell);
     const sheet = findSheet(workbook, parsed.sheet);
     if (!sheet)
-        throw new Error(`sheet not found: ${parsed.sheet}`);
+        requireSheet(workbook, parsed.sheet);
     if (options.file && options.base64)
         throw new Error('insertImage takes either file or base64, not both');
     if (!options.file && !options.base64)

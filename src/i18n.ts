@@ -176,6 +176,10 @@ const EN: Record<string, string> = {
 
   // menu.ts
   '未找到工作表。': 'No worksheet found.',
+
+  // op/core.ts — requireSheet
+  '找不到工作表「{name}」。这个文件里有：{sheets}':
+    'No worksheet named "{name}" — this file has: {sheets}',
   '直接回复编号，或把示例话术发给我即可；做完不满意可以用 excel_undo 回滚。':
     'Reply with a number, or just send one of the example prompts. If you do not like the result, excel_undo rolls it back.',
   '补空值': 'Fill blanks',

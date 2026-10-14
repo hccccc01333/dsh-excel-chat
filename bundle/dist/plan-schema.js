@@ -15,6 +15,19 @@ export class PlanSchemaError extends Error {
         this.kind = kind;
     }
 }
+/**
+ * The failure kind an error declares about itself, if it declares one.
+ *
+ * Read off the error rather than matched by class, so a new typed error survives both the
+ * round wrapper in `agent.ts` and the benchmark's classification without a branch in either
+ * — the round wrapper used to know only about `PlanSchemaError`, which is how a
+ * `SheetNotFoundError` came back as a plain `Error` and got classified as an execution
+ * failure. An error with no kind returns `undefined` and falls back to the text heuristics.
+ */
+export function declaredKind(error) {
+    const kind = error?.kind;
+    return kind === 'planning' || kind === 'argument' ? kind : undefined;
+}
 import { t } from './i18n.js';
 import { excelOperationSchema } from './operation-schema.js';
 function buildTypedPaths() {

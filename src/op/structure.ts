@@ -10,7 +10,7 @@ import ExcelJS from 'exceljs'
 import { t } from '../i18n.ts'
 import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula, type RefPoint } from '../formula.ts'
 import type { OperationWarning } from '../operation-types.ts'
-import { absoluteColumnRef, cellContentOf, findSheet, parseRange, resolveCell, shiftFormulaReferences, writeContent } from './core.ts'
+import { absoluteColumnRef, cellContentOf, findSheet, parseRange, requireSheet, resolveCell, shiftFormulaReferences, writeContent } from './core.ts'
 
 /**
  * Reject a start/count pair that is not a positive number.
@@ -39,7 +39,7 @@ export function deleteRowsFromSheet(
   opIndex: number,
 ): void {
   const sheet = findSheet(workbook, sheetName)
-  if (!sheet) throw new Error(`sheet not found: ${sheetName}`)
+  if (!sheet) requireSheet(workbook, sheetName)
   assertPositiveSpan('deleteRows', start, 'row', count)
   const end = start + count - 1
   for (const formulaCell of collectDeletedRangeRefs(workbook, sheetName, start, end)) {
@@ -60,7 +60,7 @@ export function deleteColumnsFromSheet(
   opIndex: number,
 ): void {
   const sheet = findSheet(workbook, sheetName)
-  if (!sheet) throw new Error(`sheet not found: ${sheetName}`)
+  if (!sheet) requireSheet(workbook, sheetName)
   assertPositiveSpan('deleteColumns', column, 'column', count)
   const end = column + count - 1
   for (const formulaCell of collectDeletedColumnRefs(workbook, sheetName, column, end)) {

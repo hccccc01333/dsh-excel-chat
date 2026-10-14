@@ -9,7 +9,7 @@
 import ExcelJS from 'exceljs'
 import { readFile } from 'node:fs/promises'
 import { columnToNumber, parseCellId } from '../formula.ts'
-import { findSheet } from './core.ts'
+import { findSheet, requireSheet } from './core.ts'
 import type { ExcelOperation } from '../operation-types.ts'
 import { t } from '../i18n.ts'
 
@@ -24,7 +24,7 @@ export async function insertImageIntoSheet(
 ): Promise<void> {
   const parsed = parseCellId(options.cell)
   const sheet = findSheet(workbook, parsed.sheet)
-  if (!sheet) throw new Error(`sheet not found: ${parsed.sheet}`)
+  if (!sheet) requireSheet(workbook, parsed.sheet)
   if (options.file && options.base64) throw new Error('insertImage takes either file or base64, not both')
   if (!options.file && !options.base64) throw new Error('insertImage requires file or base64')
 

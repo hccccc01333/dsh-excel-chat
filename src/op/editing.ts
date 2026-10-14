@@ -12,7 +12,7 @@ import { t } from '../i18n.ts'
 import { cellContent, contentToCellValue } from '../workbook.ts'
 import { writeWorkbookSafely } from '../safe-write.ts'
 import type { ExcelOperation, OperationWarning } from '../operation-types.ts'
-import { RANGE_LINE, cellContentOf, findSheet, parseRange, parseTargetCell, qualifySheetName, resolveCell, shiftFormulaReferences, writeContent } from './core.ts'
+import { RANGE_LINE, cellContentOf, findSheet, parseRange, parseTargetCell, qualifySheetName, requireSheet, resolveCell, shiftFormulaReferences, writeContent } from './core.ts'
 import { displayWidth } from './layout.ts'
 
 export function applyFill(workbook: ExcelJS.Workbook, sourceId: string, targetRange: string): void {
@@ -25,7 +25,7 @@ export function applyFill(workbook: ExcelJS.Workbook, sourceId: string, targetRa
   if (!match) throw new Error(`invalid fill target: ${targetRange}`)
   const targetSheetName = rawSheet ?? sourceCell.sheet
   const sheet = findSheet(workbook, targetSheetName)
-  if (!sheet) throw new Error(`sheet not found: ${targetSheetName}`)
+  if (!sheet) requireSheet(workbook, targetSheetName)
   const startCol = columnToNumber(match[1]!)
   const startRow = Number(match[2]!)
   // No colon: filling that one cell, which is a 1×1 target.
@@ -62,7 +62,7 @@ export function copyRange(workbook: ExcelJS.Workbook, sourceRange: string, targe
   const targetRange = match ? null : /^([A-Za-z]{1,3})(\d+):([A-Za-z]{1,3})(\d+)$/.exec(targetBody)
   if (!match && !targetRange) throw new Error(`invalid target cell: ${targetCell}`)
   const targetSheet = findSheet(workbook, targetSheetName)
-  if (!targetSheet) throw new Error(`sheet not found: ${targetSheetName}`)
+  if (!targetSheet) requireSheet(workbook, targetSheetName)
   if (targetRange) {
     const rows = Number(targetRange[4]) - Number(targetRange[2]) + 1
     const cols = columnToNumber(targetRange[3]!) - columnToNumber(targetRange[1]!) + 1
@@ -212,7 +212,7 @@ export function findReplace(
   }
   if (sheetName) {
     const sheet = findSheet(workbook, sheetName)
-    if (!sheet) throw new Error(`sheet not found: ${sheetName}`)
+    if (!sheet) requireSheet(workbook, sheetName)
     visit(sheet)
   } else {
     workbook.eachSheet(visit)
@@ -228,7 +228,7 @@ function replaceAllCase(text: string, find: string, replace: string, matchCase: 
 
 export function duplicateSheet(workbook: ExcelJS.Workbook, name: string, newName: string): void {
   const source = findSheet(workbook, name)
-  if (!source) throw new Error(`sheet not found: ${name}`)
+  if (!source) requireSheet(workbook, name)
   if (findSheet(workbook, newName)) throw new Error(`sheet already exists: ${newName}`)
   const copy = workbook.addWorksheet(newName)
   source.eachRow({ includeEmpty: false }, (row) => {
@@ -270,7 +270,7 @@ export function applyMerge(workbook: ExcelJS.Workbook, range: string, unmerge: b
   const body = bang >= 0 ? range.slice(bang + 1) : range
   if (!rawSheet) throw new Error(`merge range requires a sheet: ${range}`)
   const sheet = findSheet(workbook, rawSheet)
-  if (!sheet) throw new Error(`sheet not found: ${rawSheet}`)
+  if (!sheet) requireSheet(workbook, rawSheet)
   if (unmerge) sheet.unMergeCells(body)
   else sheet.mergeCells(body)
 }

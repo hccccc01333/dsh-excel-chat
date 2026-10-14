@@ -1,3 +1,5 @@
+/** The failure kinds an error can declare about itself. */
+export type FailureKind = 'planning' | 'argument';
 /**
  * A plan that cannot be salvaged. Carries the failure kind so the benchmark's
  * taxonomy can classify it without pattern-matching the message text — that
@@ -5,9 +7,19 @@
  * turned a planning error into an execution error.
  */
 export declare class PlanSchemaError extends Error {
-    readonly kind: 'planning' | 'argument';
-    constructor(kind: 'planning' | 'argument', message: string);
+    readonly kind: FailureKind;
+    constructor(kind: FailureKind, message: string);
 }
+/**
+ * The failure kind an error declares about itself, if it declares one.
+ *
+ * Read off the error rather than matched by class, so a new typed error survives both the
+ * round wrapper in `agent.ts` and the benchmark's classification without a branch in either
+ * — the round wrapper used to know only about `PlanSchemaError`, which is how a
+ * `SheetNotFoundError` came back as a plain `Error` and got classified as an execution
+ * failure. An error with no kind returns `undefined` and falls back to the text heuristics.
+ */
+export declare function declaredKind(error: unknown): FailureKind | undefined;
 import type { ExcelOperation } from './operations.ts';
 import type { PlanStep } from './agent.ts';
 import type { WorkbookAssertion } from './verifier.ts';

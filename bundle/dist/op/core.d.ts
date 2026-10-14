@@ -17,6 +17,28 @@ import ExcelJS from 'exceljs';
  */
 export declare const RANGE_LINE: RegExp;
 export declare function findSheet(workbook: ExcelJS.Workbook, name: string): ExcelJS.Worksheet | undefined;
+/**
+ * A bad argument, declared as such instead of being recognised by its wording.
+ *
+ * The benchmark taxonomy used to decide this by matching `/sheet not found/i` against the
+ * message. That made the classification depend on the language the message happened to be
+ * written in, so translating it would have silently moved every such failure into
+ * `execution` — the same "text as a decision rule" trap the planner errors were already
+ * pulled out of. `kind` is the signal; the message is for the reader.
+ */
+export declare class SheetNotFoundError extends Error {
+    readonly kind = "argument";
+    constructor(message: string);
+}
+/**
+ * The sheet, or an error that names the sheets that do exist.
+ *
+ * `findSheet` returning undefined tells the caller only that their guess was wrong, while
+ * the list they need is already in the workbook. For a person that turns a typo into a dead
+ * end. For the planner it is worse: a message it cannot act on is a round spent guessing
+ * again, which is the shape of the replan failures this project keeps chasing.
+ */
+export declare function requireSheet(workbook: ExcelJS.Workbook, name: string): ExcelJS.Worksheet;
 export declare function resolveCell(workbook: ExcelJS.Workbook, id: string): ExcelJS.Cell;
 export declare function writeContent(cell: ExcelJS.Cell, content: unknown): void;
 /**

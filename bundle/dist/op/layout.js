@@ -1,8 +1,8 @@
-import { findSheet } from './core.js';
+import { findSheet, requireSheet } from './core.js';
 export function applyPageSetup(workbook, options) {
     const sheet = findSheet(workbook, options.sheet);
     if (!sheet)
-        throw new Error(`sheet not found: ${options.sheet}`);
+        requireSheet(workbook, options.sheet);
     const pageSetup = sheet.pageSetup;
     if (options.printArea)
         pageSetup.printArea = options.printArea;

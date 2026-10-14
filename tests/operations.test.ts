@@ -2391,3 +2391,25 @@ test('a structure operation with no count is refused by the executor itself', as
     /invalid insertColumns: column=2 count=undefined/,
   )
 })
+
+test('a wrong sheet name names the sheets that do exist, and declares itself an argument error', async () => {
+  // `findSheet` returning undefined used to produce "sheet not found: X" and nothing else.
+  // The list the caller needs is already in the workbook, and for the planner a message it
+  // cannot act on is a round spent guessing again. `kind` is the part the benchmark taxonomy
+  // reads, so the classification no longer depends on the language this message is written in.
+  const path = await makeWorkbook((workbook) => {
+    workbook.addWorksheet('销售台账')
+    workbook.addWorksheet('Sheet2')
+  })
+  const outPath = join(join(path, '..'), 'missing-sheet.xlsx')
+  await assert.rejects(
+    () => applyOperationsToWorkbook(path, [{ op: 'set', cells: { '不存在的表!A1': 'x' } }], outPath),
+    (error: Error & { kind?: string }) => {
+      assert.match(error.message, /不存在的表/)
+      assert.match(error.message, /销售台账/)
+      assert.match(error.message, /Sheet2/)
+      assert.equal(error.kind, 'argument')
+      return true
+    },
+  )
+})

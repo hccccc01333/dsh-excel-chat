@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { columnToNumber, numberToColumn } from './formula.ts'
 import { runPowerShell } from './chart-visual.ts'
+import { requireSheet } from './op/core.ts'
 
 export interface PivotValueSpec {
   column: string
@@ -97,7 +98,7 @@ export async function createPivotTable(
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.load(await readFile(inputPath) as any)
   const source = workbook.getWorksheet(options.sheet)
-  if (!source) throw new Error(`sheet not found: ${options.sheet}`)
+  if (!source) requireSheet(workbook, options.sheet)
   const bang = options.range.lastIndexOf('!')
   const rangeBody = bang >= 0 ? options.range.slice(bang + 1) : options.range
   const rangeMatch = /^([A-Za-z]{1,3})(\d+):([A-Za-z]{1,3})(\d+)$/.exec(rangeBody)

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import ExcelJS from 'exceljs'
 import type { ExcelOperation } from './operations.ts'
 import { t, listJoin, listSeparator } from './i18n.ts'
-import { PlanSchemaError, buildHeaderIndex, sanitizeAssertions, sanitizePlan } from './plan-schema.ts'
+import { PlanSchemaError, buildHeaderIndex, declaredKind, sanitizeAssertions, sanitizePlan } from './plan-schema.ts'
 import { profileWorkbook, type WorkbookProfile } from './profile.ts'
 import { buildWorkbookSemanticProfile } from './semantic.ts'
 import { runExcelTask, type TaskResult } from './task.ts'
@@ -249,13 +249,15 @@ export async function runAgentTask(
 }
 
 /**
- * Re-throw a round failure with the round's plan attached, keeping the failure
- * kind when there is one. Wrapping a `PlanSchemaError` in a plain `Error` would
- * drop the kind, and the benchmark's taxonomy would then classify a planning
- * failure as an execution failure — the exact confusion the kind exists to stop.
+ * Re-throw a round failure with the round's plan attached, keeping the failure kind when
+ * there is one. Wrapping a typed error in a plain `Error` would drop the kind, and the
+ * benchmark's taxonomy would then classify an argument failure as an execution failure —
+ * the exact confusion the kind exists to stop. The kind is read off the error rather than
+ * matched by class, so a new typed error survives a round without a new branch here.
  */
 function wrapRoundError(error: unknown, message: string): Error {
-  return error instanceof PlanSchemaError ? new PlanSchemaError(error.kind, message) : new Error(message)
+  const kind = declaredKind(error)
+  return kind === undefined ? new Error(message) : new PlanSchemaError(kind, message)
 }
 
 function summarizeProfile(profile: WorkbookProfile): string {

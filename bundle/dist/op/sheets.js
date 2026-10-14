@@ -1,5 +1,5 @@
 import { columnToNumber, numberToColumn } from '../formula.js';
-import { absoluteColumnRef, findSheet, parseRange, parseTargetCell, qualifySheetName, resolveCell } from './core.js';
+import { absoluteColumnRef, findSheet, parseRange, parseTargetCell, qualifySheetName, requireSheet, resolveCell } from './core.js';
 export function setHyperlink(workbook, options) {
     const cell = resolveCell(workbook, options.cell);
     const text = options.text;
@@ -108,7 +108,7 @@ export function applySheetView(sheet, patch) {
 export function moveSheet(workbook, name, position) {
     const sheet = findSheet(workbook, name);
     if (!sheet)
-        throw new Error(`sheet not found: ${name}`);
+        requireSheet(workbook, name);
     const ordered = workbook.worksheets;
     const others = ordered.filter((entry) => entry.id !== sheet.id);
     const clamped = Math.max(1, Math.min(position, ordered.length));

@@ -8,7 +8,7 @@
  */
 import ExcelJS from 'exceljs'
 import { columnToNumber } from '../formula.ts'
-import { findSheet } from './core.ts'
+import { findSheet, requireSheet } from './core.ts'
 import type { ExcelOperation } from '../operation-types.ts'
 
 export function applyPageSetup(
@@ -16,7 +16,7 @@ export function applyPageSetup(
   options: Extract<ExcelOperation, { op: 'pageSetup' }>,
 ): void {
   const sheet = findSheet(workbook, options.sheet)
-  if (!sheet) throw new Error(`sheet not found: ${options.sheet}`)
+  if (!sheet) requireSheet(workbook, options.sheet)
   const pageSetup = sheet.pageSetup
   if (options.printArea) pageSetup.printArea = options.printArea
   if (options.orientation) pageSetup.orientation = options.orientation

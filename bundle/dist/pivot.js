@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { columnToNumber, numberToColumn } from './formula.js';
 import { runPowerShell } from './chart-visual.js';
+import { requireSheet } from './op/core.js';
 const COM_FUNCTIONS = {
     sum: -4157, // xlSum
     count: -4112, // xlCount
@@ -70,7 +71,7 @@ export async function createPivotTable(inputPath, options, outPath) {
     await workbook.xlsx.load(await readFile(inputPath));
     const source = workbook.getWorksheet(options.sheet);
     if (!source)
-        throw new Error(`sheet not found: ${options.sheet}`);
+        requireSheet(workbook, options.sheet);
     const bang = options.range.lastIndexOf('!');
     const rangeBody = bang >= 0 ? options.range.slice(bang + 1) : options.range;
     const rangeMatch = /^([A-Za-z]{1,3})(\d+):([A-Za-z]{1,3})(\d+)$/.exec(rangeBody);

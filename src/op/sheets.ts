@@ -9,7 +9,7 @@ import { columnToNumber, numberToColumn } from '../formula.ts'
 import { t } from '../i18n.ts'
 import { cellContent } from '../workbook.ts'
 import type { ExcelOperation } from '../operation-types.ts'
-import { absoluteColumnRef, findSheet, parseRange, parseTargetCell, qualifySheetName, resolveCell } from './core.ts'
+import { absoluteColumnRef, findSheet, parseRange, parseTargetCell, qualifySheetName, requireSheet, resolveCell } from './core.ts'
 
 export function setHyperlink(workbook: ExcelJS.Workbook, options: Extract<ExcelOperation, { op: 'setHyperlink' }>): void {
   const cell = resolveCell(workbook, options.cell)
@@ -124,7 +124,7 @@ export function applySheetView(sheet: ExcelJS.Worksheet, patch: (view: ExcelJS.W
 
 export function moveSheet(workbook: ExcelJS.Workbook, name: string, position: number): void {
   const sheet = findSheet(workbook, name)
-  if (!sheet) throw new Error(`sheet not found: ${name}`)
+  if (!sheet) requireSheet(workbook, name)
   const ordered = workbook.worksheets
   const others = ordered.filter((entry) => entry.id !== sheet.id)
   const clamped = Math.max(1, Math.min(position, ordered.length))

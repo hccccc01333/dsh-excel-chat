@@ -11,7 +11,7 @@ import { annotateWorkbookXml, emptyAnnotations } from './xml-postprocess.js';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 export * from './operation-types.js';
-import { findSheet, resolveCell, writeContent, parseRange, cellContentOf, qualifySheetName, properCase, normalizeTextValue, similarity, splitByWidth } from './op/core.js';
+import { findSheet, resolveCell, writeContent, parseRange, cellContentOf, qualifySheetName, properCase, normalizeTextValue, similarity, splitByWidth, requireSheet } from './op/core.js';
 import { assertPositiveSpan, deleteColumnsFromSheet, deleteRowsFromSheet, shiftWorkbookColumns, shiftWorkbookRows } from './op/structure.js';
 import { sortRange } from './op/sorting.js';
 import { addTable, applyConditionalFormatting, applyDataValidation, applyStyle, normalizeColor } from './op/formatting.js';
@@ -93,7 +93,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'insertRows': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 assertPositiveSpan('insertRows', operation.row, 'row', operation.count);
                 sheet.spliceRows(operation.row, 0, ...Array.from({ length: operation.count }, () => []));
                 shiftWorkbookRows(workbook, sheet.name, operation.row, operation.count);
@@ -106,7 +106,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'insertColumns': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 const columnNumber = columnToNumber(operation.column);
                 assertPositiveSpan('insertColumns', columnNumber, 'column', operation.count);
                 sheet.spliceColumns(columnNumber, 0, ...Array.from({ length: operation.count }, () => []));
@@ -120,7 +120,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'dedupeRows': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 const columns = operation.columns && operation.columns.length > 0
                     ? operation.columns.map((column) => columnToNumber(column))
                     : Array.from({ length: sheet.columnCount }, (_, i) => i + 1);
@@ -288,7 +288,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'splitColumn': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 if (operation.widths && operation.delimiter !== undefined) {
                     throw new Error('splitColumn takes either delimiter or widths, not both');
                 }
@@ -328,7 +328,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'highlightRows': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 const parsed = parseRange(workbook, operation.range);
                 const style = operation.style ?? { fill: 'FFFF00' };
                 let matched = 0;
@@ -388,7 +388,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'hideRows': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 if (operation.from < 1 || operation.to < operation.from)
                     throw new Error(`invalid hideRows: from=${operation.from} to=${operation.to}`);
                 const hidden = operation.hidden ?? true;
@@ -413,7 +413,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'hideColumns': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 if (!operation.columns.length)
                     throw new Error('hideColumns requires at least one column');
                 const hidden = operation.hidden ?? true;
@@ -425,7 +425,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'groupRows': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 const level = operation.level ?? 1;
                 if (operation.start < 1 || operation.end < operation.start)
                     throw new Error(`invalid groupRows: start=${operation.start} end=${operation.end}`);
@@ -450,7 +450,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'groupColumns': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 const from = columnToNumber(operation.from);
                 const to = columnToNumber(operation.to);
                 const level = operation.level ?? 1;
@@ -468,7 +468,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'autoFitColumnWidths': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 const columns = operation.columns?.length
                     ? operation.columns.map((column) => columnToNumber(column))
                     : Array.from({ length: sheet.columnCount }, (_, i) => i + 1);
@@ -487,7 +487,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'unfreezePanes': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 sheet.views = [];
                 break;
             }
@@ -515,7 +515,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'printTitles': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 if (operation.rows)
                     sheet.pageSetup.printTitlesRow = operation.rows;
                 if (operation.columns)
@@ -544,7 +544,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'unmergeAll': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 const merges = [...(sheet.model.merges ?? [])];
                 for (const range of merges)
                     sheet.unMergeCells(range);
@@ -554,7 +554,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'setZoom': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 if (operation.zoom < 10 || operation.zoom > 400)
                     throw new Error(`invalid zoom: ${operation.zoom} (10-400)`);
                 applySheetView(sheet, (view) => {
@@ -566,7 +566,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'showGridLines': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 applySheetView(sheet, (view) => {
                     view.showGridLines = operation.visible;
                 });
@@ -575,7 +575,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'showFormulas': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 // Recorded as an annotation rather than set on the view: exceljs drops
                 // showFormulas when it renders <sheetView>, so xml-postprocess injects it.
                 if (operation.show === false)
@@ -593,7 +593,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'headerFooter': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 const headerFooter = {
                     ...sheet.headerFooter,
                     ...(operation.oddHeader !== undefined ? { oddHeader: operation.oddHeader } : {}),
@@ -636,7 +636,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'rowPageBreaks': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 if (!operation.rows.length)
                     throw new Error('rowPageBreaks requires at least one row');
                 // OOXML <brk id> is zero-based: a break "above 1-based row N" is id=N-1.
@@ -648,7 +648,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'clearPageBreaks': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 sheet.rowBreaks = [];
                 break;
             }
@@ -656,7 +656,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 const parsed = parseCellId(operation.cell);
                 const sheet = findSheet(workbook, parsed.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${parsed.sheet}`);
+                    requireSheet(workbook, parsed.sheet);
                 if (!operation.text.trim())
                     throw new Error('addComment requires non-empty text');
                 const list = annotations.comments.get(sheet.name) ?? [];
@@ -677,7 +677,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                     throw new Error('addSparklines dataRange and locationRange must be sheet-qualified');
                 const sparkSheet = findSheet(workbook, operation.dataRange.slice(0, dataBang));
                 if (!sparkSheet)
-                    throw new Error(`sheet not found: ${operation.dataRange.slice(0, dataBang)}`);
+                    requireSheet(workbook, operation.dataRange.slice(0, dataBang));
                 const qualified = (range, bang) => `${qualifySheetName(sparkSheet.name)}!${range.slice(bang + 1)}`;
                 if (operation.locationRange.slice(0, locBang).replace(/^'|'$/g, '') !== sparkSheet.name) {
                     throw new Error('sparkline dataRange and locationRange must be on the same sheet');
@@ -707,7 +707,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'renameSheet': {
                 const sheet = findSheet(workbook, operation.oldName);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.oldName}`);
+                    requireSheet(workbook, operation.oldName);
                 sheet.name = operation.newName;
                 renameSheetReferences(workbook, operation.oldName, operation.newName);
                 break;
@@ -715,7 +715,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'deleteSheet': {
                 const sheet = findSheet(workbook, operation.name);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.name}`);
+                    requireSheet(workbook, operation.name);
                 workbook.removeWorksheet(sheet.id);
                 break;
             }
@@ -747,21 +747,21 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'setColumnWidth': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 sheet.getColumn(operation.column).width = operation.width;
                 break;
             }
             case 'setRowHeight': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 sheet.getRow(operation.row).height = operation.height;
                 break;
             }
             case 'freezePanes': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 const columnNumber = columnToNumber(operation.column);
                 sheet.views = [{
                         state: 'frozen',
@@ -783,14 +783,14 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'hideSheet': {
                 const sheet = findSheet(workbook, operation.name);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.name}`);
+                    requireSheet(workbook, operation.name);
                 sheet.state = operation.hidden === false ? 'visible' : 'hidden';
                 break;
             }
             case 'setTabColor': {
                 const sheet = findSheet(workbook, operation.name);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.name}`);
+                    requireSheet(workbook, operation.name);
                 sheet.properties.tabColor = { argb: normalizeColor(operation.color) };
                 break;
             }
@@ -847,7 +847,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'protectSheet': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 sheet.protect(operation.password ?? '', {
                     selectLockedCells: operation.options?.selectLockedCells ?? true,
                     selectUnlockedCells: operation.options?.selectUnlockedCells ?? true,
@@ -866,7 +866,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             case 'unprotectSheet': {
                 const sheet = findSheet(workbook, operation.sheet);
                 if (!sheet)
-                    throw new Error(`sheet not found: ${operation.sheet}`);
+                    requireSheet(workbook, operation.sheet);
                 sheet.unprotect();
                 break;
             }

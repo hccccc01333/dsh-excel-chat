@@ -2,7 +2,7 @@ import { copyFile, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { t, listJoin, listSeparator } from './i18n.js';
-import { PlanSchemaError, buildHeaderIndex, sanitizeAssertions, sanitizePlan } from './plan-schema.js';
+import { PlanSchemaError, buildHeaderIndex, declaredKind, sanitizeAssertions, sanitizePlan } from './plan-schema.js';
 import { profileWorkbook } from './profile.js';
 import { buildWorkbookSemanticProfile } from './semantic.js';
 import { runExcelTask } from './task.js';
@@ -177,13 +177,15 @@ export async function runAgentTask(path, options) {
     }
 }
 /**
- * Re-throw a round failure with the round's plan attached, keeping the failure
- * kind when there is one. Wrapping a `PlanSchemaError` in a plain `Error` would
- * drop the kind, and the benchmark's taxonomy would then classify a planning
- * failure as an execution failure — the exact confusion the kind exists to stop.
+ * Re-throw a round failure with the round's plan attached, keeping the failure kind when
+ * there is one. Wrapping a typed error in a plain `Error` would drop the kind, and the
+ * benchmark's taxonomy would then classify an argument failure as an execution failure —
+ * the exact confusion the kind exists to stop. The kind is read off the error rather than
+ * matched by class, so a new typed error survives a round without a new branch here.
  */
 function wrapRoundError(error, message) {
-    return error instanceof PlanSchemaError ? new PlanSchemaError(error.kind, message) : new Error(message);
+    const kind = declaredKind(error);
+    return kind === undefined ? new Error(message) : new PlanSchemaError(kind, message);
 }
 function summarizeProfile(profile) {
     return profile.sheets.map((sheet) => {

@@ -130,6 +130,8 @@ const EN = {
     '未发现明显数据问题；可继续做报表（report）、透视或图表。': 'No obvious data problems — you can move on to a report, a pivot table or a chart.',
     // menu.ts
     '未找到工作表。': 'No worksheet found.',
+    // op/core.ts — requireSheet
+    '找不到工作表「{name}」。这个文件里有：{sheets}': 'No worksheet named "{name}" — this file has: {sheets}',
     '直接回复编号，或把示例话术发给我即可；做完不满意可以用 excel_undo 回滚。': 'Reply with a number, or just send one of the example prompts. If you do not like the result, excel_undo rolls it back.',
     '补空值': 'Fill blanks',
     '空值填充：固定值 / 向上取最近值 / 向左取最近值。': 'Fill blanks with a fixed value, from the cell above, or from the cell to the left.',

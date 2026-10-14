@@ -73,6 +73,19 @@ test('classifyFailure maps an invalid range to argument', () => {
   assert.equal(result.category, 'argument')
 })
 
+test('runLlmTask classifies a missing sheet as an argument error without reading the message', async () => {
+  // `requireSheet` throws a SheetNotFoundError carrying `kind: 'argument'`, and its message is
+  // translated. The taxonomy used to decide this by matching `/sheet not found/i` against the
+  // text, so the category would have flipped to `execution` the day the message was written in
+  // another language — silently, and only in the benchmark report. This pins the wiring rather
+  // than the wording: the kind travels on the error, the wording is only for the reader.
+  const task = cellTask('x')
+  const planner = plannerReturning([{ operations: [{ op: 'set', cells: { '不存在的表!A1': 'y' } }] }])
+  const result = await runLlmTask(task, { planner, maxRounds: 1 })
+  assert.equal(result.success, false)
+  assert.equal(result.failure?.category, 'argument')
+})
+
 test('classifyFailure maps a verifier false positive to verification', () => {
   const result = classifyFailure(evidence({ verifierFalsePositive: true, checksPassed: 1 }))
   assert.equal(result.category, 'verification')

@@ -3,6 +3,7 @@ import { t, listJoin } from './i18n.js';
 import ExcelJS from 'exceljs';
 import { parseFormula } from './formula.js';
 import { stripPivotTableParts } from './workbook.js';
+import { requireSheet } from './op/core.js';
 const FUNCTION_DESCRIPTIONS = {
     SUM: '求和',
     AVERAGE: '求平均',
@@ -97,7 +98,7 @@ export async function readCellContent(path, cellId) {
     const address = bang >= 0 ? cellId.slice(bang + 1) : cellId;
     const sheet = workbook.worksheets.find((entry) => entry.name.toLowerCase() === sheetName.toLowerCase());
     if (!sheet)
-        throw new Error(`sheet not found: ${sheetName}`);
+        requireSheet(workbook, sheetName);
     const cell = sheet.getCell(address);
     if (cell.formula)
         return `=${cell.formula}`;

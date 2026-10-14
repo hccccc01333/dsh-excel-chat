@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { numberToColumn } from '../formula.js';
 import { guardFormulaInjection, parseCsv, stringifyCsv, unguardFormulaInjection } from '../csv.js';
 import { cellContent, plainContent } from '../workbook.js';
-import { findSheet, parseRange, writeContent } from './core.js';
+import { findSheet, parseRange, requireSheet, writeContent } from './core.js';
 export async function importCsv(workbook, options) {
     const text = await readFile(options.file, 'utf8');
     const rows = parseCsv(text, options.delimiter ?? ',');
@@ -27,7 +27,7 @@ export async function importCsv(workbook, options) {
 export async function exportCsv(workbook, options) {
     const sheet = findSheet(workbook, options.sheet ?? workbook.worksheets[0].name);
     if (!sheet)
-        throw new Error(`sheet not found: ${options.sheet}`);
+        requireSheet(workbook, options.sheet);
     const parsed = options.range ? parseRange(workbook, `${sheet.name}!${options.range}`) : null;
     const startCol = parsed?.startCol ?? 1;
     const startRow = parsed?.startRow ?? 1;

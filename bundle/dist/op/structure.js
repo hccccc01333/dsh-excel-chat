@@ -1,6 +1,6 @@
 import { t } from '../i18n.js';
 import { columnToNumber, normalizeSheet, parseFormula } from '../formula.js';
-import { findSheet, shiftFormulaReferences } from './core.js';
+import { findSheet, requireSheet, shiftFormulaReferences } from './core.js';
 /**
  * Reject a start/count pair that is not a positive number.
  *
@@ -21,7 +21,7 @@ export function assertPositiveSpan(kind, first, label, count) {
 export function deleteRowsFromSheet(workbook, sheetName, start, count, warnings, opIndex) {
     const sheet = findSheet(workbook, sheetName);
     if (!sheet)
-        throw new Error(`sheet not found: ${sheetName}`);
+        requireSheet(workbook, sheetName);
     assertPositiveSpan('deleteRows', start, 'row', count);
     const end = start + count - 1;
     for (const formulaCell of collectDeletedRangeRefs(workbook, sheetName, start, end)) {
@@ -35,7 +35,7 @@ export function deleteRowsFromSheet(workbook, sheetName, start, count, warnings,
 export function deleteColumnsFromSheet(workbook, sheetName, column, count, warnings, opIndex) {
     const sheet = findSheet(workbook, sheetName);
     if (!sheet)
-        throw new Error(`sheet not found: ${sheetName}`);
+        requireSheet(workbook, sheetName);
     assertPositiveSpan('deleteColumns', column, 'column', count);
     const end = column + count - 1;
     for (const formulaCell of collectDeletedColumnRefs(workbook, sheetName, column, end)) {

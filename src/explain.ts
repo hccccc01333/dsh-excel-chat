@@ -3,6 +3,7 @@ import { t, listJoin, listSeparator } from './i18n.ts'
 import ExcelJS from 'exceljs'
 import { parseFormula, type ParsedRef } from './formula.ts'
 import { stripPivotTableParts } from './workbook.ts'
+import { requireSheet } from './op/core.ts'
 
 const FUNCTION_DESCRIPTIONS: Record<string, string> = {
   SUM: '求和',
@@ -105,7 +106,7 @@ export async function readCellContent(path: string, cellId: string): Promise<str
   const sheetName = bang >= 0 ? cellId.slice(0, bang) : workbook.worksheets[0]!.name
   const address = bang >= 0 ? cellId.slice(bang + 1) : cellId
   const sheet = workbook.worksheets.find((entry) => entry.name.toLowerCase() === sheetName.toLowerCase())
-  if (!sheet) throw new Error(`sheet not found: ${sheetName}`)
+  if (!sheet) requireSheet(workbook, sheetName)
   const cell = sheet.getCell(address)
   if (cell.formula) return `=${cell.formula}`
   const value = cell.value

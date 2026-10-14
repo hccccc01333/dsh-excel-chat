@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runAgentTask, type AgentPlanner, type AgentTaskResult, type PlanStep } from './agent.ts'
 import { t } from './i18n.ts'
-import { PlanSchemaError } from './plan-schema.ts'
 import { evaluateTaskChecks, type FileBenchmarkTask } from './file-benchmark.ts'
 import {
   classifyFailure,
@@ -15,6 +14,7 @@ import {
 } from './failure-taxonomy.ts'
 import type { ExcelOperation } from './operations.ts'
 import { validateWorkbookFile } from './workbook.ts'
+import { declaredKind } from './plan-schema.ts'
 
 export interface LlmTaskResult {
   id: string
@@ -162,7 +162,7 @@ export async function runLlmTask(
     const message = error instanceof Error ? error.message : String(error)
     // Carry the typed kind through: the taxonomy classifies on it rather than on
     // the message wording, which is translated.
-    const errorKind = error instanceof PlanSchemaError ? error.kind : undefined
+    const errorKind = declaredKind(error)
     return {
       id: task.id,
       category: task.category,

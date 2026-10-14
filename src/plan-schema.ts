@@ -1,3 +1,6 @@
+/** The failure kinds an error can declare about itself. */
+export type FailureKind = 'planning' | 'argument'
+
 /**
  * A plan that cannot be salvaged. Carries the failure kind so the benchmark's
  * taxonomy can classify it without pattern-matching the message text — that
@@ -8,13 +11,27 @@ export class PlanSchemaError extends Error {
   // Declared explicitly rather than as a constructor parameter property: Node
   // runs TypeScript in strip-only mode, which rejects that syntax at load time
   // (`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`) even though `tsc` compiles it happily.
-  readonly kind: 'planning' | 'argument'
+  readonly kind: FailureKind
 
-  constructor(kind: 'planning' | 'argument', message: string) {
+  constructor(kind: FailureKind, message: string) {
     super(message)
     this.name = 'PlanSchemaError'
     this.kind = kind
   }
+}
+
+/**
+ * The failure kind an error declares about itself, if it declares one.
+ *
+ * Read off the error rather than matched by class, so a new typed error survives both the
+ * round wrapper in `agent.ts` and the benchmark's classification without a branch in either
+ * — the round wrapper used to know only about `PlanSchemaError`, which is how a
+ * `SheetNotFoundError` came back as a plain `Error` and got classified as an execution
+ * failure. An error with no kind returns `undefined` and falls back to the text heuristics.
+ */
+export function declaredKind(error: unknown): FailureKind | undefined {
+  const kind = (error as { kind?: unknown } | null)?.kind
+  return kind === 'planning' || kind === 'argument' ? kind : undefined
 }
 
 import { t } from './i18n.ts'

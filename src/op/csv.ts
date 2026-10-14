@@ -12,7 +12,7 @@ import { guardFormulaInjection, parseCsv, stringifyCsv, unguardFormulaInjection 
 import { t } from '../i18n.ts'
 import { cellContent, plainContent, readWorkbookCells } from '../workbook.ts'
 import { writeWorkbookSafely } from '../safe-write.ts'
-import { findSheet, parseRange, writeContent } from './core.ts'
+import { findSheet, parseRange, requireSheet, writeContent } from './core.ts'
 import type { ExcelOperation } from '../operation-types.ts'
 
 export async function importCsv(
@@ -42,7 +42,7 @@ export async function exportCsv(
   options: Extract<ExcelOperation, { op: 'exportCsv' }>,
 ): Promise<void> {
   const sheet = findSheet(workbook, options.sheet ?? workbook.worksheets[0]!.name)
-  if (!sheet) throw new Error(`sheet not found: ${options.sheet}`)
+  if (!sheet) requireSheet(workbook, options.sheet)
   const parsed = options.range ? parseRange(workbook, `${sheet.name}!${options.range}`) : null
   const startCol = parsed?.startCol ?? 1
   const startRow = parsed?.startRow ?? 1
