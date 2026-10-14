@@ -12,7 +12,9 @@
     "assets:check": "node scripts/assets.mjs --check",
     "bench": "node tests/invoke-llm-benchmark.ts",
     "bench:corpus": "node --test tests/file-benchmark.test.ts",
-    "bench:report": "node scripts/bench-report.mjs"
+    "bench:report": "node scripts/bench-report.mjs",
+    "example": "node scripts/make-example.mjs",
+    "demo": "node scripts/demo.mjs"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
