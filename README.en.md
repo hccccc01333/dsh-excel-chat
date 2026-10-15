@@ -55,7 +55,7 @@ genuinely drive Excel — charts, native pivot tables, PDF export — require Wi
 
 ## What's new
 
-**v0.42.0**（2026-10-10）· [Full changelog](CHANGELOG.md) · [Releases](https://github.com/hccccc01333/dsh-excel-chat/releases)
+**v0.43.0**（2026-10-15）· [Full changelog](CHANGELOG.md) · [Releases](https://github.com/hccccc01333/dsh-excel-chat/releases)
 ## Contents
 
 - [Why this exists](#why-this-exists) · [What's new](#whats-new)
@@ -182,7 +182,7 @@ subtotals, merges and mail merge work across platforms. Chart creation and editi
 native pivot tables, chart PNG export and PDF export need Windows with a local Excel
 install.
 
-**Pinning a version**: `dsh plugin --profile demo add dsh-excel-chat@0.42.0` (omitting
+**Pinning a version**: `dsh plugin --profile demo add dsh-excel-chat@0.43.0` (omitting
 the version gets `latest`).
 
 **Switching the output language** (Chinese by default): add an override to your profile's
