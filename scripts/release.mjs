@@ -22,6 +22,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { readmeNotes } from './readme-notes.mjs'
+import { docFiles, stampPinnedVersions } from './doc-versions.mjs'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const BUNDLE_MANIFEST = join(ROOT, 'bundle', 'package.json')
@@ -71,7 +72,8 @@ const unreleasedBody = changelog
   .trim()
 if (unreleasedBody === '') fail('the `## Unreleased` section is empty; there is nothing to release')
 
-const current = JSON.parse(readFileSync(BUNDLE_MANIFEST, 'utf8')).version
+const bundle = JSON.parse(readFileSync(BUNDLE_MANIFEST, 'utf8'))
+const current = bundle.version
 console.log(`release: ${current} -> ${version}  (tag ${tag}, branch ${branch})`)
 if (dryRun) {
   console.log('release: --dry-run, stopping before any write')
@@ -106,6 +108,21 @@ for (const [file, heading, linkLabel] of [
   const pattern = new RegExp(`^## ${heading}[ \\t]*$[\\s\\S]*?(?=^## )`, 'm')
   if (!pattern.test(text)) fail(`${file} has no '## ${heading}' section to refresh`)
   writeFileSync(file, text.replace(pattern, block))
+}
+
+// 2c. The version the docs tell readers to install.
+//
+// `docs-consistency.test.ts` requires every pinned version to equal the one that ships, and
+// this script is what changes the one that ships — so leaving the pins to a human means the
+// guard fires inside step 3's own test run and the release stops there, with a dirty tree.
+// Worse, there is no order that works by hand: bumping the pins first fails the guard on
+// master (the manifests have not moved yet) and bumping them after fails it here. The two
+// have to move together, which is exactly what a release script is for.
+for (const file of docFiles(ROOT)) {
+  const path = join(ROOT, file)
+  const text = readFileSync(path, 'utf8')
+  const stamped = stampPinnedVersions(text, bundle.name, version)
+  if (stamped !== text) writeFileSync(path, stamped)
 }
 
 // 3. The published bundle must match the tag, so rebuild before testing.
