@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import ExcelJS from 'exceljs'
@@ -25,7 +25,7 @@ await ctx.plugin(plugin)
 
 const result = await ctx.tools.execute({
   signal: new AbortController().signal,
-  callId: CallId('vera-workbook-1'),
+  callId: ToolCallId('vera-workbook-1'),
   name: 'excel_validate_formulas',
   arguments: { path },
 })

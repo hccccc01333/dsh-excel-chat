@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId, LlmAdapter, LlmRuntime, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, LlmAdapter, LlmRuntime, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import ExcelJS from 'exceljs'
@@ -50,7 +50,7 @@ test('excel_repair_formulas uses ctx.llm to repair structure mismatches', async 
 
   const result = await ctx.tools.execute({
     signal: new AbortController().signal,
-    callId: CallId('vera-llm-wiring-1'),
+    callId: ToolCallId('vera-llm-wiring-1'),
     name: 'excel_repair_formulas',
     arguments: {
       path: fixturePath,

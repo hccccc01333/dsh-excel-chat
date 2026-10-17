@@ -46,6 +46,8 @@ const SUPPORTED_KERNELS = [
   '0.2.0-rc.1',
   '0.2.0-rc.2',
   '0.2.1-alpha.1',
+  '0.2.1-alpha.5',
+  '0.2.1-rc.2',
 ]
 
 test('every published dsh kernel satisfies the bundle peer range', () => {
@@ -61,11 +63,18 @@ test('every published dsh kernel satisfies the bundle peer range', () => {
 
 test('the peer range still stops short of the next kernel minor', () => {
   // Claiming a kernel we have never run on would trade a silent skip for a crash.
-  const peers = incompatibleDshPeers(manifest, '0.3.0')
-  assert.ok(
-    Object.keys(peers).length > 0,
-    'the range claims dsh 0.3.0, which this plugin has never been tested against',
-  )
+  //
+  // `0.3.0-rc.1` is checked as well as `0.3.0`, because `<0.3.0` alone does not exclude it:
+  // the host evaluates peers with `includePrerelease`, and a prerelease sorts *below* its
+  // release, so a plain upper bound of `0.3.0` admits every `0.3.0-rc.*`. The range ends at
+  // `<0.3.0-0` — the lowest possible 0.3.0 prerelease — which is what actually stops them.
+  for (const untested of ['0.3.0-rc.1', '0.3.0']) {
+    const peers = incompatibleDshPeers(manifest, untested)
+    assert.ok(
+      Object.keys(peers).length > 0,
+      `the range claims dsh ${untested}, which this plugin has never been tested against`,
+    )
+  }
 })
 
 test('the check rejects the range that caused issue #5', () => {

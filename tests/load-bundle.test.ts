@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 
@@ -53,7 +53,7 @@ test('built bundle loads as a plugin and runs a tool', async () => {
   await ctx.plugin(plugin)
   const result = await ctx.tools.execute({
     signal: new AbortController().signal,
-    callId: CallId('vera-bundle-1'),
+    callId: ToolCallId('vera-bundle-1'),
     name: 'excel_validate_formulas',
     arguments: {
       cells: {
@@ -87,7 +87,7 @@ test('excel_operate runs through the plugin context and re-validates', async () 
   await ctx.plugin(plugin)
   const result = await ctx.tools.execute({
     signal: new AbortController().signal,
-    callId: CallId('vera-bundle-operate-1'),
+    callId: ToolCallId('vera-bundle-operate-1'),
     name: 'excel_operate',
     arguments: {
       path: input,
@@ -125,7 +125,7 @@ test('excel_task names the missing field instead of crashing on a malformed step
   await ctx.plugin(plugin)
   const result = await ctx.tools.execute({
     signal: new AbortController().signal,
-    callId: CallId('vera-bundle-task-1'),
+    callId: ToolCallId('vera-bundle-task-1'),
     name: 'excel_task',
     arguments: {
       path: input,
@@ -158,7 +158,7 @@ test('excel_read runs through the plugin context and returns lossless JSON', asy
   await ctx.plugin(plugin)
   const result = await ctx.tools.execute({
     signal: new AbortController().signal,
-    callId: CallId('vera-bundle-read-1'),
+    callId: ToolCallId('vera-bundle-read-1'),
     name: 'excel_read',
     arguments: { path: input },
   })
@@ -190,7 +190,7 @@ test('the language config option switches user-facing output', async () => {
   await ctx.plugin(plugin, { language: 'en' })
   const result = await ctx.tools.execute({
     signal: new AbortController().signal,
-    callId: CallId('vera-bundle-i18n-1'),
+    callId: ToolCallId('vera-bundle-i18n-1'),
     name: 'excel_insight',
     arguments: { path: input },
   })

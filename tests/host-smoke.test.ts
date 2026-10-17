@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { buildCorpusWorkbook } from '../src/corpus/helpers.ts'
@@ -187,7 +187,7 @@ test('the plugin reads and writes a real file end to end', async () => {
 
   const created = await ctx.tools.execute({
     signal: new AbortController().signal,
-    callId: CallId('smoke-create'),
+    callId: ToolCallId('smoke-create'),
     name: 'excel_operate',
     arguments: {
       path: seed,
@@ -200,7 +200,7 @@ test('the plugin reads and writes a real file end to end', async () => {
 
   const read = await ctx.tools.execute({
     signal: new AbortController().signal,
-    callId: CallId('smoke-read'),
+    callId: ToolCallId('smoke-read'),
     name: 'excel_read',
     arguments: { path: outputPath },
   })

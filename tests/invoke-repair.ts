@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import ExcelJS from 'exceljs'
@@ -25,7 +25,7 @@ await ctx.plugin(plugin)
 
 const result = await ctx.tools.execute({
   signal: new AbortController().signal,
-  callId: CallId('vera-repair-1'),
+  callId: ToolCallId('vera-repair-1'),
   name: 'excel_repair_formulas',
   arguments: { path },
 })

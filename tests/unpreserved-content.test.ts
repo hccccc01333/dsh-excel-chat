@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as plugin from '../src/index.ts'
@@ -151,7 +151,7 @@ test('the gate holds through a real excel_operate call', async () => {
   const call = (args: Record<string, unknown>) =>
     ctx.tools.execute({
       signal: new AbortController().signal,
-      callId: CallId(`gate-${Math.random().toString(36).slice(2)}`),
+      callId: ToolCallId(`gate-${Math.random().toString(36).slice(2)}`),
       name: 'excel_operate',
       arguments: { path, operations: [{ op: 'set', cells: { '订单!B2': '11' } }], ...args },
     })

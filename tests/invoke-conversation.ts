@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { exportChartsWithExcel } from '../src/chart-visual.ts'
@@ -86,7 +86,7 @@ async function runConversation(
       console.log(`tool: ${call.function.name}`, JSON.stringify(args).slice(0, 500))
       const result = await ctx.tools.execute({
         signal: new AbortController().signal,
-        callId: CallId(`vera-conversation-${Date.now()}-${call.id}`),
+        callId: ToolCallId(`vera-conversation-${Date.now()}-${call.id}`),
         name: call.function.name,
         arguments: args ?? {},
       })

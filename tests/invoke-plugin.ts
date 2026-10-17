@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as plugin from '../src/index.ts'
@@ -17,7 +17,7 @@ console.log('schema registered:', schema.name)
 
 const result = await ctx.tools.execute({
   signal: new AbortController().signal,
-  callId: CallId('vera-p0-1'),
+  callId: ToolCallId('vera-p0-1'),
   name: 'excel_validate_formulas',
   arguments: {
     cells: {

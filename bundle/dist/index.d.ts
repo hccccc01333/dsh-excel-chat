@@ -21,10 +21,10 @@ export interface ExcelChatConfig {
  * in the config surface and a typo is rejected instead of silently ignored.
  * Declared here because the loader reads `Config` from the plugin entry.
  */
-export declare const Config: Schema<Schemastery.ObjectS<{
-    language: Schema<"en" | "zh", "en" | "zh">;
-}>, Schemastery.ObjectT<{
-    language: Schema<"en" | "zh", "en" | "zh">;
-}>>;
+export declare const Config: Schema<Schemastery.ObjectS<NoInfer<{
+    language: Schema<"en" | "zh", "en" | "zh", "defined">;
+}>>, Schemastery.ObjectT<NoInfer<{
+    language: Schema<"en" | "zh", "en" | "zh", "defined">;
+}>>, "plain">;
 export declare function apply(host: Context, config?: ExcelChatConfig): void;
 //# sourceMappingURL=index.d.ts.map
