@@ -172,8 +172,13 @@ function SpreadsheetView({
       setInitError(null)
       requestAnimationFrame(() => {
         if (!el.contains(document.activeElement)) return
-        if (focusedBefore !== null && focusedBefore.isConnected) focusedBefore.focus({ preventScroll: true })
-        else (document.activeElement as HTMLElement | null)?.blur()
+        // `body` is what "nothing focused" looks like; focusing it is a no-op, so
+        // in that case drop the focus instead of leaving it on the canvas.
+        if (focusedBefore !== null && focusedBefore !== document.body && focusedBefore.isConnected) {
+          focusedBefore.focus({ preventScroll: true })
+        } else {
+          (document.activeElement as HTMLElement | null)?.blur()
+        }
       })
     } catch (error) {
       setInitError(error instanceof Error ? error.message : String(error))

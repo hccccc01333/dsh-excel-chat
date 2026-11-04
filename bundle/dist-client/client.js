@@ -8842,7 +8842,7 @@ window.__ModuleLoader__.load({
 					setInitError(null);
 					requestAnimationFrame(() => {
 						if (!el.contains(document.activeElement)) return;
-						if (focusedBefore !== null && focusedBefore.isConnected) focusedBefore.focus({ preventScroll: true });
+						if (focusedBefore !== null && focusedBefore !== document.body && focusedBefore.isConnected) focusedBefore.focus({ preventScroll: true });
 						else document.activeElement?.blur();
 					});
 				} catch (error) {
