@@ -1,0 +1,85 @@
+/**
+ * DOM guards for the spreadsheet card.
+ *
+ * x-data-spreadsheet (1.1.9) takes over the page in three ways that are fine on
+ * a full-page demo and wrong inside a chat column: it binds global listeners it
+ * never releases, it treats "a click landed here" as permanent ownership of the
+ * keyboard, and it focuses its editor with a plain `focus()` that scrolls every
+ * ancestor. These helpers keep each of those local to the grid.
+ *
+ * No React in here on purpose: the behaviour is testable with plain jsdom.
+ */
+
+export type WindowListener = [string, EventListenerOrEventListenerObject, boolean | AddEventListenerOptions | undefined]
+
+/** Anything a person types into — the grid's global shortcuts must stay out of it. */
+export const TYPING_SELECTOR = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
+
+/**
+ * Record the window listeners added while `build()` runs, so unmount can remove
+ * them. The library has no `destroy()`; `el.innerHTML = ''` leaves
+ * resize/click/paste/keydown registered, reloading a canvas that is no longer
+ * in the document.
+ */
+export function captureWindowListeners<T>(build: () => T): { value: T; listeners: WindowListener[] } {
+  const listeners: WindowListener[] = []
+  const native = window.addEventListener
+  const patched = function (
+    this: Window,
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | AddEventListenerOptions,
+  ): void {
+    listeners.push([type, listener, options])
+    native.call(this, type, listener, options)
+  }
+  window.addEventListener = patched as typeof window.addEventListener
+  try {
+    return { value: build(), listeners }
+  } catch (error) {
+    // A half-built grid still managed to register handlers; do not leave them.
+    for (const [type, listener, options] of listeners) window.removeEventListener(type, listener, options)
+    throw error
+  } finally {
+    window.addEventListener = native
+  }
+}
+
+/**
+ * The library decides that "the keyboard belongs to the grid" from the last
+ * window click, then handles arrows / ctrl+z / paste globally and calls
+ * `preventDefault()`. One click on a cell was enough to stop the caret keys
+ * from working in the composer — the card looked like it kept the focus.
+ *
+ * Keep the handlers registered (the click flag still needs updating) but skip
+ * them when the event is aimed at a text field outside the grid. Inside the
+ * grid, or on plain page chrome, they behave exactly as before.
+ */
+export function scopeGlobalTypingToGrid(listeners: WindowListener[], root: HTMLElement): void {
+  for (let index = 0; index < listeners.length; index += 1) {
+    const [type, listener, options] = listeners[index]!
+    if (type !== 'keydown' && type !== 'paste') continue
+    window.removeEventListener(type, listener, options)
+    const guarded = (event: Event): void => {
+      const target = event.target
+      if (target instanceof Element && !root.contains(target) && target.closest(TYPING_SELECTOR) !== null) return
+      if (typeof listener === 'function') listener.call(window, event)
+      else listener.handleEvent(event)
+    }
+    window.addEventListener(type, guarded, options)
+    listeners[index] = [type, guarded, options]
+  }
+}
+
+/**
+ * The cell editor is a textarea the library focuses on double-click. Focusing an
+ * element inside a clipped panel makes the browser scroll every ancestor to
+ * reveal it, which yanked the conversation column around whenever a cell was
+ * edited. Keep that focus from scrolling anything.
+ */
+export function keepEditorFocusInPlace(root: HTMLElement): void {
+  const editor = root.querySelector('textarea')
+  if (!(editor instanceof HTMLTextAreaElement)) return
+  const nativeFocus = editor.focus.bind(editor)
+  editor.focus = (options?: FocusOptions): void => nativeFocus({ preventScroll: true, ...options })
+}

@@ -9,13 +9,27 @@
  * the change via excel_operate.set and re-previews. excel_autofix / excel_task
  * results render as an old→new repair diff.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import * as XSpreadsheetModule from 'x-data-spreadsheet/dist/xspreadsheet.js'
 import xspreadsheetCss from 'x-data-spreadsheet/dist/xspreadsheet.css'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import {
+  FULLSCREEN_RENDER_COLS,
+  FULLSCREEN_RENDER_ROWS,
+  columnName,
+  measureSheets,
+  toGridData,
+  type TableShape,
+} from './view-model.ts'
+import {
+  captureWindowListeners,
+  keepEditorFocusInPlace,
+  scopeGlobalTypingToGrid,
+  type WindowListener,
+} from './dom-guards.ts'
 
 /** Tools whose settled result is a cell table (excel_read / excel_preview). */
 const TABLE_TOOLS = new Set(['excel_read', 'excel_preview'])
@@ -26,11 +40,11 @@ const DIFF_TOOLS = new Set(['excel_autofix', 'excel_task'])
 
 export const inject = ['slots', 'remote.commands']
 
-interface SpreadsheetInstance {
+interface GridInstance {
   loadData(data: unknown): void
   on(event: string, callback: (...args: unknown[]) => void): void
-  getCellText(row: number, col: number): string
-  destroy(): void
+  /** Not on the public typings, but the library exposes its sheet object. */
+  sheet?: { reload(): void }
 }
 
 // UMD build exposes a factory (window.x_spreadsheet / module default): call it
@@ -39,7 +53,7 @@ const Spreadsheet = (
   (window as unknown as { x_spreadsheet?: unknown }).x_spreadsheet
   ?? (XSpreadsheetModule as { default?: unknown }).default
   ?? XSpreadsheetModule
-) as (el: HTMLElement, options: Record<string, unknown>) => SpreadsheetInstance
+) as (el: HTMLElement, options: Record<string, unknown>) => GridInstance
 
 interface CommandsRemote {
   execute(sessionId: string, line: string): Promise<{ result: { kind: string; text?: string } }>
@@ -53,11 +67,6 @@ if (typeof document !== 'undefined' && document.querySelector('style[data-plugin
   style.dataset.plugin = 'dsh-excel-chat'
   style.textContent = xspreadsheetCss
   document.head.appendChild(style)
-}
-
-interface TableShape {
-  sheets?: Array<{ sheet: string; cells: Array<{ id: string; value: unknown; formula?: string; type?: string }> }>
-  markdown?: string
 }
 
 interface RepairLike {
@@ -80,38 +89,8 @@ function settledText(block: ToolCallViewProps['block']): string | null {
   return parts.join('\n') || null
 }
 
-function cellText(value: unknown, formula?: string): string {
-  if (formula) return formula
-  if (value === null || value === undefined) return ''
-  if (typeof value === 'object') return JSON.stringify(value)
-  return String(value)
-}
-
-/** 1-based column index → letters ("A", "Z", "AA"), matching Excel addressing. */
-function columnName(index: number): string {
-  let name = ''
-  let value = index
-  while (value > 0) {
-    const remainder = (value - 1) % 26
-    name = `${String.fromCharCode(65 + remainder)}${name}`
-    value = Math.floor((value - remainder - 1) / 26)
-  }
-  return name
-}
-
 /** Inline viewport height; the fullscreen overlay uses most of the window. */
 const INLINE_VIEW_HEIGHT = 560
-/**
- * Display caps: bigger sheets get a truncation notice instead of silent loss.
- *
- * Fullscreen raises them. The notice used to say "点「全屏」可看更多" while the caps were
- * constants, so going fullscreen changed the height and nothing else — the one thing the
- * message promised was the one thing it did not do.
- */
-const INLINE_RENDER_ROWS = 2000
-const INLINE_RENDER_COLS = 100
-const FULLSCREEN_RENDER_ROWS = 20000
-const FULLSCREEN_RENDER_COLS = 500
 
 /** Real spreadsheet grid (Excel-like) for excel_read / excel_preview results. */
 function SpreadsheetView({
@@ -124,12 +103,14 @@ function SpreadsheetView({
   onCellEdited: (cellId: string, text: string) => void
 }): ReactNode {
   const ref = useRef<HTMLDivElement | null>(null)
-  const ssRef = useRef<{ destroy: () => void } | null>(null)
+  /** Current inner width of the column; the grid's view.width reads it. */
+  const widthRef = useRef(0)
   const [initError, setInitError] = useState<string | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [viewportTick, setViewportTick] = useState(0)
-  const [truncated, setTruncated] = useState(false)
-  const [caps, setCaps] = useState({ rows: INLINE_RENDER_ROWS, cols: INLINE_RENDER_COLS })
+  // Derived, not stored: a state copy would let the notice and the grid drift.
+  const layout = useMemo(() => measureSheets(sheets, fullscreen), [sheets, fullscreen])
+  const viewHeight = fullscreen ? Math.max(320, window.innerHeight - 96) : INLINE_VIEW_HEIGHT
   useEffect(() => {
     if (!fullscreen) return
     const onResize = (): void => setViewportTick((tick) => tick + 1)
@@ -145,79 +126,68 @@ function SpreadsheetView({
   }, [fullscreen])
   useEffect(() => {
     const el = ref.current
-    if (!el) return
+    if (el === null) return
+    // Who had focus before the grid existed: mounting a card can pull focus into
+    // it (the host focuses what it just mounted, the library focuses its
+    // editor), and a canvas is nowhere to leave a caret.
+    const focusedBefore = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    let listeners: WindowListener[] = []
+    let observer: ResizeObserver | null = null
     try {
-      const maxRows = Math.max(...sheets.map((sheet) => {
-        const rows = sheet.cells.map((cell) => Number(/(\d+)$/.exec(cell.id.split('!').pop() ?? '')?.[1] ?? 0))
-        return rows.length > 0 ? Math.max(...rows) : 1
-      }))
-      const maxCols = Math.max(...sheets.map((sheet) => {
-        const cols = sheet.cells.map((cell) => {
-          const match = /([A-Za-z]+)\d+$/.exec(cell.id.split('!').pop() ?? '')
-          return match
-            ? [...match[1]!].reduce((acc, char) => acc * 26 + (char.toUpperCase().charCodeAt(0) - 64), 0)
-            : 0
-        })
-        return cols.length > 0 ? Math.max(...cols) : 1
-      }))
-      // The caps depend on the mode, and the notice reports the numbers actually used
-      // rather than the constants — a notice that names its own limits cannot drift out
-      // of step with them.
-      const maxRenderRows = fullscreen ? FULLSCREEN_RENDER_ROWS : INLINE_RENDER_ROWS
-      const maxRenderCols = fullscreen ? FULLSCREEN_RENDER_COLS : INLINE_RENDER_COLS
-      const overflowRows = Math.max(0, maxRows - maxRenderRows)
-      const overflowCols = Math.max(0, maxCols - maxRenderCols)
-      setCaps({ rows: maxRenderRows, cols: maxRenderCols })
-      setTruncated(overflowRows > 0 || overflowCols > 0)
-      const colCount = Math.min(maxRenderCols, Math.max(5, maxCols))
-      const rowCount = Math.min(maxRenderRows, Math.max(10, maxRows))
-      const viewHeight = fullscreen ? Math.max(320, window.innerHeight - 96) : INLINE_VIEW_HEIGHT
-      const ss = Spreadsheet(el, {
+      widthRef.current = el.clientWidth || document.documentElement.clientWidth
+      const built = captureWindowListeners(() => Spreadsheet(el, {
         mode: editable ? 'edit' : 'read',
         showToolbar: false,
         showGrid: true,
-        row: { len: rowCount, height: 24 },
-        col: { len: colCount, width: 110 },
-        view: { height: () => viewHeight },
-      })
-      const data = sheets.map((sheet) => {
-        const rows: Record<number, { cells: Record<number, { text: string }> }> = {}
-        for (const cell of sheet.cells) {
-          const body = cell.id.split('!').pop() ?? ''
-          const colMatch = /([A-Za-z]+)\d+$/.exec(body)
-          const rowMatch = /(\d+)$/.exec(body)
-          if (!colMatch || !rowMatch) continue
-          const colIndex = [...colMatch[1]!].reduce((acc, char) => acc * 26 + (char.toUpperCase().charCodeAt(0) - 64), 0) - 1
-          const rowIndex = Number(rowMatch[1]!) - 1
-          const rowsOf = (rows[rowIndex] ??= { cells: {} })
-          rowsOf.cells[colIndex] = { text: cellText(cell.value, cell.formula) }
-        }
-        return { name: sheet.sheet, rows }
-      })
-      ss.loadData(data)
+        row: { len: layout.rows, height: 24 },
+        col: { len: layout.cols, width: 110 },
+        // Width matters as much as height: the library's default is the whole
+        // window, which draws a grid several times wider than the details
+        // column and puts its horizontal scrollbar out of reach.
+        view: { height: () => viewHeight, width: () => widthRef.current },
+      }))
+      const ss = built.value
+      listeners = built.listeners
+      ss.loadData(toGridData(sheets))
       if (editable) {
-        ss.on('cell-edited', (editedCell, rowIndex: number, colIndex: number) => {
+        ss.on('cell-edited', (editedCell, rowIndex, colIndex) => {
           const sheetName = sheets[0]?.sheet ?? 'Sheet1'
           const text = editedCell && typeof editedCell === 'object'
             ? String((editedCell as { text?: unknown }).text ?? '')
             : ''
-          onCellEdited(`${sheetName}!${columnName(colIndex + 1)}${rowIndex + 1}`, text)
+          onCellEdited(`${sheetName}!${columnName(Number(colIndex) + 1)}${Number(rowIndex) + 1}`, text)
         })
       }
-      ssRef.current = ss
+      scopeGlobalTypingToGrid(listeners, el)
+      keepEditorFocusInPlace(el)
+      // The column can be resized without the window resizing, and the grid
+      // sizes its canvas from the width it saw at construction.
+      observer = new ResizeObserver(() => {
+        const width = el.clientWidth
+        if (width <= 0 || width === widthRef.current) return
+        widthRef.current = width
+        ss.sheet?.reload()
+      })
+      observer.observe(el)
       setInitError(null)
+      requestAnimationFrame(() => {
+        if (!el.contains(document.activeElement)) return
+        if (focusedBefore !== null && focusedBefore.isConnected) focusedBefore.focus({ preventScroll: true })
+        else (document.activeElement as HTMLElement | null)?.blur()
+      })
     } catch (error) {
       setInitError(error instanceof Error ? error.message : String(error))
     }
     return () => {
-      ssRef.current = null
+      if (observer !== null) observer.disconnect()
+      for (const [type, listener, options] of listeners) window.removeEventListener(type, listener, options)
       el.innerHTML = ''
     }
-  }, [sheets, editable, fullscreen, viewportTick])
-  const truncationNotice = truncated
+  }, [sheets, editable, fullscreen, viewportTick, layout.rows, layout.cols, viewHeight])
+  const truncationNotice = layout.truncated
     ? fullscreen
-      ? `表格较大：已显示前 ${caps.rows} 行 × ${caps.cols} 列，已达全屏显示上限`
-      : `表格较大：已显示前 ${caps.rows} 行 × ${caps.cols} 列，点「全屏」可看更多（${FULLSCREEN_RENDER_ROWS} 行 × ${FULLSCREEN_RENDER_COLS} 列）`
+      ? `表格较大：已显示前 ${layout.capRows} 行 × ${layout.capCols} 列，已达全屏显示上限`
+      : `表格较大：已显示前 ${layout.capRows} 行 × ${layout.capCols} 列，点「全屏」可看更多（${FULLSCREEN_RENDER_ROWS} 行 × ${FULLSCREEN_RENDER_COLS} 列）`
     : null
   return (
     <div
@@ -248,7 +218,15 @@ function SpreadsheetView({
         ref={ref}
         style={fullscreen
           ? { overflow: 'hidden' }
-          : { border: '1px solid #d0d7de', borderRadius: 6, overflow: 'hidden' }}
+          : {
+              border: '1px solid #d0d7de',
+              borderRadius: 6,
+              overflow: 'hidden',
+              // Reserve the grid's footprint: if the canvas is ever rebuilt, the
+              // column must not collapse for a frame and drag the scroll
+              // position of the conversation with it.
+              minHeight: INLINE_VIEW_HEIGHT,
+            }}
       />
       {truncationNotice !== null && (
         <div style={{ fontSize: 11, color: '#92400e', marginTop: 6 }}>{truncationNotice}</div>
@@ -387,13 +365,25 @@ export function ExcelToolView(props: ToolCallViewProps): ReactNode {
   const [savedNote, setSavedNote] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const [dataVersion, setDataVersion] = useState(0)
   const text = settledText(block)
+  /**
+   * Parse once per result, not once per render.
+   *
+   * `JSON.parse` in the render body handed the grid a brand-new `sheets` array
+   * on every render of the conversation. The grid's effect keys off that array,
+   * so each pass tore the spreadsheet down and rebuilt it; the rebuild forces
+   * layout against an emptied card, which resets the surrounding scroll
+   * container — the output jumped to the top and then back down, over and over.
+   */
+  const parsed = useMemo<unknown>(() => {
+    if (text === null) return null
+    try {
+      return JSON.parse(text)
+    } catch {
+      // Plain-text result (e.g. running fragment) — render as-is.
+      return null
+    }
+  }, [text])
   if (text === null) return null
-  let parsed: unknown = null
-  try {
-    parsed = JSON.parse(text)
-  } catch {
-    // Plain-text result (e.g. running fragment) — render as-is.
-  }
   const canEdit = TABLE_TOOLS.has(toolName) && typeof inputActions?.setDraft === 'function'
   if (TABLE_TOOLS.has(toolName) && parsed !== null) {
     const value = parsed as TableShape

@@ -135,3 +135,37 @@ web 布局插件（`dsh-client-ui-layout`）声明了**右侧详情列 slot `det
 - **宽表编辑修复**：`cell-edited` 的列名换算从 `String.fromCharCode(65 +
   colIndex)`（第 27 列起产出非法引用）改为 Excel 进制换算（AA/BZ/…），
   编辑结果写回的单元格引用与真实列一致。
+
+## 卡片抢焦点 / 输出上下跳（M7，2026-11-04，issue #6）
+
+现象：右侧表格卡片像是一直握着焦点，对话输出上下来回跳。
+
+**根因是渲染期解析**。`ExcelToolView` 在渲染体里 `JSON.parse` 工具结果，每次
+渲染都得到一个新的 `sheets` 数组，而 `SpreadsheetView` 的 `useEffect` 以这个数组
+（引用相等）为依赖 —— 对话每渲染一次就拆掉重建一次网格。重建是「先 `innerHTML = ''`
+再 `new Spreadsheet(...)`」，新网格构造时立刻量尺寸（强制布局）；就在容器为空的
+那一瞬，外层滚动容器把 `scrollTop` 夹回顶部，宿主随后把输出滚回底部，下一帧重复。
+流式输出时每个 token 触发一次，于是肉眼看到的是持续跳动。
+
+**三条不变量**，以后改这块别再破坏：
+
+1. **解析一次，不解析每帧**：结果文本 → `useMemo`，`sheets` 的引用必须稳定；
+   网格的重建只由内容变化或全屏切换触发。
+2. **网格不许定义全局行为**：库把「最后一次 window click 落在网格内」当粘性标志，
+   之后在 `window` 上接管方向键 / Ctrl+Z / 粘贴并 `preventDefault()`。点过一格，
+   composer 的方向键就失灵。现在这些处理器只对**网格外的文本输入**放行；
+   编辑器 `focus()` 强制 `preventScroll`，编辑单元格不再滚动整个输出列。
+3. **尺寸自己给**：`view.width` 的默认值是整窗宽（`documentElement.clientWidth`），
+   放进几百像素的详情列会画出一张被裁掉的表，自带横向滚动条落在可视区外。
+   现在宽度来自列宽测量 + `ResizeObserver`；高度仍是 560px（全屏为窗口高 - 96）。
+
+另外：库没有 `destroy()`，`resize/click/paste/keydown` 全绑在 `window` 上，
+构造期记录下来、卸载时移除。
+
+（底部工作表栏保持默认开启 —— 它是多工作表切换的唯一入口。那上面的「+ 新建表」
+只存在于浏览器里，工作簿并不知道；但为了不失去切表能力，这处先不动。）
+
+纯计算部分（A1 解析、显示上限、网格载荷）抽到 `src/client/view-model.ts`，
+DOM 守卫（window 监听回收、按键归属、编辑器焦点）抽到 `src/client/dom-guards.ts`，
+分别由 `tests/client-view-model.test.ts` 与 `tests/client-dom-guards.test.ts` 覆盖
+（jsdom，不需要 React）；`index.tsx` 只留组件与事件编排。

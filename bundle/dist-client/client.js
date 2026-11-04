@@ -4,7 +4,7 @@ window.__ModuleLoader__.load({
 		var module = { exports: {} };
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-		//#region \0rolldown/runtime.js
+		// \0rolldown/runtime.js
 		var __defProp = Object.defineProperty;
 		var __exportAll = (all, no_symbols) => {
 			let target = {};
@@ -15,10 +15,9 @@ window.__ModuleLoader__.load({
 			if (!no_symbols) __defProp(target, Symbol.toStringTag, { value: "Module" });
 			return target;
 		};
-		//#endregion
 		let react = require("react");
 		let react_jsx_runtime = require("react/jsx-runtime");
-		//#region node_modules/.pnpm/x-data-spreadsheet@1.1.9/node_modules/x-data-spreadsheet/dist/xspreadsheet.js
+		// node_modules/x-data-spreadsheet/dist/xspreadsheet.js
 		var xspreadsheet_exports = /* @__PURE__ */ __exportAll({});
 		(function(t) {
 			var e = {};
@@ -8580,11 +8579,162 @@ window.__ModuleLoader__.load({
 				e.default = Nl;
 			}
 		]);
-		//#endregion
-		//#region \0css:D:\vera\node_modules\x-data-spreadsheet\dist\xspreadsheet.css.mjs
-		var xspreadsheet_css_default = "body {\n  margin: 0;\n}\n.x-spreadsheet {\n  font-size: 13px;\n  line-height: normal;\n  user-select: none;\n  -moz-user-select: none;\n  font-family: 'Lato', 'Source Sans Pro', Roboto, Helvetica, Arial, sans-serif;\n  box-sizing: content-box;\n  background: #fff;\n  -webkit-font-smoothing: antialiased;\n}\n.x-spreadsheet textarea {\n  font: 400 13px Arial, 'Lato', 'Source Sans Pro', Roboto, Helvetica, sans-serif;\n}\n.x-spreadsheet-sheet {\n  position: relative;\n  overflow: hidden;\n}\n.x-spreadsheet-table {\n  vertical-align: bottom;\n}\n.x-spreadsheet-tooltip {\n  font-family: inherit;\n  position: absolute;\n  padding: 5px 10px;\n  color: #fff;\n  border-radius: 1px;\n  background: #000000;\n  font-size: 12px;\n  z-index: 201;\n}\n.x-spreadsheet-tooltip:before {\n  pointer-events: none;\n  position: absolute;\n  left: calc(50% - 4px);\n  top: -4px;\n  content: \"\";\n  width: 8px;\n  height: 8px;\n  background: inherit;\n  -webkit-transform: rotate(45deg);\n  transform: rotate(45deg);\n  z-index: 1;\n  box-shadow: 1px 1px 3px -1px rgba(0, 0, 0, 0.3);\n}\n.x-spreadsheet-color-palette {\n  padding: 5px;\n}\n.x-spreadsheet-color-palette table {\n  margin: 0;\n  padding: 0;\n  border-collapse: separate;\n  border-spacing: 2;\n  background: #fff;\n}\n.x-spreadsheet-color-palette table td {\n  margin: 0;\n  cursor: pointer;\n  border: 1px solid transparent;\n}\n.x-spreadsheet-color-palette table td:hover {\n  border-color: #ddd;\n}\n.x-spreadsheet-color-palette table td .x-spreadsheet-color-palette-cell {\n  width: 16px;\n  height: 16px;\n}\n.x-spreadsheet-border-palette {\n  padding: 6px;\n}\n.x-spreadsheet-border-palette table {\n  margin: 0;\n  padding: 0;\n  border-collapse: separate;\n  border-spacing: 0;\n  background: #fff;\n  table-layout: fixed;\n}\n.x-spreadsheet-border-palette table td {\n  margin: 0;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-left {\n  border-right: 1px solid #eee;\n  padding-right: 6px;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-left .x-spreadsheet-border-palette-cell {\n  width: 30px;\n  height: 30px;\n  cursor: pointer;\n  text-align: center;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-left .x-spreadsheet-border-palette-cell .x-spreadsheet-icon-img {\n  opacity: 0.8;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-left .x-spreadsheet-border-palette-cell:hover {\n  background-color: #eee;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-right {\n  padding-left: 6px;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-right .x-spreadsheet-toolbar-btn {\n  margin-top: 0;\n  margin-bottom: 3px;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-right .x-spreadsheet-line-type {\n  position: relative;\n  left: 0;\n  top: -3px;\n}\n.x-spreadsheet-dropdown {\n  position: relative;\n}\n.x-spreadsheet-dropdown .x-spreadsheet-dropdown-content {\n  position: absolute;\n  z-index: 200;\n  background: #fff;\n  box-shadow: 1px 2px 5px 2px rgba(51, 51, 51, 0.15);\n}\n.x-spreadsheet-dropdown.bottom-left .x-spreadsheet-dropdown-content {\n  top: calc(100% + 5px);\n  left: 0;\n}\n.x-spreadsheet-dropdown.bottom-right .x-spreadsheet-dropdown-content {\n  top: calc(100% + 5px);\n  right: 0;\n}\n.x-spreadsheet-dropdown.top-left .x-spreadsheet-dropdown-content {\n  bottom: calc(100% + 5px);\n  left: 0;\n}\n.x-spreadsheet-dropdown.top-right .x-spreadsheet-dropdown-content {\n  bottom: calc(100% + 5px);\n  right: 0;\n}\n.x-spreadsheet-dropdown .x-spreadsheet-dropdown-title {\n  padding: 0 5px;\n  display: inline-block;\n}\n.x-spreadsheet-dropdown .x-spreadsheet-dropdown-header .x-spreadsheet-icon.arrow-left {\n  margin-left: 4px;\n}\n.x-spreadsheet-dropdown .x-spreadsheet-dropdown-header .x-spreadsheet-icon.arrow-right {\n  width: 10px;\n  margin-right: 4px;\n}\n.x-spreadsheet-dropdown .x-spreadsheet-dropdown-header .x-spreadsheet-icon.arrow-right .arrow-down {\n  left: -130px;\n}\n/* resizer **/\n.x-spreadsheet-resizer {\n  position: absolute;\n  z-index: 11;\n}\n.x-spreadsheet-resizer .x-spreadsheet-resizer-hover {\n  background-color: rgba(75, 137, 255, 0.25);\n}\n.x-spreadsheet-resizer .x-spreadsheet-resizer-line {\n  position: absolute;\n}\n.x-spreadsheet-resizer.horizontal {\n  cursor: row-resize;\n}\n.x-spreadsheet-resizer.horizontal .x-spreadsheet-resizer-line {\n  border-bottom: 2px dashed #4b89ff;\n  left: 0;\n  bottom: 0;\n}\n.x-spreadsheet-resizer.vertical {\n  cursor: col-resize;\n}\n.x-spreadsheet-resizer.vertical .x-spreadsheet-resizer-line {\n  border-right: 2px dashed #4b89ff;\n  top: 0;\n  right: 0;\n}\n/* scrollbar */\n.x-spreadsheet-scrollbar {\n  position: absolute;\n  bottom: 0;\n  right: 0;\n  background-color: #f4f5f8;\n  opacity: 0.9;\n  z-index: 12;\n}\n.x-spreadsheet-scrollbar.horizontal {\n  right: 15px;\n  overflow-x: scroll;\n  overflow-y: hidden;\n}\n.x-spreadsheet-scrollbar.horizontal > div {\n  height: 1px;\n  background: #ddd;\n}\n.x-spreadsheet-scrollbar.vertical {\n  bottom: 15px;\n  overflow-x: hidden;\n  overflow-y: scroll;\n}\n.x-spreadsheet-scrollbar.vertical > div {\n  width: 1px;\n  background: #ddd;\n}\n/* @{css-prefix}-overlayer */\n.x-spreadsheet-overlayer {\n  position: absolute;\n  left: 0;\n  top: 0;\n  z-index: 10;\n}\n.x-spreadsheet-overlayer .x-spreadsheet-overlayer-content {\n  position: absolute;\n  overflow: hidden;\n  pointer-events: none;\n  width: 100%;\n  height: 100%;\n}\n.x-spreadsheet-editor,\n.x-spreadsheet-selector {\n  box-sizing: content-box;\n  position: absolute;\n  overflow: hidden;\n  pointer-events: none;\n  top: 0;\n  left: 0;\n  width: 100%;\n  height: 100%;\n}\n/* @{css-prefix}-selector */\n.x-spreadsheet-selector .hide-input {\n  position: absolute;\n  z-index: 0;\n}\n.x-spreadsheet-selector .hide-input input {\n  padding: 0;\n  width: 0;\n  border: none!important;\n}\n.x-spreadsheet-selector .x-spreadsheet-selector-area {\n  position: absolute;\n  border: 2px solid #4b89ff;\n  background: rgba(75, 137, 255, 0.1);\n  z-index: 5;\n}\n.x-spreadsheet-selector .x-spreadsheet-selector-clipboard,\n.x-spreadsheet-selector .x-spreadsheet-selector-autofill {\n  position: absolute;\n  background: transparent;\n  z-index: 100;\n}\n.x-spreadsheet-selector .x-spreadsheet-selector-clipboard {\n  border: 2px dashed #4b89ff;\n}\n.x-spreadsheet-selector .x-spreadsheet-selector-autofill {\n  border: 1px dashed rgba(0, 0, 0, 0.45);\n}\n.x-spreadsheet-selector .x-spreadsheet-selector-corner {\n  pointer-events: auto;\n  position: absolute;\n  cursor: crosshair;\n  font-size: 0;\n  height: 5px;\n  width: 5px;\n  right: -5px;\n  bottom: -5px;\n  border: 2px solid #ffffff;\n  background: #4b89ff;\n}\n.x-spreadsheet-editor {\n  z-index: 20;\n}\n.x-spreadsheet-editor .x-spreadsheet-editor-area {\n  position: absolute;\n  text-align: left;\n  border: 2px solid #4b89ff;\n  line-height: 0;\n  z-index: 100;\n  pointer-events: auto;\n}\n.x-spreadsheet-editor .x-spreadsheet-editor-area textarea {\n  box-sizing: content-box;\n  border: none;\n  padding: 0 3px;\n  outline: none;\n  resize: none;\n  text-align: start;\n  overflow-y: hidden;\n  font: 400 13px Arial, 'Lato', 'Source Sans Pro', Roboto, Helvetica, sans-serif;\n  color: inherit;\n  white-space: normal;\n  word-wrap: break-word;\n  line-height: 22px;\n  margin: 0;\n}\n.x-spreadsheet-editor .x-spreadsheet-editor-area .textline {\n  overflow: hidden;\n  visibility: hidden;\n  position: fixed;\n  top: 0;\n  left: 0;\n}\n.x-spreadsheet-item {\n  user-select: none;\n  background: 0;\n  border: 1px solid transparent;\n  outline: none;\n  height: 26px;\n  color: rgba(0, 0, 0, 0.9);\n  line-height: 26px;\n  list-style: none;\n  padding: 2px 10px;\n  cursor: default;\n  text-align: left;\n  overflow: hidden;\n}\n.x-spreadsheet-item.disabled {\n  pointer-events: none;\n  opacity: 0.5;\n}\n.x-spreadsheet-item:hover,\n.x-spreadsheet-item.active {\n  background: rgba(0, 0, 0, 0.05);\n}\n.x-spreadsheet-item.divider {\n  height: 0;\n  padding: 0;\n  margin: 5px 0;\n  border: none;\n  border-bottom: 1px solid rgba(0, 0, 0, 0.1);\n}\n.x-spreadsheet-item .label {\n  float: right;\n  opacity: 0.65;\n  font-size: 1em;\n}\n.x-spreadsheet-item.state,\n.x-spreadsheet-header.state {\n  padding-left: 35px!important;\n  position: relative;\n}\n.x-spreadsheet-item.state:before,\n.x-spreadsheet-header.state:before {\n  content: '';\n  position: absolute;\n  width: 10px;\n  height: 10px;\n  left: 12px;\n  top: calc(50% - 5px);\n  background: rgba(0, 0, 0, 0.08);\n  border-radius: 2px;\n}\n.x-spreadsheet-item.state.checked:before,\n.x-spreadsheet-header.state.checked:before {\n  background: #4b89ff;\n}\n.x-spreadsheet-checkbox {\n  position: relative;\n  display: inline-block;\n  backface-visibility: hidden;\n  outline: 0;\n  vertical-align: baseline;\n  font-style: normal;\n  font-size: 1rem;\n  line-height: 1em;\n}\n.x-spreadsheet-checkbox > input {\n  position: absolute;\n  top: 0;\n  left: 0;\n  opacity: 0!important;\n  outline: 0;\n  z-index: -1;\n}\n.x-spreadsheet-suggest,\n.x-spreadsheet-contextmenu,\n.x-spreadsheet-sort-filter {\n  position: absolute;\n  box-shadow: 1px 2px 5px 2px rgba(51, 51, 51, 0.15);\n  background: #fff;\n  z-index: 100;\n  width: 260px;\n  pointer-events: auto;\n  overflow: auto;\n}\n.x-spreadsheet-suggest {\n  width: 200px;\n}\n.x-spreadsheet-filter {\n  border: 1px solid #e9e9e9;\n  font-size: 12px;\n  margin: 10px;\n}\n.x-spreadsheet-filter .x-spreadsheet-header {\n  padding: 0.5em 0.75em;\n  background: #f8f8f9;\n  border-bottom: 1px solid #e9e9e9;\n  border-left: 1px solid transparent;\n}\n.x-spreadsheet-filter .x-spreadsheet-body {\n  height: 200px;\n  overflow-y: auto;\n}\n.x-spreadsheet-filter .x-spreadsheet-body .x-spreadsheet-item {\n  height: 20px;\n  line-height: 20px;\n}\n.x-spreadsheet-sort-filter .x-spreadsheet-buttons {\n  margin: 10px;\n}\n.x-spreadsheet-toolbar,\n.x-spreadsheet-bottombar {\n  height: 40px;\n  padding: 0 30px;\n  text-align: left;\n  background: #f5f6f7;\n  display: flex;\n}\n.x-spreadsheet-bottombar {\n  position: relative;\n  border-top: 1px solid #e0e2e4;\n}\n.x-spreadsheet-bottombar .x-spreadsheet-menu > li {\n  line-height: 40px;\n  height: 40px;\n  padding-top: 0;\n  padding-bottom: 0;\n  vertical-align: middle;\n  border-right: 1px solid #e8eaed;\n}\n.x-spreadsheet-menu {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  user-select: none;\n}\n.x-spreadsheet-menu > li {\n  float: left;\n  line-height: 1.25em;\n  padding: 0.785em 1em;\n  margin: 0;\n  vertical-align: middle;\n  text-align: left;\n  font-weight: 400;\n  color: #80868b;\n  white-space: nowrap;\n  cursor: pointer;\n  transition: all 0.3s;\n  font-weight: bold;\n}\n.x-spreadsheet-menu > li.active {\n  background-color: #fff;\n  color: rgba(0, 0, 0, 0.65);\n}\n.x-spreadsheet-menu > li .x-spreadsheet-icon {\n  margin: 0 6px;\n}\n.x-spreadsheet-menu > li .x-spreadsheet-icon .x-spreadsheet-icon-img:hover {\n  opacity: 0.85;\n}\n.x-spreadsheet-menu > li .x-spreadsheet-dropdown {\n  display: inline-block;\n}\n.x-spreadsheet-toolbar {\n  border-bottom: 1px solid #e0e2e4;\n}\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-btns {\n  display: inline-flex;\n}\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-more {\n  padding: 0 6px 6px;\n  text-align: left;\n}\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-more .x-spreadsheet-toolbar-divider {\n  margin-top: 0;\n}\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-btn {\n  flex: 0 0 auto;\n  display: inline-block;\n  border: 1px solid transparent;\n  height: 26px;\n  line-height: 26px;\n  min-width: 26px;\n  margin: 6px 1px 0;\n  padding: 0;\n  text-align: center;\n  border-radius: 2px;\n}\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-btn.disabled {\n  pointer-events: none;\n  opacity: 0.5;\n}\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-btn:hover,\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-btn.active {\n  background: rgba(0, 0, 0, 0.08);\n}\n.x-spreadsheet-toolbar-divider {\n  display: inline-block;\n  border-right: 1px solid #e0e2e4;\n  width: 0;\n  vertical-align: middle;\n  height: 18px;\n  margin: 12px 3px 0;\n}\n.x-spreadsheet-print {\n  position: absolute;\n  left: 0;\n  top: 0;\n  z-index: 100;\n  width: 100%;\n  height: 100%;\n  display: flex;\n  flex-direction: column;\n}\n.x-spreadsheet-print-bar {\n  background: #424242;\n  height: 60px;\n  line-height: 60px;\n  padding: 0 30px;\n}\n.x-spreadsheet-print-bar .-title {\n  color: #fff;\n  font-weight: bold;\n  font-size: 1.2em;\n  float: left;\n}\n.x-spreadsheet-print-bar .-right {\n  float: right;\n  margin-top: 12px;\n}\n.x-spreadsheet-print-content {\n  display: flex;\n  flex: auto;\n  flex-direction: row;\n  background: #d0d0d0;\n  height: calc(100% - 60px);\n}\n.x-spreadsheet-print-content .-sider {\n  flex: 0 0 300px;\n  width: 300px;\n  border-left: 2px solid #ccc;\n  background: #fff;\n}\n.x-spreadsheet-print-content .-content {\n  flex: auto;\n  overflow-x: auto;\n  overflow-y: scroll;\n  height: 100%;\n}\n.x-spreadsheet-canvas-card-wraper {\n  margin: 40px 20px;\n}\n.x-spreadsheet-canvas-card {\n  background: #fff;\n  margin: auto;\n  page-break-before: auto;\n  page-break-after: always;\n  box-shadow: 0 8px 10px 1px rgba(0, 0, 0, 0.14), 0 3px 14px 3px rgba(0, 0, 0, 0.12), 0 4px 5px 0 rgba(0, 0, 0, 0.2);\n}\n.x-spreadsheet-calendar {\n  color: rgba(0, 0, 0, 0.65);\n  background: #ffffff;\n  user-select: none;\n}\n.x-spreadsheet-calendar .calendar-header {\n  font-weight: 700;\n  line-height: 30px;\n  text-align: center;\n  width: 100%;\n  float: left;\n  background: #f9fafb;\n}\n.x-spreadsheet-calendar .calendar-header .calendar-header-left {\n  padding-left: 5px;\n  float: left;\n}\n.x-spreadsheet-calendar .calendar-header .calendar-header-right {\n  float: right;\n}\n.x-spreadsheet-calendar .calendar-header .calendar-header-right a {\n  padding: 3px 0;\n  margin-right: 2px;\n  border-radius: 2px;\n}\n.x-spreadsheet-calendar .calendar-header .calendar-header-right a:hover {\n  background: rgba(0, 0, 0, 0.08);\n}\n.x-spreadsheet-calendar .calendar-body {\n  border-collapse: collapse;\n  border-spacing: 0;\n}\n.x-spreadsheet-calendar .calendar-body th,\n.x-spreadsheet-calendar .calendar-body td {\n  width: 14.28571429%;\n  min-width: 32px;\n  text-align: center;\n  font-weight: 700;\n  line-height: 30px;\n  padding: 0;\n}\n.x-spreadsheet-calendar .calendar-body td > .cell:hover {\n  background: #ecf6fd;\n}\n.x-spreadsheet-calendar .calendar-body td > .cell.active,\n.x-spreadsheet-calendar .calendar-body td > .cell.active:hover {\n  background: #ecf6fd;\n  color: #2185D0;\n}\n.x-spreadsheet-calendar .calendar-body td > .cell.disabled {\n  pointer-events: none;\n  opacity: 0.5;\n}\n.x-spreadsheet-datepicker {\n  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);\n  position: absolute;\n  left: 0;\n  top: calc(100% + 5px);\n  z-index: 10;\n  width: auto;\n}\n.x-spreadsheet-buttons {\n  display: flex;\n  justify-content: flex-end;\n}\n.x-spreadsheet-buttons .x-spreadsheet-button {\n  margin-left: 8px;\n}\n.x-spreadsheet-button {\n  display: inline-block;\n  border-radius: 3px;\n  line-height: 1em;\n  min-height: 1em;\n  white-space: nowrap;\n  text-align: center;\n  cursor: pointer;\n  font-size: 1em;\n  font-weight: 700;\n  padding: 0.75em 1em;\n  color: rgba(0, 0, 0, 0.6);\n  background: #E0E1E2;\n  text-decoration: none;\n  font-family: \"Lato\", \"proxima-nova\", \"Helvetica Neue\", Arial, sans-serif;\n  outline: none;\n  vertical-align: baseline;\n  zoom: 1;\n  user-select: none;\n  transition: all 0.1s linear;\n}\n.x-spreadsheet-button.active,\n.x-spreadsheet-button:hover {\n  background-color: #C0C1C2;\n  color: rgba(0, 0, 0, 0.8);\n}\n.x-spreadsheet-button.primary {\n  color: #fff;\n  background-color: #2185D0;\n}\n.x-spreadsheet-button.primary:hover,\n.x-spreadsheet-button.primary.active {\n  color: #fff;\n  background-color: #1678c2;\n}\n.x-spreadsheet-form-input {\n  font-size: 1em;\n  position: relative;\n  font-weight: 400;\n  display: inline-flex;\n  color: rgba(0, 0, 0, 0.87);\n}\n.x-spreadsheet-form-input input {\n  z-index: 1;\n  margin: 0;\n  max-width: 100%;\n  flex: 1 0 auto;\n  outline: 0;\n  -webkit-tap-highlight-color: rgba(255, 255, 255, 0);\n  text-align: left;\n  line-height: 30px;\n  height: 30px;\n  padding: 0 8px;\n  background: #fff;\n  border: 1px solid #e9e9e9;\n  border-radius: 3px;\n  transition: box-shadow 0.1s ease, border-color 0.1s ease;\n  box-shadow: inset 0 1px 2px hsla(0, 0%, 4%, 0.06);\n}\n.x-spreadsheet-form-input input:focus {\n  border-color: #4b89ff;\n  box-shadow: inset 0 1px 2px rgba(75, 137, 255, 0.2);\n}\n.x-spreadsheet-form-select {\n  position: relative;\n  display: inline-block;\n  background: #fff;\n  border: 1px solid #e9e9e9;\n  border-radius: 2px;\n  cursor: pointer;\n  color: rgba(0, 0, 0, 0.87);\n  user-select: none;\n  box-shadow: inset 0 1px 2px hsla(0, 0%, 4%, 0.06);\n}\n.x-spreadsheet-form-select .input-text {\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  min-width: 60px;\n  width: auto;\n  height: 30px;\n  line-height: 30px;\n  padding: 0 8px;\n}\n.x-spreadsheet-form-fields {\n  display: flex;\n  flex-direction: row;\n  flex-wrap: wrap;\n}\n.x-spreadsheet-form-fields .x-spreadsheet-form-field {\n  flex: 0 1 auto;\n}\n.x-spreadsheet-form-fields .x-spreadsheet-form-field .label {\n  display: inline-block;\n  margin: 0 10px 0 0;\n}\n.x-spreadsheet-form-field {\n  display: block;\n  vertical-align: middle;\n  margin-left: 10px;\n  margin-bottom: 10px;\n}\n.x-spreadsheet-form-field:first-child {\n  margin-left: 0;\n}\n.x-spreadsheet-form-field.error .x-spreadsheet-form-select,\n.x-spreadsheet-form-field.error input {\n  border-color: #f04134;\n}\n.x-spreadsheet-form-field .tip {\n  color: #f04134;\n  font-size: 0.9em;\n}\n.x-spreadsheet-dimmer {\n  display: none;\n  position: absolute;\n  top: 0 !important;\n  left: 0 !important;\n  width: 100%;\n  height: 100%;\n  text-align: center;\n  vertical-align: middle;\n  background-color: rgba(0, 0, 0, 0.6);\n  opacity: 0;\n  -webkit-animation-fill-mode: both;\n  animation-fill-mode: both;\n  -webkit-animation-duration: 0.5s;\n  animation-duration: 0.5s;\n  transition: background-color 0.5s linear;\n  user-select: none;\n  z-index: 1000;\n}\n.x-spreadsheet-dimmer.active {\n  display: block;\n  opacity: 1;\n}\nform fieldset {\n  border: none;\n}\nform fieldset label {\n  display: block;\n  margin-bottom: 0.5em;\n  font-size: 1em;\n  color: #666;\n}\nform fieldset select {\n  font-size: 1.1em;\n  width: 100%;\n  background-color: #fff;\n  border: none;\n  border-bottom: 2px solid #ddd;\n  padding: 0.5em 0.85em;\n  border-radius: 2px;\n}\n.x-spreadsheet-modal,\n.x-spreadsheet-toast {\n  font-size: 13px;\n  position: fixed;\n  z-index: 1001;\n  text-align: left;\n  line-height: 1.25em;\n  min-width: 360px;\n  color: rgba(0, 0, 0, 0.87);\n  font-family: 'Lato', 'Source Sans Pro', Roboto, Helvetica, Arial, sans-serif;\n  border-radius: 4px;\n  border: 1px solid rgba(0, 0, 0, 0.1);\n  background-color: #fff;\n  background-clip: padding-box;\n  box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 8px;\n}\n.x-spreadsheet-toast {\n  background-color: rgba(255, 255, 255, 0.85);\n}\n.x-spreadsheet-modal-header,\n.x-spreadsheet-toast-header {\n  font-weight: 600;\n  background-clip: padding-box;\n  background-color: rgba(255, 255, 255, 0.85);\n  border-bottom: 1px solid rgba(0, 0, 0, 0.05);\n  border-radius: 4px 4px 0 0;\n}\n.x-spreadsheet-modal-header .x-spreadsheet-icon,\n.x-spreadsheet-toast-header .x-spreadsheet-icon {\n  position: absolute;\n  right: 0.8em;\n  top: 0.65em;\n  border-radius: 18px;\n}\n.x-spreadsheet-modal-header .x-spreadsheet-icon:hover,\n.x-spreadsheet-toast-header .x-spreadsheet-icon:hover {\n  opacity: 1;\n  background: rgba(0, 0, 0, 0.08);\n}\n.x-spreadsheet-toast-header {\n  color: #F2711C;\n}\n.x-spreadsheet-modal-header {\n  border-bottom: 1px solid #e0e2e4;\n  background: rgba(0, 0, 0, 0.08);\n  font-size: 1.0785em;\n}\n.x-spreadsheet-modal-header,\n.x-spreadsheet-modal-content,\n.x-spreadsheet-toast-header,\n.x-spreadsheet-toast-content {\n  padding: 0.75em 1em;\n}\n@media screen and (min-width: 320px) and (max-width: 480px) {\n  .x-spreadsheet-toolbar {\n    display: none;\n  }\n}\n.x-spreadsheet-icon {\n  width: 18px;\n  height: 18px;\n  margin: 1px 1px 2px 1px;\n  text-align: center;\n  vertical-align: middle;\n  user-select: none;\n  overflow: hidden;\n  position: relative;\n  display: inline-block;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img {\n  background-image: url(58eaeb4e52248a5c75936c6f4c33a370.svg);\n  position: absolute;\n  width: 262px;\n  height: 444px;\n  opacity: 0.56;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.undo {\n  left: 0;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.redo {\n  left: -18px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.print {\n  left: -36px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.paintformat {\n  left: -54px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.clearformat {\n  left: -72px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.font-bold {\n  left: -90px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.font-italic {\n  left: -108px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.underline {\n  left: -126px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.strike {\n  left: -144px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.color {\n  left: -162px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.bgcolor {\n  left: -180px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.merge {\n  left: -198px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.align-left {\n  left: -216px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.align-center {\n  left: -234px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.align-right {\n  left: 0;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.align-top {\n  left: -18px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.align-middle {\n  left: -36px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.align-bottom {\n  left: -54px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.textwrap {\n  left: -72px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.autofilter {\n  left: -90px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.formula {\n  left: -108px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.arrow-down {\n  left: -126px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.arrow-right {\n  left: -144px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.link {\n  left: -162px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.chart {\n  left: -180px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.freeze {\n  left: -198px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.ellipsis {\n  left: -216px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.add {\n  left: -234px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-all {\n  left: 0;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-inside {\n  left: -18px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-horizontal {\n  left: -36px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-vertical {\n  left: -54px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-outside {\n  left: -72px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-left {\n  left: -90px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-top {\n  left: -108px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-right {\n  left: -126px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-bottom {\n  left: -144px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-none {\n  left: -162px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.line-color {\n  left: -180px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.line-type {\n  left: -198px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.close {\n  left: -234px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.chevron-down {\n  left: 0;\n  top: -54px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.chevron-up {\n  left: -18px;\n  top: -54px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.chevron-left {\n  left: -36px;\n  top: -54px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.chevron-right {\n  left: -54px;\n  top: -54px;\n}\n\n\n/*# sourceMappingURL=xspreadsheet.css.map*/";
-		//#endregion
-		//#region src/client/index.tsx
+		// \0css:7c2228508ed6.mjs
+		var _css_7c2228508ed6_default = "body {\n  margin: 0;\n}\n.x-spreadsheet {\n  font-size: 13px;\n  line-height: normal;\n  user-select: none;\n  -moz-user-select: none;\n  font-family: 'Lato', 'Source Sans Pro', Roboto, Helvetica, Arial, sans-serif;\n  box-sizing: content-box;\n  background: #fff;\n  -webkit-font-smoothing: antialiased;\n}\n.x-spreadsheet textarea {\n  font: 400 13px Arial, 'Lato', 'Source Sans Pro', Roboto, Helvetica, sans-serif;\n}\n.x-spreadsheet-sheet {\n  position: relative;\n  overflow: hidden;\n}\n.x-spreadsheet-table {\n  vertical-align: bottom;\n}\n.x-spreadsheet-tooltip {\n  font-family: inherit;\n  position: absolute;\n  padding: 5px 10px;\n  color: #fff;\n  border-radius: 1px;\n  background: #000000;\n  font-size: 12px;\n  z-index: 201;\n}\n.x-spreadsheet-tooltip:before {\n  pointer-events: none;\n  position: absolute;\n  left: calc(50% - 4px);\n  top: -4px;\n  content: \"\";\n  width: 8px;\n  height: 8px;\n  background: inherit;\n  -webkit-transform: rotate(45deg);\n  transform: rotate(45deg);\n  z-index: 1;\n  box-shadow: 1px 1px 3px -1px rgba(0, 0, 0, 0.3);\n}\n.x-spreadsheet-color-palette {\n  padding: 5px;\n}\n.x-spreadsheet-color-palette table {\n  margin: 0;\n  padding: 0;\n  border-collapse: separate;\n  border-spacing: 2;\n  background: #fff;\n}\n.x-spreadsheet-color-palette table td {\n  margin: 0;\n  cursor: pointer;\n  border: 1px solid transparent;\n}\n.x-spreadsheet-color-palette table td:hover {\n  border-color: #ddd;\n}\n.x-spreadsheet-color-palette table td .x-spreadsheet-color-palette-cell {\n  width: 16px;\n  height: 16px;\n}\n.x-spreadsheet-border-palette {\n  padding: 6px;\n}\n.x-spreadsheet-border-palette table {\n  margin: 0;\n  padding: 0;\n  border-collapse: separate;\n  border-spacing: 0;\n  background: #fff;\n  table-layout: fixed;\n}\n.x-spreadsheet-border-palette table td {\n  margin: 0;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-left {\n  border-right: 1px solid #eee;\n  padding-right: 6px;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-left .x-spreadsheet-border-palette-cell {\n  width: 30px;\n  height: 30px;\n  cursor: pointer;\n  text-align: center;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-left .x-spreadsheet-border-palette-cell .x-spreadsheet-icon-img {\n  opacity: 0.8;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-left .x-spreadsheet-border-palette-cell:hover {\n  background-color: #eee;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-right {\n  padding-left: 6px;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-right .x-spreadsheet-toolbar-btn {\n  margin-top: 0;\n  margin-bottom: 3px;\n}\n.x-spreadsheet-border-palette .x-spreadsheet-border-palette-right .x-spreadsheet-line-type {\n  position: relative;\n  left: 0;\n  top: -3px;\n}\n.x-spreadsheet-dropdown {\n  position: relative;\n}\n.x-spreadsheet-dropdown .x-spreadsheet-dropdown-content {\n  position: absolute;\n  z-index: 200;\n  background: #fff;\n  box-shadow: 1px 2px 5px 2px rgba(51, 51, 51, 0.15);\n}\n.x-spreadsheet-dropdown.bottom-left .x-spreadsheet-dropdown-content {\n  top: calc(100% + 5px);\n  left: 0;\n}\n.x-spreadsheet-dropdown.bottom-right .x-spreadsheet-dropdown-content {\n  top: calc(100% + 5px);\n  right: 0;\n}\n.x-spreadsheet-dropdown.top-left .x-spreadsheet-dropdown-content {\n  bottom: calc(100% + 5px);\n  left: 0;\n}\n.x-spreadsheet-dropdown.top-right .x-spreadsheet-dropdown-content {\n  bottom: calc(100% + 5px);\n  right: 0;\n}\n.x-spreadsheet-dropdown .x-spreadsheet-dropdown-title {\n  padding: 0 5px;\n  display: inline-block;\n}\n.x-spreadsheet-dropdown .x-spreadsheet-dropdown-header .x-spreadsheet-icon.arrow-left {\n  margin-left: 4px;\n}\n.x-spreadsheet-dropdown .x-spreadsheet-dropdown-header .x-spreadsheet-icon.arrow-right {\n  width: 10px;\n  margin-right: 4px;\n}\n.x-spreadsheet-dropdown .x-spreadsheet-dropdown-header .x-spreadsheet-icon.arrow-right .arrow-down {\n  left: -130px;\n}\n/* resizer **/\n.x-spreadsheet-resizer {\n  position: absolute;\n  z-index: 11;\n}\n.x-spreadsheet-resizer .x-spreadsheet-resizer-hover {\n  background-color: rgba(75, 137, 255, 0.25);\n}\n.x-spreadsheet-resizer .x-spreadsheet-resizer-line {\n  position: absolute;\n}\n.x-spreadsheet-resizer.horizontal {\n  cursor: row-resize;\n}\n.x-spreadsheet-resizer.horizontal .x-spreadsheet-resizer-line {\n  border-bottom: 2px dashed #4b89ff;\n  left: 0;\n  bottom: 0;\n}\n.x-spreadsheet-resizer.vertical {\n  cursor: col-resize;\n}\n.x-spreadsheet-resizer.vertical .x-spreadsheet-resizer-line {\n  border-right: 2px dashed #4b89ff;\n  top: 0;\n  right: 0;\n}\n/* scrollbar */\n.x-spreadsheet-scrollbar {\n  position: absolute;\n  bottom: 0;\n  right: 0;\n  background-color: #f4f5f8;\n  opacity: 0.9;\n  z-index: 12;\n}\n.x-spreadsheet-scrollbar.horizontal {\n  right: 15px;\n  overflow-x: scroll;\n  overflow-y: hidden;\n}\n.x-spreadsheet-scrollbar.horizontal > div {\n  height: 1px;\n  background: #ddd;\n}\n.x-spreadsheet-scrollbar.vertical {\n  bottom: 15px;\n  overflow-x: hidden;\n  overflow-y: scroll;\n}\n.x-spreadsheet-scrollbar.vertical > div {\n  width: 1px;\n  background: #ddd;\n}\n/* @{css-prefix}-overlayer */\n.x-spreadsheet-overlayer {\n  position: absolute;\n  left: 0;\n  top: 0;\n  z-index: 10;\n}\n.x-spreadsheet-overlayer .x-spreadsheet-overlayer-content {\n  position: absolute;\n  overflow: hidden;\n  pointer-events: none;\n  width: 100%;\n  height: 100%;\n}\n.x-spreadsheet-editor,\n.x-spreadsheet-selector {\n  box-sizing: content-box;\n  position: absolute;\n  overflow: hidden;\n  pointer-events: none;\n  top: 0;\n  left: 0;\n  width: 100%;\n  height: 100%;\n}\n/* @{css-prefix}-selector */\n.x-spreadsheet-selector .hide-input {\n  position: absolute;\n  z-index: 0;\n}\n.x-spreadsheet-selector .hide-input input {\n  padding: 0;\n  width: 0;\n  border: none!important;\n}\n.x-spreadsheet-selector .x-spreadsheet-selector-area {\n  position: absolute;\n  border: 2px solid #4b89ff;\n  background: rgba(75, 137, 255, 0.1);\n  z-index: 5;\n}\n.x-spreadsheet-selector .x-spreadsheet-selector-clipboard,\n.x-spreadsheet-selector .x-spreadsheet-selector-autofill {\n  position: absolute;\n  background: transparent;\n  z-index: 100;\n}\n.x-spreadsheet-selector .x-spreadsheet-selector-clipboard {\n  border: 2px dashed #4b89ff;\n}\n.x-spreadsheet-selector .x-spreadsheet-selector-autofill {\n  border: 1px dashed rgba(0, 0, 0, 0.45);\n}\n.x-spreadsheet-selector .x-spreadsheet-selector-corner {\n  pointer-events: auto;\n  position: absolute;\n  cursor: crosshair;\n  font-size: 0;\n  height: 5px;\n  width: 5px;\n  right: -5px;\n  bottom: -5px;\n  border: 2px solid #ffffff;\n  background: #4b89ff;\n}\n.x-spreadsheet-editor {\n  z-index: 20;\n}\n.x-spreadsheet-editor .x-spreadsheet-editor-area {\n  position: absolute;\n  text-align: left;\n  border: 2px solid #4b89ff;\n  line-height: 0;\n  z-index: 100;\n  pointer-events: auto;\n}\n.x-spreadsheet-editor .x-spreadsheet-editor-area textarea {\n  box-sizing: content-box;\n  border: none;\n  padding: 0 3px;\n  outline: none;\n  resize: none;\n  text-align: start;\n  overflow-y: hidden;\n  font: 400 13px Arial, 'Lato', 'Source Sans Pro', Roboto, Helvetica, sans-serif;\n  color: inherit;\n  white-space: normal;\n  word-wrap: break-word;\n  line-height: 22px;\n  margin: 0;\n}\n.x-spreadsheet-editor .x-spreadsheet-editor-area .textline {\n  overflow: hidden;\n  visibility: hidden;\n  position: fixed;\n  top: 0;\n  left: 0;\n}\n.x-spreadsheet-item {\n  user-select: none;\n  background: 0;\n  border: 1px solid transparent;\n  outline: none;\n  height: 26px;\n  color: rgba(0, 0, 0, 0.9);\n  line-height: 26px;\n  list-style: none;\n  padding: 2px 10px;\n  cursor: default;\n  text-align: left;\n  overflow: hidden;\n}\n.x-spreadsheet-item.disabled {\n  pointer-events: none;\n  opacity: 0.5;\n}\n.x-spreadsheet-item:hover,\n.x-spreadsheet-item.active {\n  background: rgba(0, 0, 0, 0.05);\n}\n.x-spreadsheet-item.divider {\n  height: 0;\n  padding: 0;\n  margin: 5px 0;\n  border: none;\n  border-bottom: 1px solid rgba(0, 0, 0, 0.1);\n}\n.x-spreadsheet-item .label {\n  float: right;\n  opacity: 0.65;\n  font-size: 1em;\n}\n.x-spreadsheet-item.state,\n.x-spreadsheet-header.state {\n  padding-left: 35px!important;\n  position: relative;\n}\n.x-spreadsheet-item.state:before,\n.x-spreadsheet-header.state:before {\n  content: '';\n  position: absolute;\n  width: 10px;\n  height: 10px;\n  left: 12px;\n  top: calc(50% - 5px);\n  background: rgba(0, 0, 0, 0.08);\n  border-radius: 2px;\n}\n.x-spreadsheet-item.state.checked:before,\n.x-spreadsheet-header.state.checked:before {\n  background: #4b89ff;\n}\n.x-spreadsheet-checkbox {\n  position: relative;\n  display: inline-block;\n  backface-visibility: hidden;\n  outline: 0;\n  vertical-align: baseline;\n  font-style: normal;\n  font-size: 1rem;\n  line-height: 1em;\n}\n.x-spreadsheet-checkbox > input {\n  position: absolute;\n  top: 0;\n  left: 0;\n  opacity: 0!important;\n  outline: 0;\n  z-index: -1;\n}\n.x-spreadsheet-suggest,\n.x-spreadsheet-contextmenu,\n.x-spreadsheet-sort-filter {\n  position: absolute;\n  box-shadow: 1px 2px 5px 2px rgba(51, 51, 51, 0.15);\n  background: #fff;\n  z-index: 100;\n  width: 260px;\n  pointer-events: auto;\n  overflow: auto;\n}\n.x-spreadsheet-suggest {\n  width: 200px;\n}\n.x-spreadsheet-filter {\n  border: 1px solid #e9e9e9;\n  font-size: 12px;\n  margin: 10px;\n}\n.x-spreadsheet-filter .x-spreadsheet-header {\n  padding: 0.5em 0.75em;\n  background: #f8f8f9;\n  border-bottom: 1px solid #e9e9e9;\n  border-left: 1px solid transparent;\n}\n.x-spreadsheet-filter .x-spreadsheet-body {\n  height: 200px;\n  overflow-y: auto;\n}\n.x-spreadsheet-filter .x-spreadsheet-body .x-spreadsheet-item {\n  height: 20px;\n  line-height: 20px;\n}\n.x-spreadsheet-sort-filter .x-spreadsheet-buttons {\n  margin: 10px;\n}\n.x-spreadsheet-toolbar,\n.x-spreadsheet-bottombar {\n  height: 40px;\n  padding: 0 30px;\n  text-align: left;\n  background: #f5f6f7;\n  display: flex;\n}\n.x-spreadsheet-bottombar {\n  position: relative;\n  border-top: 1px solid #e0e2e4;\n}\n.x-spreadsheet-bottombar .x-spreadsheet-menu > li {\n  line-height: 40px;\n  height: 40px;\n  padding-top: 0;\n  padding-bottom: 0;\n  vertical-align: middle;\n  border-right: 1px solid #e8eaed;\n}\n.x-spreadsheet-menu {\n  list-style: none;\n  margin: 0;\n  padding: 0;\n  user-select: none;\n}\n.x-spreadsheet-menu > li {\n  float: left;\n  line-height: 1.25em;\n  padding: 0.785em 1em;\n  margin: 0;\n  vertical-align: middle;\n  text-align: left;\n  font-weight: 400;\n  color: #80868b;\n  white-space: nowrap;\n  cursor: pointer;\n  transition: all 0.3s;\n  font-weight: bold;\n}\n.x-spreadsheet-menu > li.active {\n  background-color: #fff;\n  color: rgba(0, 0, 0, 0.65);\n}\n.x-spreadsheet-menu > li .x-spreadsheet-icon {\n  margin: 0 6px;\n}\n.x-spreadsheet-menu > li .x-spreadsheet-icon .x-spreadsheet-icon-img:hover {\n  opacity: 0.85;\n}\n.x-spreadsheet-menu > li .x-spreadsheet-dropdown {\n  display: inline-block;\n}\n.x-spreadsheet-toolbar {\n  border-bottom: 1px solid #e0e2e4;\n}\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-btns {\n  display: inline-flex;\n}\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-more {\n  padding: 0 6px 6px;\n  text-align: left;\n}\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-more .x-spreadsheet-toolbar-divider {\n  margin-top: 0;\n}\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-btn {\n  flex: 0 0 auto;\n  display: inline-block;\n  border: 1px solid transparent;\n  height: 26px;\n  line-height: 26px;\n  min-width: 26px;\n  margin: 6px 1px 0;\n  padding: 0;\n  text-align: center;\n  border-radius: 2px;\n}\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-btn.disabled {\n  pointer-events: none;\n  opacity: 0.5;\n}\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-btn:hover,\n.x-spreadsheet-toolbar .x-spreadsheet-toolbar-btn.active {\n  background: rgba(0, 0, 0, 0.08);\n}\n.x-spreadsheet-toolbar-divider {\n  display: inline-block;\n  border-right: 1px solid #e0e2e4;\n  width: 0;\n  vertical-align: middle;\n  height: 18px;\n  margin: 12px 3px 0;\n}\n.x-spreadsheet-print {\n  position: absolute;\n  left: 0;\n  top: 0;\n  z-index: 100;\n  width: 100%;\n  height: 100%;\n  display: flex;\n  flex-direction: column;\n}\n.x-spreadsheet-print-bar {\n  background: #424242;\n  height: 60px;\n  line-height: 60px;\n  padding: 0 30px;\n}\n.x-spreadsheet-print-bar .-title {\n  color: #fff;\n  font-weight: bold;\n  font-size: 1.2em;\n  float: left;\n}\n.x-spreadsheet-print-bar .-right {\n  float: right;\n  margin-top: 12px;\n}\n.x-spreadsheet-print-content {\n  display: flex;\n  flex: auto;\n  flex-direction: row;\n  background: #d0d0d0;\n  height: calc(100% - 60px);\n}\n.x-spreadsheet-print-content .-sider {\n  flex: 0 0 300px;\n  width: 300px;\n  border-left: 2px solid #ccc;\n  background: #fff;\n}\n.x-spreadsheet-print-content .-content {\n  flex: auto;\n  overflow-x: auto;\n  overflow-y: scroll;\n  height: 100%;\n}\n.x-spreadsheet-canvas-card-wraper {\n  margin: 40px 20px;\n}\n.x-spreadsheet-canvas-card {\n  background: #fff;\n  margin: auto;\n  page-break-before: auto;\n  page-break-after: always;\n  box-shadow: 0 8px 10px 1px rgba(0, 0, 0, 0.14), 0 3px 14px 3px rgba(0, 0, 0, 0.12), 0 4px 5px 0 rgba(0, 0, 0, 0.2);\n}\n.x-spreadsheet-calendar {\n  color: rgba(0, 0, 0, 0.65);\n  background: #ffffff;\n  user-select: none;\n}\n.x-spreadsheet-calendar .calendar-header {\n  font-weight: 700;\n  line-height: 30px;\n  text-align: center;\n  width: 100%;\n  float: left;\n  background: #f9fafb;\n}\n.x-spreadsheet-calendar .calendar-header .calendar-header-left {\n  padding-left: 5px;\n  float: left;\n}\n.x-spreadsheet-calendar .calendar-header .calendar-header-right {\n  float: right;\n}\n.x-spreadsheet-calendar .calendar-header .calendar-header-right a {\n  padding: 3px 0;\n  margin-right: 2px;\n  border-radius: 2px;\n}\n.x-spreadsheet-calendar .calendar-header .calendar-header-right a:hover {\n  background: rgba(0, 0, 0, 0.08);\n}\n.x-spreadsheet-calendar .calendar-body {\n  border-collapse: collapse;\n  border-spacing: 0;\n}\n.x-spreadsheet-calendar .calendar-body th,\n.x-spreadsheet-calendar .calendar-body td {\n  width: 14.28571429%;\n  min-width: 32px;\n  text-align: center;\n  font-weight: 700;\n  line-height: 30px;\n  padding: 0;\n}\n.x-spreadsheet-calendar .calendar-body td > .cell:hover {\n  background: #ecf6fd;\n}\n.x-spreadsheet-calendar .calendar-body td > .cell.active,\n.x-spreadsheet-calendar .calendar-body td > .cell.active:hover {\n  background: #ecf6fd;\n  color: #2185D0;\n}\n.x-spreadsheet-calendar .calendar-body td > .cell.disabled {\n  pointer-events: none;\n  opacity: 0.5;\n}\n.x-spreadsheet-datepicker {\n  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);\n  position: absolute;\n  left: 0;\n  top: calc(100% + 5px);\n  z-index: 10;\n  width: auto;\n}\n.x-spreadsheet-buttons {\n  display: flex;\n  justify-content: flex-end;\n}\n.x-spreadsheet-buttons .x-spreadsheet-button {\n  margin-left: 8px;\n}\n.x-spreadsheet-button {\n  display: inline-block;\n  border-radius: 3px;\n  line-height: 1em;\n  min-height: 1em;\n  white-space: nowrap;\n  text-align: center;\n  cursor: pointer;\n  font-size: 1em;\n  font-weight: 700;\n  padding: 0.75em 1em;\n  color: rgba(0, 0, 0, 0.6);\n  background: #E0E1E2;\n  text-decoration: none;\n  font-family: \"Lato\", \"proxima-nova\", \"Helvetica Neue\", Arial, sans-serif;\n  outline: none;\n  vertical-align: baseline;\n  zoom: 1;\n  user-select: none;\n  transition: all 0.1s linear;\n}\n.x-spreadsheet-button.active,\n.x-spreadsheet-button:hover {\n  background-color: #C0C1C2;\n  color: rgba(0, 0, 0, 0.8);\n}\n.x-spreadsheet-button.primary {\n  color: #fff;\n  background-color: #2185D0;\n}\n.x-spreadsheet-button.primary:hover,\n.x-spreadsheet-button.primary.active {\n  color: #fff;\n  background-color: #1678c2;\n}\n.x-spreadsheet-form-input {\n  font-size: 1em;\n  position: relative;\n  font-weight: 400;\n  display: inline-flex;\n  color: rgba(0, 0, 0, 0.87);\n}\n.x-spreadsheet-form-input input {\n  z-index: 1;\n  margin: 0;\n  max-width: 100%;\n  flex: 1 0 auto;\n  outline: 0;\n  -webkit-tap-highlight-color: rgba(255, 255, 255, 0);\n  text-align: left;\n  line-height: 30px;\n  height: 30px;\n  padding: 0 8px;\n  background: #fff;\n  border: 1px solid #e9e9e9;\n  border-radius: 3px;\n  transition: box-shadow 0.1s ease, border-color 0.1s ease;\n  box-shadow: inset 0 1px 2px hsla(0, 0%, 4%, 0.06);\n}\n.x-spreadsheet-form-input input:focus {\n  border-color: #4b89ff;\n  box-shadow: inset 0 1px 2px rgba(75, 137, 255, 0.2);\n}\n.x-spreadsheet-form-select {\n  position: relative;\n  display: inline-block;\n  background: #fff;\n  border: 1px solid #e9e9e9;\n  border-radius: 2px;\n  cursor: pointer;\n  color: rgba(0, 0, 0, 0.87);\n  user-select: none;\n  box-shadow: inset 0 1px 2px hsla(0, 0%, 4%, 0.06);\n}\n.x-spreadsheet-form-select .input-text {\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  min-width: 60px;\n  width: auto;\n  height: 30px;\n  line-height: 30px;\n  padding: 0 8px;\n}\n.x-spreadsheet-form-fields {\n  display: flex;\n  flex-direction: row;\n  flex-wrap: wrap;\n}\n.x-spreadsheet-form-fields .x-spreadsheet-form-field {\n  flex: 0 1 auto;\n}\n.x-spreadsheet-form-fields .x-spreadsheet-form-field .label {\n  display: inline-block;\n  margin: 0 10px 0 0;\n}\n.x-spreadsheet-form-field {\n  display: block;\n  vertical-align: middle;\n  margin-left: 10px;\n  margin-bottom: 10px;\n}\n.x-spreadsheet-form-field:first-child {\n  margin-left: 0;\n}\n.x-spreadsheet-form-field.error .x-spreadsheet-form-select,\n.x-spreadsheet-form-field.error input {\n  border-color: #f04134;\n}\n.x-spreadsheet-form-field .tip {\n  color: #f04134;\n  font-size: 0.9em;\n}\n.x-spreadsheet-dimmer {\n  display: none;\n  position: absolute;\n  top: 0 !important;\n  left: 0 !important;\n  width: 100%;\n  height: 100%;\n  text-align: center;\n  vertical-align: middle;\n  background-color: rgba(0, 0, 0, 0.6);\n  opacity: 0;\n  -webkit-animation-fill-mode: both;\n  animation-fill-mode: both;\n  -webkit-animation-duration: 0.5s;\n  animation-duration: 0.5s;\n  transition: background-color 0.5s linear;\n  user-select: none;\n  z-index: 1000;\n}\n.x-spreadsheet-dimmer.active {\n  display: block;\n  opacity: 1;\n}\nform fieldset {\n  border: none;\n}\nform fieldset label {\n  display: block;\n  margin-bottom: 0.5em;\n  font-size: 1em;\n  color: #666;\n}\nform fieldset select {\n  font-size: 1.1em;\n  width: 100%;\n  background-color: #fff;\n  border: none;\n  border-bottom: 2px solid #ddd;\n  padding: 0.5em 0.85em;\n  border-radius: 2px;\n}\n.x-spreadsheet-modal,\n.x-spreadsheet-toast {\n  font-size: 13px;\n  position: fixed;\n  z-index: 1001;\n  text-align: left;\n  line-height: 1.25em;\n  min-width: 360px;\n  color: rgba(0, 0, 0, 0.87);\n  font-family: 'Lato', 'Source Sans Pro', Roboto, Helvetica, Arial, sans-serif;\n  border-radius: 4px;\n  border: 1px solid rgba(0, 0, 0, 0.1);\n  background-color: #fff;\n  background-clip: padding-box;\n  box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 8px;\n}\n.x-spreadsheet-toast {\n  background-color: rgba(255, 255, 255, 0.85);\n}\n.x-spreadsheet-modal-header,\n.x-spreadsheet-toast-header {\n  font-weight: 600;\n  background-clip: padding-box;\n  background-color: rgba(255, 255, 255, 0.85);\n  border-bottom: 1px solid rgba(0, 0, 0, 0.05);\n  border-radius: 4px 4px 0 0;\n}\n.x-spreadsheet-modal-header .x-spreadsheet-icon,\n.x-spreadsheet-toast-header .x-spreadsheet-icon {\n  position: absolute;\n  right: 0.8em;\n  top: 0.65em;\n  border-radius: 18px;\n}\n.x-spreadsheet-modal-header .x-spreadsheet-icon:hover,\n.x-spreadsheet-toast-header .x-spreadsheet-icon:hover {\n  opacity: 1;\n  background: rgba(0, 0, 0, 0.08);\n}\n.x-spreadsheet-toast-header {\n  color: #F2711C;\n}\n.x-spreadsheet-modal-header {\n  border-bottom: 1px solid #e0e2e4;\n  background: rgba(0, 0, 0, 0.08);\n  font-size: 1.0785em;\n}\n.x-spreadsheet-modal-header,\n.x-spreadsheet-modal-content,\n.x-spreadsheet-toast-header,\n.x-spreadsheet-toast-content {\n  padding: 0.75em 1em;\n}\n@media screen and (min-width: 320px) and (max-width: 480px) {\n  .x-spreadsheet-toolbar {\n    display: none;\n  }\n}\n.x-spreadsheet-icon {\n  width: 18px;\n  height: 18px;\n  margin: 1px 1px 2px 1px;\n  text-align: center;\n  vertical-align: middle;\n  user-select: none;\n  overflow: hidden;\n  position: relative;\n  display: inline-block;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img {\n  background-image: url(58eaeb4e52248a5c75936c6f4c33a370.svg);\n  position: absolute;\n  width: 262px;\n  height: 444px;\n  opacity: 0.56;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.undo {\n  left: 0;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.redo {\n  left: -18px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.print {\n  left: -36px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.paintformat {\n  left: -54px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.clearformat {\n  left: -72px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.font-bold {\n  left: -90px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.font-italic {\n  left: -108px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.underline {\n  left: -126px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.strike {\n  left: -144px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.color {\n  left: -162px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.bgcolor {\n  left: -180px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.merge {\n  left: -198px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.align-left {\n  left: -216px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.align-center {\n  left: -234px;\n  top: 0;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.align-right {\n  left: 0;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.align-top {\n  left: -18px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.align-middle {\n  left: -36px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.align-bottom {\n  left: -54px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.textwrap {\n  left: -72px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.autofilter {\n  left: -90px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.formula {\n  left: -108px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.arrow-down {\n  left: -126px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.arrow-right {\n  left: -144px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.link {\n  left: -162px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.chart {\n  left: -180px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.freeze {\n  left: -198px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.ellipsis {\n  left: -216px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.add {\n  left: -234px;\n  top: -18px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-all {\n  left: 0;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-inside {\n  left: -18px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-horizontal {\n  left: -36px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-vertical {\n  left: -54px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-outside {\n  left: -72px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-left {\n  left: -90px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-top {\n  left: -108px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-right {\n  left: -126px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-bottom {\n  left: -144px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.border-none {\n  left: -162px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.line-color {\n  left: -180px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.line-type {\n  left: -198px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.close {\n  left: -234px;\n  top: -36px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.chevron-down {\n  left: 0;\n  top: -54px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.chevron-up {\n  left: -18px;\n  top: -54px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.chevron-left {\n  left: -36px;\n  top: -54px;\n}\n.x-spreadsheet-icon .x-spreadsheet-icon-img.chevron-right {\n  left: -54px;\n  top: -54px;\n}\n\n\n/*# sourceMappingURL=xspreadsheet.css.map*/";
+		// src/client/view-model.ts
+		/**
+		* Display caps: bigger sheets get a truncation notice instead of silent loss.
+		*
+		* Fullscreen raises them. The notice quotes the numbers from `measureSheets`
+		* rather than constants of its own, so what it promises and what the grid does
+		* cannot drift apart.
+		*/
+		const INLINE_RENDER_ROWS = 2e3;
+		const FULLSCREEN_RENDER_ROWS = 2e4;
+		/** Minimum grid size, so a one-cell sheet still looks like a worksheet. */
+		const MIN_RENDER_ROWS = 10;
+		const MIN_RENDER_COLS = 5;
+		/** 1-based column index → letters ("A", "Z", "AA"), matching Excel addressing. */
+		function columnName(index) {
+			let name = "";
+			let value = index;
+			while (value > 0) {
+				const remainder = (value - 1) % 26;
+				name = `${String.fromCharCode(65 + remainder)}${name}`;
+				value = Math.floor((value - remainder - 1) / 26);
+			}
+			return name;
+		}
+		/** A cell's displayed text: the formula when there is one, else the literal. */
+		function cellText(value, formula) {
+			if (formula) return formula;
+			if (value === null || value === void 0) return "";
+			if (typeof value === "object") return JSON.stringify(value);
+			return String(value);
+		}
+		/** "订单!AB12" → { row: 11, col: 27 } (0-based); null when not an A1 address. */
+		function parseCellId(id) {
+			const body = id.split("!").pop() ?? "";
+			const match = /^([A-Za-z]+)(\d+)$/.exec(body);
+			if (match === null) return null;
+			const row = Number(match[2]);
+			if (!Number.isFinite(row) || row < 1) return null;
+			return {
+				row,
+				col: [...match[1].toUpperCase()].reduce((acc, char) => acc * 26 + (char.charCodeAt(0) - 64), 0)
+			};
+		}
+		/** Grid size for `sheets`: content size clamped to the cap for this mode. */
+		function measureSheets(sheets, fullscreen) {
+			const capRows = fullscreen ? FULLSCREEN_RENDER_ROWS : INLINE_RENDER_ROWS;
+			const capCols = fullscreen ? 500 : 100;
+			let maxRows = 1;
+			let maxCols = 1;
+			for (const sheet of sheets) for (const cell of sheet.cells) {
+				const address = parseCellId(cell.id);
+				if (address === null) continue;
+				if (address.row > maxRows) maxRows = address.row;
+				if (address.col > maxCols) maxCols = address.col;
+			}
+			return {
+				rows: Math.min(capRows, Math.max(MIN_RENDER_ROWS, maxRows)),
+				cols: Math.min(capCols, Math.max(MIN_RENDER_COLS, maxCols)),
+				capRows,
+				capCols,
+				truncated: maxRows > capRows || maxCols > capCols
+			};
+		}
+		/** x-data-spreadsheet payload: row/col keyed cells with display text, per sheet. */
+		function toGridData(sheets) {
+			return sheets.map((sheet) => {
+				const rows = {};
+				for (const cell of sheet.cells) {
+					const address = parseCellId(cell.id);
+					if (address === null) continue;
+					const row = rows[address.row - 1] ??= { cells: {} };
+					row.cells[address.col - 1] = { text: cellText(cell.value, cell.formula) };
+				}
+				return {
+					name: sheet.sheet,
+					rows
+				};
+			});
+		}
+		/**
+		* Record the window listeners added while `build()` runs, so unmount can remove
+		* them. The library has no `destroy()`; `el.innerHTML = ''` leaves
+		* resize/click/paste/keydown registered, reloading a canvas that is no longer
+		* in the document.
+		*/
+		function captureWindowListeners(build) {
+			const listeners = [];
+			const native = window.addEventListener;
+			const patched = function(type, listener, options) {
+				listeners.push([
+					type,
+					listener,
+					options
+				]);
+				native.call(this, type, listener, options);
+			};
+			window.addEventListener = patched;
+			try {
+				return {
+					value: build(),
+					listeners
+				};
+			} catch (error) {
+				for (const [type, listener, options] of listeners) window.removeEventListener(type, listener, options);
+				throw error;
+			} finally {
+				window.addEventListener = native;
+			}
+		}
+		/**
+		* The library decides that "the keyboard belongs to the grid" from the last
+		* window click, then handles arrows / ctrl+z / paste globally and calls
+		* `preventDefault()`. One click on a cell was enough to stop the caret keys
+		* from working in the composer — the card looked like it kept the focus.
+		*
+		* Keep the handlers registered (the click flag still needs updating) but skip
+		* them when the event is aimed at a text field outside the grid. Inside the
+		* grid, or on plain page chrome, they behave exactly as before.
+		*/
+		function scopeGlobalTypingToGrid(listeners, root) {
+			for (let index = 0; index < listeners.length; index += 1) {
+				const [type, listener, options] = listeners[index];
+				if (type !== "keydown" && type !== "paste") continue;
+				window.removeEventListener(type, listener, options);
+				const guarded = (event) => {
+					const target = event.target;
+					if (target instanceof Element && !root.contains(target) && target.closest("input, textarea, select, [contenteditable]:not([contenteditable=\"false\"])") !== null) return;
+					if (typeof listener === "function") listener.call(window, event);
+					else listener.handleEvent(event);
+				};
+				window.addEventListener(type, guarded, options);
+				listeners[index] = [
+					type,
+					guarded,
+					options
+				];
+			}
+		}
+		/**
+		* The cell editor is a textarea the library focuses on double-click. Focusing an
+		* element inside a clipped panel makes the browser scroll every ancestor to
+		* reveal it, which yanked the conversation column around whenever a cell was
+		* edited. Keep that focus from scrolling anything.
+		*/
+		function keepEditorFocusInPlace(root) {
+			const editor = root.querySelector("textarea");
+			if (!(editor instanceof HTMLTextAreaElement)) return;
+			const nativeFocus = editor.focus.bind(editor);
+			editor.focus = (options) => nativeFocus({
+				preventScroll: true,
+				...options
+			});
+		}
+		// src/client/index.tsx
 		/**
 		* dsh-excel-chat browser half: registers per-tool renderers into the keyed
 		* `tool.call.toolview` seat, so selecting an excel_* tool row in chat shows a
@@ -8615,43 +8765,25 @@ window.__ModuleLoader__.load({
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin=\"dsh-excel-chat\"]") === null) {
 			const style = document.createElement("style");
 			style.dataset.plugin = "dsh-excel-chat";
-			style.textContent = xspreadsheet_css_default;
+			style.textContent = _css_7c2228508ed6_default;
 			document.head.appendChild(style);
 		}
 		function settledText(block) {
 			if (!("kind" in block)) return null;
 			return block.content.map((item) => item.type === "text" ? item.text : JSON.stringify(item)).join("\n") || null;
 		}
-		function cellText(value, formula) {
-			if (formula) return formula;
-			if (value === null || value === void 0) return "";
-			if (typeof value === "object") return JSON.stringify(value);
-			return String(value);
-		}
-		/** 1-based column index → letters ("A", "Z", "AA"), matching Excel addressing. */
-		function columnName(index) {
-			let name = "";
-			let value = index;
-			while (value > 0) {
-				const remainder = (value - 1) % 26;
-				name = `${String.fromCharCode(65 + remainder)}${name}`;
-				value = Math.floor((value - remainder - 1) / 26);
-			}
-			return name;
-		}
 		/** Inline viewport height; the fullscreen overlay uses most of the window. */
 		const INLINE_VIEW_HEIGHT = 560;
-		/** Display caps: bigger sheets get a truncation notice instead of silent loss. */
-		const MAX_RENDER_ROWS = 2e3;
-		const MAX_RENDER_COLS = 100;
 		/** Real spreadsheet grid (Excel-like) for excel_read / excel_preview results. */
 		function SpreadsheetView({ sheets, editable, onCellEdited }) {
 			const ref = (0, react.useRef)(null);
-			const ssRef = (0, react.useRef)(null);
+			/** Current inner width of the column; the grid's view.width reads it. */
+			const widthRef = (0, react.useRef)(0);
 			const [initError, setInitError] = (0, react.useState)(null);
 			const [fullscreen, setFullscreen] = (0, react.useState)(false);
 			const [viewportTick, setViewportTick] = (0, react.useState)(0);
-			const [truncated, setTruncated] = (0, react.useState)(false);
+			const layout = (0, react.useMemo)(() => measureSheets(sheets, fullscreen), [sheets, fullscreen]);
+			const viewHeight = fullscreen ? Math.max(320, window.innerHeight - 96) : INLINE_VIEW_HEIGHT;
 			(0, react.useEffect)(() => {
 				if (!fullscreen) return;
 				const onResize = () => setViewportTick((tick) => tick + 1);
@@ -8667,78 +8799,70 @@ window.__ModuleLoader__.load({
 			}, [fullscreen]);
 			(0, react.useEffect)(() => {
 				const el = ref.current;
-				if (!el) return;
+				if (el === null) return;
+				const focusedBefore = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+				let listeners = [];
+				let observer = null;
 				try {
-					const maxRows = Math.max(...sheets.map((sheet) => {
-						const rows = sheet.cells.map((cell) => Number(/(\d+)$/.exec(cell.id.split("!").pop() ?? "")?.[1] ?? 0));
-						return rows.length > 0 ? Math.max(...rows) : 1;
-					}));
-					const maxCols = Math.max(...sheets.map((sheet) => {
-						const cols = sheet.cells.map((cell) => {
-							const match = /([A-Za-z]+)\d+$/.exec(cell.id.split("!").pop() ?? "");
-							return match ? [...match[1]].reduce((acc, char) => acc * 26 + (char.toUpperCase().charCodeAt(0) - 64), 0) : 0;
-						});
-						return cols.length > 0 ? Math.max(...cols) : 1;
-					}));
-					const overflowRows = Math.max(0, maxRows - MAX_RENDER_ROWS);
-					const overflowCols = Math.max(0, maxCols - MAX_RENDER_COLS);
-					setTruncated(overflowRows > 0 || overflowCols > 0);
-					const colCount = Math.min(MAX_RENDER_COLS, Math.max(5, maxCols));
-					const rowCount = Math.min(MAX_RENDER_ROWS, Math.max(10, maxRows));
-					const viewHeight = fullscreen ? Math.max(320, window.innerHeight - 96) : INLINE_VIEW_HEIGHT;
-					const ss = Spreadsheet(el, {
+					widthRef.current = el.clientWidth || document.documentElement.clientWidth;
+					const built = captureWindowListeners(() => Spreadsheet(el, {
 						mode: editable ? "edit" : "read",
 						showToolbar: false,
 						showGrid: true,
 						row: {
-							len: rowCount,
+							len: layout.rows,
 							height: 24
 						},
 						col: {
-							len: colCount,
+							len: layout.cols,
 							width: 110
 						},
-						view: { height: () => viewHeight }
-					});
-					const data = sheets.map((sheet) => {
-						const rows = {};
-						for (const cell of sheet.cells) {
-							const body = cell.id.split("!").pop() ?? "";
-							const colMatch = /([A-Za-z]+)\d+$/.exec(body);
-							const rowMatch = /(\d+)$/.exec(body);
-							if (!colMatch || !rowMatch) continue;
-							const colIndex = [...colMatch[1]].reduce((acc, char) => acc * 26 + (char.toUpperCase().charCodeAt(0) - 64), 0) - 1;
-							const rowIndex = Number(rowMatch[1]) - 1;
-							const rowsOf = rows[rowIndex] ??= { cells: {} };
-							rowsOf.cells[colIndex] = { text: cellText(cell.value, cell.formula) };
+						view: {
+							height: () => viewHeight,
+							width: () => widthRef.current
 						}
-						return {
-							name: sheet.sheet,
-							rows
-						};
-					});
-					ss.loadData(data);
+					}));
+					const ss = built.value;
+					listeners = built.listeners;
+					ss.loadData(toGridData(sheets));
 					if (editable) ss.on("cell-edited", (editedCell, rowIndex, colIndex) => {
 						const sheetName = sheets[0]?.sheet ?? "Sheet1";
 						const text = editedCell && typeof editedCell === "object" ? String(editedCell.text ?? "") : "";
-						onCellEdited(`${sheetName}!${columnName(colIndex + 1)}${rowIndex + 1}`, text);
+						onCellEdited(`${sheetName}!${columnName(Number(colIndex) + 1)}${Number(rowIndex) + 1}`, text);
 					});
-					ssRef.current = ss;
+					scopeGlobalTypingToGrid(listeners, el);
+					keepEditorFocusInPlace(el);
+					observer = new ResizeObserver(() => {
+						const width = el.clientWidth;
+						if (width <= 0 || width === widthRef.current) return;
+						widthRef.current = width;
+						ss.sheet?.reload();
+					});
+					observer.observe(el);
 					setInitError(null);
+					requestAnimationFrame(() => {
+						if (!el.contains(document.activeElement)) return;
+						if (focusedBefore !== null && focusedBefore.isConnected) focusedBefore.focus({ preventScroll: true });
+						else document.activeElement?.blur();
+					});
 				} catch (error) {
 					setInitError(error instanceof Error ? error.message : String(error));
 				}
 				return () => {
-					ssRef.current = null;
+					if (observer !== null) observer.disconnect();
+					for (const [type, listener, options] of listeners) window.removeEventListener(type, listener, options);
 					el.innerHTML = "";
 				};
 			}, [
 				sheets,
 				editable,
 				fullscreen,
-				viewportTick
+				viewportTick,
+				layout.rows,
+				layout.cols,
+				viewHeight
 			]);
-			const truncationNotice = truncated ? `表格较大：已显示前 ${MAX_RENDER_ROWS} 行 × ${MAX_RENDER_COLS} 列，点「全屏」可看更多` : null;
+			const truncationNotice = layout.truncated ? fullscreen ? `表格较大：已显示前 ${layout.capRows} 行 × ${layout.capCols} 列，已达全屏显示上限` : `表格较大：已显示前 ${layout.capRows} 行 × ${layout.capCols} 列，点「全屏」可看更多（${FULLSCREEN_RENDER_ROWS} 行 × 500 列）` : null;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				style: fullscreen ? {
 					position: "fixed",
@@ -8773,7 +8897,8 @@ window.__ModuleLoader__.load({
 						style: fullscreen ? { overflow: "hidden" } : {
 							border: "1px solid #d0d7de",
 							borderRadius: 6,
-							overflow: "hidden"
+							overflow: "hidden",
+							minHeight: INLINE_VIEW_HEIGHT
 						}
 					}),
 					truncationNotice !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -8976,11 +9101,24 @@ window.__ModuleLoader__.load({
 			const [savedNote, setSavedNote] = (0, react.useState)(null);
 			const [dataVersion, setDataVersion] = (0, react.useState)(0);
 			const text = settledText(block);
+			/**
+			* Parse once per result, not once per render.
+			*
+			* `JSON.parse` in the render body handed the grid a brand-new `sheets` array
+			* on every render of the conversation. The grid's effect keys off that array,
+			* so each pass tore the spreadsheet down and rebuilt it; the rebuild forces
+			* layout against an emptied card, which resets the surrounding scroll
+			* container — the output jumped to the top and then back down, over and over.
+			*/
+			const parsed = (0, react.useMemo)(() => {
+				if (text === null) return null;
+				try {
+					return JSON.parse(text);
+				} catch {
+					return null;
+				}
+			}, [text]);
 			if (text === null) return null;
-			let parsed = null;
-			try {
-				parsed = JSON.parse(text);
-			} catch {}
 			const canEdit = TABLE_TOOLS.has(toolName) && typeof inputActions?.setDraft === "function";
 			if (TABLE_TOOLS.has(toolName) && parsed !== null) {
 				const value = parsed;
@@ -9132,7 +9270,6 @@ window.__ModuleLoader__.load({
 				key: tool
 			}, ExcelToolView)), `dsh-excel-chat: toolview ${tool}`);
 		}
-		//#endregion
 		exports.ExcelToolView = ExcelToolView;
 		exports.apply = apply;
 		exports.inject = inject;
