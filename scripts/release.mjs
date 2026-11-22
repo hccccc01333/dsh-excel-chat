@@ -44,6 +44,18 @@ function run(command, argv, options = {}) {
   return execFileSync(command, argv, { cwd: ROOT, encoding: 'utf8', stdio: options.quiet ? 'pipe' : 'inherit' })
 }
 
+// Windows npm is a .cmd shim: Node cannot spawn it directly (ENOENT/EINVAL),
+// so launch it through the shell there.
+function runNpm(argv, options = {}) {
+  const win32 = process.platform === 'win32'
+  return execFileSync(win32 ? 'npm.cmd' : 'npm', argv, {
+    cwd: ROOT,
+    encoding: 'utf8',
+    shell: win32,
+    stdio: options.quiet ? 'pipe' : 'inherit',
+  })
+}
+
 if (version === undefined) fail('usage: node scripts/release.mjs <version> [--dry-run] [--no-push]')
 if (!/^\d+\.\d+\.\d+$/.test(version)) fail(`version ${JSON.stringify(version)} is not X.Y.Z`)
 
@@ -85,7 +97,7 @@ writeFileSync(BUNDLE_MANIFEST, readFileSync(BUNDLE_MANIFEST, 'utf8').replace(
   `"version": "${current}"`,
   `"version": "${version}"`,
 ))
-run('npm', ['version', version, '--no-git-tag-version', '--allow-same-version'], { quiet: true })
+runNpm(['version', version, '--no-git-tag-version', '--allow-same-version'], { quiet: true })
 
 // 2. Date the notes. The body is untouched: this script does not write prose.
 const today = new Date()
@@ -126,7 +138,7 @@ for (const file of docFiles(ROOT)) {
 }
 
 // 3. The published bundle must match the tag, so rebuild before testing.
-run('npm', ['run', 'build:bundle'])
+runNpm(['run', 'build:bundle'])
 run('node', ['--test', 'tests/*.test.ts'])
 
 // 4. Commit, tag, push. The tag push is what starts the publish workflow.
