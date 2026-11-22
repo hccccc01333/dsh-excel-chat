@@ -6,14 +6,14 @@ window.__ModuleLoader__.load({
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 		// \0rolldown/runtime.js
 		var __defProp = Object.defineProperty;
-		var __exportAll = (all, no_symbols) => {
-			let target = {};
+		var __exportAll = (all, flags) => {
+			let target = Object.setPrototypeOf({}, null);
 			for (var name in all) __defProp(target, name, {
 				get: all[name],
 				enumerable: true
 			});
-			if (!no_symbols) __defProp(target, Symbol.toStringTag, { value: "Module" });
-			return target;
+			if (!(flags & 1)) __defProp(target, Symbol.toStringTag, { value: "Module" });
+			return flags & 2 ? target : Object.preventExtensions(target);
 		};
 		let react = require("react");
 		let react_jsx_runtime = require("react/jsx-runtime");
@@ -1333,8 +1333,8 @@ window.__ModuleLoader__.load({
 							key: "each",
 							value: function(t) {
 								Object.entries(this._).forEach(function(e) {
-									var n = H(e, 2), r = n[0], i = n[1];
-									t(r, i);
+									var n = H(e, 2);
+									t(n[0], n[1]);
 								});
 							}
 						},
@@ -1342,8 +1342,8 @@ window.__ModuleLoader__.load({
 							key: "eachCells",
 							value: function(t, e) {
 								this._[t] && this._[t].cells && Object.entries(this._[t].cells).forEach(function(t) {
-									var n = H(t, 2), r = n[0], i = n[1];
-									e(r, i);
+									var n = H(t, 2);
+									e(n[0], n[1]);
 								});
 							}
 						},
@@ -1806,8 +1806,8 @@ window.__ModuleLoader__.load({
 					], [{
 						key: "valueOf",
 						value: function(e) {
-							var n = e.refs, r = e.mode, i = e.type, o = e.required, a = e.operator, l = e.value;
-							return new t(r, n, new J(i, o, l, a));
+							var n = e.refs, r = e.mode, i = e.type, o = e.required, a = e.operator;
+							return new t(r, n, new J(i, o, e.value, a));
 						}
 					}]), t;
 				}(), rt = function() {
@@ -1835,7 +1835,7 @@ window.__ModuleLoader__.load({
 						{
 							key: "add",
 							value: function(t, e, n) {
-								var r = n.type, i = n.required, o = n.value, a = n.operator, l = new J(r, i, o, a), c = this.getByValidator(l);
+								var l = new J(n.type, n.required, n.value, n.operator), c = this.getByValidator(l);
 								null !== c ? c.addRef(e) : this._.push(new nt(t, [e], l));
 							}
 						},
@@ -4743,8 +4743,7 @@ window.__ModuleLoader__.load({
 									v.eri = d, g.restore(), g.save(), g.translate(h, p), f < 1 && g.scale(f, f);
 									var k = y;
 									e.eachMergesInView(v, function(t) {
-										var n = t.sri, r = t.sci;
-										tn(g, e, n, r, k);
+										tn(g, e, t.sri, t.sci, k);
 									}), g.restore(), v.sri = v.eri, v.sci = v.eci, y += l, t.contentEl.child(a("div", "".concat(kt, "-canvas-card-wraper")).child(u.child(b)));
 								}, g = 0; g < u; g += 1) b();
 								this.el.show();
@@ -5227,12 +5226,11 @@ window.__ModuleLoader__.load({
 					}(e, _n), n = e, (r = [{
 						key: "dropdown",
 						value: function() {
-							var t = this.value;
 							return new Wn([
 								"left",
 								"center",
 								"right"
-							], t);
+							], this.value);
 						}
 					}]) && qn(n.prototype, r), i && qn(n, i), e;
 				}();
@@ -5282,12 +5280,11 @@ window.__ModuleLoader__.load({
 					}(e, _n), n = e, (r = [{
 						key: "dropdown",
 						value: function() {
-							var t = this.value;
 							return new Wn([
 								"top",
 								"middle",
 								"bottom"
-							], t);
+							], this.value);
 						}
 					}]) && Xn(n.prototype, r), i && Xn(n, i), e;
 				}();
@@ -6197,8 +6194,7 @@ window.__ModuleLoader__.load({
 					}(e, _n), n = e, (r = [{
 						key: "dropdown",
 						value: function() {
-							var t = this.tag, e = this.value;
-							return new Br(t, e);
+							return new Br(this.tag, this.value);
 						}
 					}]) && Ri(n.prototype, r), i && Ri(n, i), e;
 				}();
@@ -6248,8 +6244,7 @@ window.__ModuleLoader__.load({
 					}(e, _n), n = e, (r = [{
 						key: "dropdown",
 						value: function() {
-							var t = this.tag, e = this.value;
-							return new Br(t, e);
+							return new Br(this.tag, this.value);
 						}
 					}]) && Ni(n.prototype, r), i && Ni(n, i), e;
 				}();
@@ -8660,6 +8655,9 @@ window.__ModuleLoader__.load({
 				};
 			});
 		}
+		// src/client/dom-guards.ts
+		/** Anything a person types into — the grid's global shortcuts must stay out of it. */
+		const TYPING_SELECTOR = "input, textarea, select, [contenteditable]:not([contenteditable=\"false\"])";
 		/**
 		* Record the window listeners added while `build()` runs, so unmount can remove
 		* them. The library has no `destroy()`; `el.innerHTML = ''` leaves
@@ -8720,19 +8718,25 @@ window.__ModuleLoader__.load({
 			}
 		}
 		/**
-		* The cell editor is a textarea the library focuses on double-click. Focusing an
-		* element inside a clipped panel makes the browser scroll every ancestor to
-		* reveal it, which yanked the conversation column around whenever a cell was
-		* edited. Keep that focus from scrolling anything.
+		* Every focusable element the grid owns must keep focus local: a plain `focus()`
+		* scrolls all ancestors to reveal the target, which yanks the conversation
+		* column around whenever a cell is selected or edited.
+		*
+		* The editor textarea is only half of it. The library also focuses a 0-width
+		* hidden input on **every** cell selection (`Selector.setAreaOffset`), so
+		* clicking around a card repeatedly pulls focus into it and can drag the
+		* surrounding scroll container. Patch both, and leave focusables outside the
+		* grid (the chat composer) untouched.
 		*/
-		function keepEditorFocusInPlace(root) {
-			const editor = root.querySelector("textarea");
-			if (!(editor instanceof HTMLTextAreaElement)) return;
-			const nativeFocus = editor.focus.bind(editor);
-			editor.focus = (options) => nativeFocus({
-				preventScroll: true,
-				...options
-			});
+		function keepGridFocusInPlace(root) {
+			const focusables = root.querySelectorAll(TYPING_SELECTOR);
+			for (const focusable of focusables) {
+				const nativeFocus = focusable.focus.bind(focusable);
+				focusable.focus = (options) => nativeFocus({
+					preventScroll: true,
+					...options
+				});
+			}
 		}
 		// src/client/index.tsx
 		/**
@@ -8760,6 +8764,14 @@ window.__ModuleLoader__.load({
 		const DIFF_TOOLS = /* @__PURE__ */ new Set(["excel_autofix", "excel_task"]);
 		const inject = ["slots", "remote.commands"];
 		const Spreadsheet = window.x_spreadsheet ?? void 0 ?? xspreadsheet_exports;
+		/** Call the command service across both host shapes and return its outcome. */
+		async function runCommand(line, sessionId) {
+			if (commandsRemote === null) throw new Error("命令服务未就绪");
+			const value = "has" in commandsRemote && typeof commandsRemote.has === "function" ? await commandsRemote.execute(line, []) : await commandsRemote.execute(sessionId, line);
+			const result = value.value?.result ?? value.result;
+			if (result === void 0 || typeof result.kind !== "string") throw new Error("命令服务返回了意外的结果");
+			return result;
+		}
 		/** Set once by the client plugin body; used by the toolview for in-place edits. */
 		let commandsRemote = null;
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin=\"dsh-excel-chat\"]") === null) {
@@ -8831,7 +8843,7 @@ window.__ModuleLoader__.load({
 						onCellEdited(`${sheetName}!${columnName(Number(colIndex) + 1)}${Number(rowIndex) + 1}`, text);
 					});
 					scopeGlobalTypingToGrid(listeners, el);
-					keepEditorFocusInPlace(el);
+					keepGridFocusInPlace(el);
 					observer = new ResizeObserver(() => {
 						const width = el.clientWidth;
 						if (width <= 0 || width === widthRef.current) return;
@@ -9135,11 +9147,11 @@ window.__ModuleLoader__.load({
 							return;
 						}
 						try {
-							const result = (await commandsRemote.execute(String(props.sessionId), `/excel-set ${JSON.stringify({
+							const result = await runCommand(`/excel-set ${JSON.stringify({
 								path: filePath,
 								cell: cellId,
 								value: newValue
-							})}`)).result;
+							})}`, String(props.sessionId));
 							if (result.kind === "success") setSavedNote({
 								kind: "success",
 								text: `已就地保存：${result.text ?? `${cellId} = ${newValue}`}`
@@ -9158,7 +9170,7 @@ window.__ModuleLoader__.load({
 					const rollback = async () => {
 						if (!filePath || !commandsRemote) return;
 						try {
-							const result = (await commandsRemote.execute(String(props.sessionId), `/excel-undo ${JSON.stringify({ path: filePath })}`)).result;
+							const result = await runCommand(`/excel-undo ${JSON.stringify({ path: filePath })}`, String(props.sessionId));
 							if (result.kind === "success") {
 								setDataVersion((version) => version + 1);
 								setSavedNote({

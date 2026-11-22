@@ -1,11 +1,12 @@
 import { Context } from '@deepseek-ai/cordis'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import * as NativeExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import ExcelJS from 'exceljs'
 import { fileURLToPath } from 'node:url'
 import { mkdir, writeFile } from 'node:fs/promises'
 import * as plugin from '../src/index.ts'
+import { executeOne } from './execute-one.ts'
 
 const path = fileURLToPath(new URL('../fixtures/silent-error.xlsx', import.meta.url))
 
@@ -21,14 +22,10 @@ await writeFile(path, await workbook.xlsx.writeBuffer())
 const ctx = new Context()
 await ctx.plugin(SystemPrompt)
 await ctx.plugin(ToolRuntime)
+await ctx.plugin(NativeExecutor)
 await ctx.plugin(plugin)
 
-const result = await ctx.tools.execute({
-  signal: new AbortController().signal,
-  callId: ToolCallId('vera-workbook-1'),
-  name: 'excel_validate_formulas',
-  arguments: { path },
-})
+const result = await executeOne(ctx, 'vera-workbook-1', 'excel_validate_formulas', { path })
 
 console.log('workbook:', path)
 console.log('isError:', result.isError)

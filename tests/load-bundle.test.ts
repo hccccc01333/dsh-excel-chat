@@ -6,9 +6,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import * as NativeExecutor from '@deepseek-ai/dsh-tool-executor-native'
+import { executeOne } from './execute-one.ts'
 
 const bundleDir = fileURLToPath(new URL('../bundle', import.meta.url))
 const bundleUrl = pathToFileURL(join(bundleDir, 'dist/index.js')).href
@@ -39,6 +40,8 @@ test('unloading the plugin unregisters its tools (issue #2 ctx.effect)', async (
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  // dsh 0.2.2 moved execution out of dsh-tools into an explicit executor plugin.
+  await ctx.plugin(NativeExecutor)
   const fiber = await ctx.plugin(plugin)
   assert.ok(ctx.tools.get('excel_operate'), 'tool should be registered while loaded')
   await fiber.dispose()
@@ -50,18 +53,15 @@ test('built bundle loads as a plugin and runs a tool', async () => {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  // dsh 0.2.2 moved execution out of dsh-tools into an explicit executor plugin.
+  await ctx.plugin(NativeExecutor)
   await ctx.plugin(plugin)
-  const result = await ctx.tools.execute({
-    signal: new AbortController().signal,
-    callId: ToolCallId('vera-bundle-1'),
-    name: 'excel_validate_formulas',
-    arguments: {
-      cells: {
-        D2: '=B2-C2',
-        D3: '=B3-C3',
-        D4: '=B4-C3',
-        D5: '=B5-C5',
-      },
+  const result = await executeOne(ctx, 'vera-bundle-1', 'excel_validate_formulas', {
+    cells: {
+      D2: '=B2-C2',
+      D3: '=B3-C3',
+      D4: '=B4-C3',
+      D5: '=B5-C5',
     },
   })
   assert.equal(result.isError, false)
@@ -84,16 +84,13 @@ test('excel_operate runs through the plugin context and re-validates', async () 
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  // dsh 0.2.2 moved execution out of dsh-tools into an explicit executor plugin.
+  await ctx.plugin(NativeExecutor)
   await ctx.plugin(plugin)
-  const result = await ctx.tools.execute({
-    signal: new AbortController().signal,
-    callId: ToolCallId('vera-bundle-operate-1'),
-    name: 'excel_operate',
-    arguments: {
-      path: input,
-      operations: [{ op: 'set', cells: { 'Sheet1!D4': '=B4-C3' } }],
-      outPath: output,
-    },
+  const result = await executeOne(ctx, 'vera-bundle-operate-1', 'excel_operate', {
+    path: input,
+    operations: [{ op: 'set', cells: { 'Sheet1!D4': '=B4-C3' } }],
+    outPath: output,
   })
   assert.equal(result.isError, false)
   const value = result.value as {
@@ -122,18 +119,15 @@ test('excel_task names the missing field instead of crashing on a malformed step
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  // dsh 0.2.2 moved execution out of dsh-tools into an explicit executor plugin.
+  await ctx.plugin(NativeExecutor)
   await ctx.plugin(plugin)
-  const result = await ctx.tools.execute({
-    signal: new AbortController().signal,
-    callId: ToolCallId('vera-bundle-task-1'),
-    name: 'excel_task',
-    arguments: {
-      path: input,
-      steps: [{
-        name: 'sort',
-        operations: [{ op: 'sortRange', range: 'Sheet1!A1:B2', keys: [{ direction: 'desc' }] }],
-      }],
-    },
+  const result = await executeOne(ctx, 'vera-bundle-task-1', 'excel_task', {
+    path: input,
+    steps: [{
+      name: 'sort',
+      operations: [{ op: 'sortRange', range: 'Sheet1!A1:B2', keys: [{ direction: 'desc' }] }],
+    }],
   })
   assert.equal(result.isError, true)
   const message = JSON.stringify(result.error ?? result.value)
@@ -155,13 +149,10 @@ test('excel_read runs through the plugin context and returns lossless JSON', asy
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  // dsh 0.2.2 moved execution out of dsh-tools into an explicit executor plugin.
+  await ctx.plugin(NativeExecutor)
   await ctx.plugin(plugin)
-  const result = await ctx.tools.execute({
-    signal: new AbortController().signal,
-    callId: ToolCallId('vera-bundle-read-1'),
-    name: 'excel_read',
-    arguments: { path: input },
-  })
+  const result = await executeOne(ctx, 'vera-bundle-read-1', 'excel_read', { path: input })
   assert.equal(result.isError, false)
   const value = result.value as { sheets: Array<{ cells: Array<{ id: string; value: number; bold?: boolean }> }> }
   const cell = value.sheets[0]!.cells.find((entry) => entry.id === 'Sheet1!A1')
@@ -187,13 +178,10 @@ test('the language config option switches user-facing output', async () => {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  // dsh 0.2.2 moved execution out of dsh-tools into an explicit executor plugin.
+  await ctx.plugin(NativeExecutor)
   await ctx.plugin(plugin, { language: 'en' })
-  const result = await ctx.tools.execute({
-    signal: new AbortController().signal,
-    callId: ToolCallId('vera-bundle-i18n-1'),
-    name: 'excel_insight',
-    arguments: { path: input },
-  })
+  const result = await executeOne(ctx, 'vera-bundle-i18n-1', 'excel_insight', { path: input })
   assert.equal(result.isError, false)
   const value = result.value as { summary: string; suggestions: string[] }
   assert.match(value.summary, /worksheet\(s\)/)

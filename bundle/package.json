@@ -43,7 +43,6 @@
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-ui-tool"
       ],
       "platform": "web"
@@ -58,7 +57,7 @@
     "access": "public"
   },
   "engines": {
-    "node": "^22.19 || >=24"
+    "node": ">=24.9.0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",

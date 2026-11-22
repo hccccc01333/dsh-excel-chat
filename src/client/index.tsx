@@ -12,7 +12,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import * as XSpreadsheetModule from 'x-data-spreadsheet/dist/xspreadsheet.js'
 import xspreadsheetCss from 'x-data-spreadsheet/dist/xspreadsheet.css'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -26,7 +25,7 @@ import {
 } from './view-model.ts'
 import {
   captureWindowListeners,
-  keepEditorFocusInPlace,
+  keepGridFocusInPlace,
   scopeGlobalTypingToGrid,
   type WindowListener,
 } from './dom-guards.ts'
@@ -55,8 +54,53 @@ const Spreadsheet = (
   ?? XSpreadsheetModule
 ) as (el: HTMLElement, options: Record<string, unknown>) => GridInstance
 
+/**
+ * Minimal Client context surface. `@deepseek-ai/dsh-client-runtime` was removed
+ * in DSH 0.2.2, so name only what this plugin actually calls.
+ */
+interface ClientContext {
+  get(name: string): unknown
+  effect(callback: () => void | (() => void), label?: string): void
+  slots: {
+    inject(name: string, factory: () => unknown): unknown
+    register(entry: { name: string; key: string }, component: unknown): unknown
+  }
+}
+
+interface CommandOutcome {
+  kind: string
+  text?: string
+}
+
+/**
+ * `remote.commands` exists in both 0.2.1 and 0.2.2, but 0.2.2 mounts it through
+ * the typed Remote gateway: the agent is injected from context, so the caller
+ * passes `(line, attachments)` and gets `{ ok, value: { result } }`. The old
+ * service took `(sessionId, line)` and returned `{ result }` directly.
+ */
 interface CommandsRemote {
-  execute(sessionId: string, line: string): Promise<{ result: { kind: string; text?: string } }>
+  execute(...args: unknown[]): Promise<unknown>
+  /** Present on the 0.2.2 typed Remote namespace service, absent on the legacy one. */
+  has?: unknown
+}
+
+/** Call the command service across both host shapes and return its outcome. */
+async function runCommand(line: string, sessionId: string): Promise<CommandOutcome> {
+  if (commandsRemote === null) throw new Error('命令服务未就绪')
+  const isGatewayRemote = 'has' in commandsRemote && typeof commandsRemote.has === 'function'
+  const outcome = isGatewayRemote
+    ? await commandsRemote.execute(line, [])
+    : await commandsRemote.execute(sessionId, line)
+  const value = outcome as {
+    ok?: boolean
+    value?: { result?: CommandOutcome }
+    result?: CommandOutcome
+  }
+  const result = value.value?.result ?? value.result
+  if (result === undefined || typeof result.kind !== 'string') {
+    throw new Error('命令服务返回了意外的结果')
+  }
+  return result
 }
 
 /** Set once by the client plugin body; used by the toolview for in-place edits. */
@@ -159,7 +203,7 @@ function SpreadsheetView({
         })
       }
       scopeGlobalTypingToGrid(listeners, el)
-      keepEditorFocusInPlace(el)
+      keepGridFocusInPlace(el)
       // The column can be resized without the window resizing, and the grid
       // sizes its canvas from the width it saw at construction.
       observer = new ResizeObserver(() => {
@@ -405,11 +449,10 @@ export function ExcelToolView(props: ToolCallViewProps): ReactNode {
           return
         }
         try {
-          const outcome = await commandsRemote!.execute(
-            String(props.sessionId),
+          const result = await runCommand(
             `/excel-set ${JSON.stringify({ path: filePath, cell: cellId, value: newValue })}`,
+            String(props.sessionId),
           )
-          const result = outcome.result
           if (result.kind === 'success') {
             setSavedNote({ kind: 'success', text: `已就地保存：${result.text ?? `${cellId} = ${newValue}`}` })
           } else {
@@ -422,8 +465,10 @@ export function ExcelToolView(props: ToolCallViewProps): ReactNode {
       const rollback = async () => {
         if (!filePath || !commandsRemote) return
         try {
-          const outcome = await commandsRemote!.execute(String(props.sessionId), `/excel-undo ${JSON.stringify({ path: filePath })}`)
-          const result = outcome.result
+          const result = await runCommand(
+            `/excel-undo ${JSON.stringify({ path: filePath })}`,
+            String(props.sessionId),
+          )
           if (result.kind === 'success') {
             setDataVersion((version) => version + 1)
             setSavedNote({ kind: 'success', text: `已回滚：${result.text ?? ''}` })

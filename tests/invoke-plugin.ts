@@ -1,12 +1,14 @@
 import { Context } from '@deepseek-ai/cordis'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import * as NativeExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import * as plugin from '../src/index.ts'
+import { executeOne } from './execute-one.ts'
 
 const ctx = new Context()
 await ctx.plugin(SystemPrompt)
 await ctx.plugin(ToolRuntime)
+await ctx.plugin(NativeExecutor)
 await ctx.plugin(plugin)
 
 const schema = ctx.tools.schemas().find((entry) => entry.name === 'excel_validate_formulas')
@@ -15,17 +17,12 @@ if (!schema) {
 }
 console.log('schema registered:', schema.name)
 
-const result = await ctx.tools.execute({
-  signal: new AbortController().signal,
-  callId: ToolCallId('vera-p0-1'),
-  name: 'excel_validate_formulas',
-  arguments: {
-    cells: {
-      D2: '=B2-C2',
-      D3: '=B3-C3',
-      D4: '=B4-C3',
-      D5: '=B5-C5',
-    },
+const result = await executeOne(ctx, 'vera-p0-1', 'excel_validate_formulas', {
+  cells: {
+    D2: '=B2-C2',
+    D3: '=B3-C3',
+    D4: '=B4-C3',
+    D5: '=B5-C5',
   },
 })
 

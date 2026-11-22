@@ -1,12 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { Context } from '@deepseek-ai/cordis'
-import { ToolCallId, LlmAdapter, LlmRuntime, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { LlmAdapter, LlmRuntime, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import * as NativeExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import ExcelJS from 'exceljs'
 import { fileURLToPath } from 'node:url'
 import * as plugin from '../src/index.ts'
+import { executeOne } from './execute-one.ts'
 
 const fixturePath = fileURLToPath(new URL('../fixtures/structure-mismatch.xlsx', import.meta.url))
 
@@ -44,21 +46,18 @@ test('excel_repair_formulas uses ctx.llm to repair structure mismatches', async 
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  // dsh 0.2.2 moved execution out of dsh-tools into an explicit executor plugin.
+  await ctx.plugin(NativeExecutor)
   await ctx.plugin(LlmRuntime)
   ctx.llm.registerAdapter(['fake'], new FakeLlmAdapter())
   await ctx.plugin(plugin)
 
-  const result = await ctx.tools.execute({
-    signal: new AbortController().signal,
-    callId: ToolCallId('vera-llm-wiring-1'),
-    name: 'excel_repair_formulas',
-    arguments: {
-      path: fixturePath,
-      useLlm: true,
-      provider: 'fake',
-      model: 'fake-model',
-      table: { sheet: 'Sheet1', columns: { revenue: 'B', cost: 'C' } },
-    },
+  const result = await executeOne(ctx, 'vera-llm-wiring-1', 'excel_repair_formulas', {
+    path: fixturePath,
+    useLlm: true,
+    provider: 'fake',
+    model: 'fake-model',
+    table: { sheet: 'Sheet1', columns: { revenue: 'B', cost: 'C' } },
   })
 
   assert.equal(result.isError, false)

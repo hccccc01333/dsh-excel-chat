@@ -48,6 +48,7 @@ const SUPPORTED_KERNELS = [
   '0.2.1-alpha.1',
   '0.2.1-alpha.5',
   '0.2.1-rc.2',
+  '0.2.2-rc.5',
 ]
 
 test('every published dsh kernel satisfies the bundle peer range', () => {

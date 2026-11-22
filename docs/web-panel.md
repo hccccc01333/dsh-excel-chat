@@ -62,8 +62,11 @@ web 布局插件（`dsh-client-ui-layout`）声明了**右侧详情列 slot `det
   `bundle/dist-client/client.js`（`__ModuleLoader__.load` 包裹，externals 走
   平台模块表；构建命令：`tsdown -c tsdown.client.config.ts`，用 harness
   工作区已装的 tsdown 运行）。
-- `bundle/package.json`：`exports["./client"]` + `dsh.client`（inject
-  runtime/ui-tool，platform web）+ `files` 含 `dist-client`。
+- `bundle/package.json`：`exports["./client"]` + `dsh.client`（inject ui-tool，
+  platform web）+ `files` 含 `dist-client`。DSH 0.2.2 移除了
+  `dsh-client-runtime`，命令通道改由核心的 typed Remote（`remote.commands`）
+  提供，所以 inject 只留实际存在的 ui-tool；客户端调用同时兼容新旧两种
+  `remote.commands.execute` 签名与返回结构。
 
 ## 实机验证（harness web + 真实模型）
 

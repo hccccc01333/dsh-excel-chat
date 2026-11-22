@@ -5,13 +5,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { Context } from '@deepseek-ai/cordis'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import * as NativeExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import * as plugin from '../src/index.ts'
 import { buildCorpusWorkbook } from '../src/corpus/helpers.ts'
 import { applyOperationsToWorkbook } from '../src/operations.ts'
 import { findUnpreservedParts } from '../src/safe-write.ts'
+import { executeOne } from './execute-one.ts'
 
 /**
  * Refusing to destroy what the writer cannot carry.
@@ -144,16 +145,17 @@ test('the gate holds through a real excel_operate call', async () => {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  // dsh 0.2.2 moved execution out of dsh-tools into an explicit executor plugin.
+  await ctx.plugin(NativeExecutor)
   await ctx.plugin(plugin)
 
   const path = await withPart(await fixture('tool'), 'xl/vbaProject.bin', 'macro')
   const before = await readFile(path)
   const call = (args: Record<string, unknown>) =>
-    ctx.tools.execute({
-      signal: new AbortController().signal,
-      callId: ToolCallId(`gate-${Math.random().toString(36).slice(2)}`),
-      name: 'excel_operate',
-      arguments: { path, operations: [{ op: 'set', cells: { '订单!B2': '11' } }], ...args },
+    executeOne(ctx, `gate-${Math.random().toString(36).slice(2)}`, 'excel_operate', {
+      path,
+      operations: [{ op: 'set', cells: { '订单!B2': '11' } }],
+      ...args,
     })
 
   // In place: refused, and the file on disk is untouched.

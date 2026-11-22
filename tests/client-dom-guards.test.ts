@@ -3,13 +3,16 @@ import assert from 'node:assert/strict'
 import { JSDOM } from 'jsdom'
 import {
   captureWindowListeners,
-  keepEditorFocusInPlace,
+  keepGridFocusInPlace,
   scopeGlobalTypingToGrid,
   type WindowListener,
 } from '../src/client/dom-guards.ts'
 
 const PAGE = `<!doctype html><html><body>
-  <div id="grid"><textarea id="editor"></textarea></div>
+  <div id="grid">
+    <textarea id="editor"></textarea>
+    <input id="hidden-input" style="width:0">
+  </div>
   <input id="composer">
 </body></html>`
 
@@ -113,20 +116,29 @@ test('paste is scoped the same way, and other window handlers are left alone', (
   assert.equal(listeners[1]![1], resize)
 })
 
-test('the cell editor is focused without scrolling its ancestors', () => {
+test('the editor and the hidden selection input focus without scrolling ancestors', () => {
   const { document: doc } = install()
   const grid = doc.getElementById('grid') as HTMLElement
   const editor = doc.getElementById('editor') as HTMLTextAreaElement
+  const hidden = doc.getElementById('hidden-input') as HTMLInputElement
+  const composer = doc.getElementById('composer') as HTMLInputElement
   const calls: Array<FocusOptions | undefined> = []
-  editor.focus = ((options?: FocusOptions): void => { calls.push(options) }) as typeof editor.focus
-  keepEditorFocusInPlace(grid)
+  for (const el of [editor, hidden, composer]) {
+    el.focus = ((options?: FocusOptions): void => { calls.push(options) }) as typeof el.focus
+  }
+  keepGridFocusInPlace(grid)
   editor.focus()
-  editor.focus({ preventScroll: true })
+  // x-data-spreadsheet's Selector.setAreaOffset focuses this on every selection.
+  hidden.focus()
   assert.deepEqual(calls, [{ preventScroll: true }, { preventScroll: true }])
+
+  // Focusables outside the grid are not patched.
+  composer.focus()
+  assert.deepEqual(calls, [{ preventScroll: true }, { preventScroll: true }, undefined])
 })
 
-test('a card without a grid textarea does not throw', () => {
+test('a card without a focusable element does not throw', () => {
   const { document: doc } = install()
   const empty = doc.createElement('div')
-  keepEditorFocusInPlace(empty)
+  keepGridFocusInPlace(empty)
 })

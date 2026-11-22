@@ -3,14 +3,15 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import * as NativeExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import { exportChartsWithExcel } from '../src/chart-visual.ts'
 import * as plugin from '../src/index.ts'
 import { deepseekChatWithTools, type DeepSeekMessage } from '../src/deepseek.ts'
 import { readWorkbookCells } from '../src/workbook.ts'
 import { makeSalesWorkbook } from './sales-fixture.ts'
+import { executeOne } from './execute-one.ts'
 
 if (!process.env.DEEPSEEK_API_KEY) {
   console.log('DEEPSEEK_API_KEY is not set; skipping real conversation invocation')
@@ -84,12 +85,7 @@ async function runConversation(
         args = { _parseError: `invalid JSON: ${call.function.arguments}` }
       }
       console.log(`tool: ${call.function.name}`, JSON.stringify(args).slice(0, 500))
-      const result = await ctx.tools.execute({
-        signal: new AbortController().signal,
-        callId: ToolCallId(`vera-conversation-${Date.now()}-${call.id}`),
-        name: call.function.name,
-        arguments: args ?? {},
-      })
+      const result = await executeOne(ctx, `vera-conversation-${Date.now()}-${call.id}`, call.function.name, args ?? {})
       const content = JSON.stringify(result.value ?? (result.isError ? { isError: true } : {}))
       messages.push({ role: 'tool', tool_call_id: call.id, content: content.slice(0, 8000) })
       console.log(`  -> isError=${result.isError}`)
@@ -101,6 +97,7 @@ async function runConversation(
 const ctx = new Context()
 await ctx.plugin(SystemPrompt)
 await ctx.plugin(ToolRuntime)
+await ctx.plugin(NativeExecutor)
 await ctx.plugin(plugin)
 const tools = ctx.tools.schemas().map((schema) => ({
   type: 'function',

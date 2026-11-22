@@ -72,14 +72,20 @@ export function scopeGlobalTypingToGrid(listeners: WindowListener[], root: HTMLE
 }
 
 /**
- * The cell editor is a textarea the library focuses on double-click. Focusing an
- * element inside a clipped panel makes the browser scroll every ancestor to
- * reveal it, which yanked the conversation column around whenever a cell was
- * edited. Keep that focus from scrolling anything.
+ * Every focusable element the grid owns must keep focus local: a plain `focus()`
+ * scrolls all ancestors to reveal the target, which yanks the conversation
+ * column around whenever a cell is selected or edited.
+ *
+ * The editor textarea is only half of it. The library also focuses a 0-width
+ * hidden input on **every** cell selection (`Selector.setAreaOffset`), so
+ * clicking around a card repeatedly pulls focus into it and can drag the
+ * surrounding scroll container. Patch both, and leave focusables outside the
+ * grid (the chat composer) untouched.
  */
-export function keepEditorFocusInPlace(root: HTMLElement): void {
-  const editor = root.querySelector('textarea')
-  if (!(editor instanceof HTMLTextAreaElement)) return
-  const nativeFocus = editor.focus.bind(editor)
-  editor.focus = (options?: FocusOptions): void => nativeFocus({ preventScroll: true, ...options })
+export function keepGridFocusInPlace(root: HTMLElement): void {
+  const focusables = root.querySelectorAll<HTMLElement>(TYPING_SELECTOR)
+  for (const focusable of focusables) {
+    const nativeFocus = focusable.focus.bind(focusable)
+    focusable.focus = (options?: FocusOptions): void => nativeFocus({ preventScroll: true, ...options })
+  }
 }

@@ -6,10 +6,11 @@ import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { Context } from '@deepseek-ai/cordis'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import * as NativeExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import { buildCorpusWorkbook } from '../src/corpus/helpers.ts'
+import { executeOne } from './execute-one.ts'
 
 /**
  * A host-level smoke test: boot the built bundle and prove the plugin is actually there.
@@ -85,6 +86,8 @@ async function boot(options: { withCommands?: boolean } = {}): Promise<Host & { 
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  // dsh 0.2.2 moved execution out of dsh-tools into an explicit executor plugin.
+  await ctx.plugin(NativeExecutor)
 
   const commands: string[] = []
   if (options.withCommands !== false) {
@@ -185,25 +188,15 @@ test('the plugin reads and writes a real file end to end', async () => {
   const seed = join(dir, 'smoke.xlsx')
   assert.ok(seed === path || (await readdir(dir)).some((name) => name.endsWith('.xlsx')))
 
-  const created = await ctx.tools.execute({
-    signal: new AbortController().signal,
-    callId: ToolCallId('smoke-create'),
-    name: 'excel_operate',
-    arguments: {
-      path: seed,
-      operations: [{ op: 'set', cells: { 'Sheet1!A1': 'hello', 'Sheet1!B1': '42' } }],
-    },
+  const created = await executeOne(ctx, 'smoke-create', 'excel_operate', {
+    path: seed,
+    operations: [{ op: 'set', cells: { 'Sheet1!A1': 'hello', 'Sheet1!B1': '42' } }],
   })
   assert.notEqual(created.isError, true, `editing the workbook failed: ${JSON.stringify(created.error ?? created.value)}`)
   const outputPath = (created.value as { outputPath?: string }).outputPath
   assert.ok(outputPath, 'the tool did not report where it wrote')
 
-  const read = await ctx.tools.execute({
-    signal: new AbortController().signal,
-    callId: ToolCallId('smoke-read'),
-    name: 'excel_read',
-    arguments: { path: outputPath },
-  })
+  const read = await executeOne(ctx, 'smoke-read', 'excel_read', { path: outputPath })
   assert.notEqual(read.isError, true, `reading the workbook failed: ${JSON.stringify(read.error ?? read.value)}`)
   const value = read.value as { sheets?: Array<{ cells?: Array<{ id: string; value: unknown }> }> }
   const cells = value.sheets?.flatMap((sheet) => sheet.cells ?? []) ?? []

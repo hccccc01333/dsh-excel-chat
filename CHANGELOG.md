@@ -28,10 +28,21 @@
   单元格，composer 里的方向键就失灵，看起来像卡片一直握着焦点。现在这两个
   全局处理器只对**网格外的文本输入**放行。编辑器 textarea 的 `focus()` 另加
   `preventScroll`，双击编辑单元格不再把整个输出列滚走；挂载时若焦点被塞进
-  网格，会还给原来的元素（不滚动）。
+  网格，会还给原来的元素（不滚动）。选中单元格时还会被聚焦的 0 宽隐藏 input
+  （`Selector.setAreaOffset`）同样加上 `preventScroll` —— 之前只护住了 textarea，
+  点格子仍会把焦点拽进卡片并可能滚动外层容器。
 
 - **卸载时收回 window 监听。** 库没有 `destroy()`，`resize/click/paste/keydown`
   全绑在 `window` 上；现在构造期记录下来，卸载时移除，不再每张卡片留一份。
+
+- **适配 DSH 0.2.2-rc.5（当前安装的内核）。** dsh-* 依赖升到 0.2.2-rc.5，
+  cordis 升到 4.1；包声明的 Node 下限改为 24.9（0.2.1 起弃用 Node 22）。
+  0.2.2 把工具执行从 `dsh-tools` 拆到了 `dsh-tool-executor-native`：所有自定义
+  composition（测试与 invoke 脚本）现在显式挂载执行器，程序调用改用
+  `calls: [{ id, name, arguments }]` 批次并从 `results[0].result` 取结果。
+  客户端侧 `dsh-client-runtime` 已被移除，`dsh.client.inject` 不再引用它；
+  `remote.commands` 改由 typed Remote 网关提供，`runCommand` 同时兼容新旧两种
+  调用签名与返回结构。
 
 - 新增 `tests/client-view-model.test.ts`（7 例：A1 地址解析、显示上限、网格载荷）
   与 `tests/client-dom-guards.test.ts`（6 例：window 监听回收、按键归属、编辑器
