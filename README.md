@@ -42,6 +42,7 @@
 
 ![dsh-excel-chat 能力一览](assets/feature-grid.png)
 
+需要 **Node ≥ 24.9**（直接执行 TypeScript 依赖 Node 内置类型擦除；低于此版本测试无法运行）。
 想先看它跑起来？克隆仓库后 `npm run demo` 会在示例文件上走完
 **改表 → 体检 → 修复 → 复验 → 输出**，打印引擎的真实输出 —— 不需要模型，也不需要先装 dsh。
 完整输出与上手步骤见 [5 分钟上手](#5-分钟上手)。
@@ -96,7 +97,7 @@ git clone https://github.com/hccccc01333/dsh-excel-chat && cd dsh-excel-chat
 npm install && npm run demo
 ```
 
-`npm run demo` 在示例文件的副本上跑一遍完整闭环，打印的是**引擎的真实输出**：
+`npm run demo` 在示例文件的副本上跑一遍完整闭环，打印的是**引擎的真实输出**（下面是节选）：
 
 ```text
 ① 改表   「按区域汇总金额，输出到新表」
@@ -187,14 +188,14 @@ dsh-excel-chat-doctor                              # npm 全局/npx 可用时
 
 | 工具 | 作用 |
 |---|---|
-| `excel_operate` | 精细化 Excel 操作，**77 种**（写值、增删行列、排序、报表模板、透视、关联、条件格式、图表之外的绝大多数格式与结构操作）——完整清单见下方折叠块 |
+| `excel_operate` | 精细化 Excel 操作，**80 种**（写值、增删行列、排序、报表模板、透视、关联、条件格式、图表、嵌入图片等绝大多数格式与结构操作）——完整清单见下方折叠块 |
 | `excel_task` | 两种模式：`steps` 多步编排（每步自动体检公式、坏了自动修）；`goal` Agent 闭环（LLM 规划步骤 → 执行 → 验证 → 未达成自动重规划，最多 maxRounds 轮） |
 | `excel_undo` | 按 `excel_operate` 自动生成的 `.patch.json` 审计日志回滚编辑 |
 
 <details>
-<summary><b><code>excel_operate</code> 的 77 种操作（点开）</b></summary>
+<summary><b><code>excel_operate</code> 的 80 种操作（点开）</b></summary>
 
-写值、填充/序列、行列增删、复制/移动/转置/仅粘贴值、格式刷（copyStyle）、公式转值（freezeFormulas）、唯一值提取（uniqueValues）、排名列（rankColumn）、排序（多键 / 按填充色或字体色 / 自定义序列）、`report` 一键报表模板（排序+汇总+动态透视+筛选+样式+冻结+格式）、分类汇总、动态透视报表、二维交叉透视表（crosstab）、两表精确关联回填（joinSheets，无公式 VLOOKUP）、高级筛选、样式（字号/字体/边框/删除线/旋转/缩进）、数据有效性、条件格式（数据条/色阶/图标集）、自动筛选、结构化表格、页面设置、页眉页脚（headerFooter）、打印分页符（rowPageBreaks）、打印标题行/列（printTitles）、命名区域、冻结/取消冻结窗格、缩放（setZoom）、网格线开关（showGridLines）、显示公式视图（showFormulas）、隐藏行列（hideRows/hideColumns）、行列分组折叠（groupRows/groupColumns）、自适应列宽（autoFitColumnWidths）、超链接（站内跳转与外部 URL）、单元格批注（addComment）、每行趋势迷你图（addSparklines）、嵌入图片（insertImage，png/jpeg/gif，可指定像素尺寸，纯 XML 层实现、跨平台不依赖 Excel）、导入/导出 CSV（importCsv/exportCsv，导出默认加公式注入防护）、查找替换、工作表保护（细化权限）、邮件合并、工作表管理（增删改名复制隐藏标签色/重排 moveSheet）、文档属性与打开时重算（setWorkbookProperties）、合并、取消全部合并（unmergeAll）、数据清洗（去重/填充缺失/删空行空列/去空格/大小写转换/全角半角标准化/分列（分隔符或固定宽度）/区域清除 clearRange）、整行条件高亮（highlightRows）、两表模糊匹配（fuzzyMatch）。
+写值、填充/序列、行列增删、复制/移动/转置/仅粘贴值、格式刷（copyStyle）、公式转值（freezeFormulas）、唯一值提取（uniqueValues）、排名列（rankColumn）、排序（多键 / 按填充色或字体色 / 自定义序列）、`report` 一键报表模板（排序+汇总+动态透视+筛选+样式+冻结+格式）、分类汇总、动态透视报表、二维交叉透视表（crosstab）、两表精确关联回填（joinSheets，无公式 VLOOKUP）、高级筛选、样式（字号/字体/边框/删除线/旋转/缩进）、数据有效性（可 `remove` 删除、`INDIRECT` 动态下拉）、条件格式（数据条/色阶/图标集）、自动筛选（可带条件：大于/小于/等于/包含等，结果写进 xlsx）、结构化表格、页面设置、页眉页脚（headerFooter）、打印分页符（rowPageBreaks）、打印标题行/列（printTitles）、命名区域、冻结/取消冻结窗格、缩放（setZoom）、网格线开关（showGridLines）、显示公式视图（showFormulas）、隐藏行列（hideRows/hideColumns）、行列分组折叠（groupRows/groupColumns）、自适应列宽（autoFitColumnWidths）、超链接（站内跳转与外部 URL）、单元格批注（addComment）、每行趋势迷你图（addSparklines）、嵌入图片（insertImage，png/jpeg/gif，可指定像素尺寸，纯 XML 层实现、跨平台不依赖 Excel）、建图表（addChart，column/bar/line/pie，支持多系列/图例/坐标轴标题，直接写进 xlsx，跨平台）、建原生透视表（pivot，含 pivotCache，支持行列交叉表、筛选与多度量，跨平台）、单元格保护（setCellProtection，锁定/解锁或隐藏公式，配合 protectSheet）、导入/导出 CSV（importCsv/exportCsv，导出默认加公式注入防护）、查找替换（整格匹配/正则/限定区域）、工作表保护（细化权限）、邮件合并、工作表管理（增删改名复制隐藏标签色/重排 moveSheet）、文档属性与打开时重算（setWorkbookProperties）、合并、取消全部合并（unmergeAll）、数据清洗（去重/填充缺失/删空行空列/去空格/大小写转换/全角半角标准化（`normalizeText` 加 `toNumber:true` 可把粘贴的金额文本转成真数字，支持千分位、货币符号、会计负数和百分比）/分列（分隔符或固定宽度）/区域清除 clearRange）、整行条件高亮（highlightRows）、两表模糊匹配（fuzzyMatch）。
 
 **每次操作后自动复验公式并写审计日志**，所以改坏了能查出来、也能回滚。
 
@@ -227,8 +228,9 @@ dsh-excel-chat-doctor                              # npm 全局/npx 可用时
 
 ## 评测与可靠性
 
-能力深度与可靠性进展：144 个职场任务的自建评测语料（ExcelBench lite），覆盖 77 个操作里的 73 个，
-goal 模式 + glm-5.3-flash 全量实测成功率 86%（DeepSeek 基线 52%）。
+能力深度与可靠性进展：自建评测语料 ExcelBench lite 现为 144 个职场任务，覆盖 77 个操作里的 73 个；
+**当前语料上的实测结果是 `step-5-preview-free` 88.9% 任务成功率**。早期 100 题语料上的
+86%（glm-5.3-flash）与 52%（DeepSeek 基线）题面更容易，**与当前数字不可比**，仅作历史记录。
 **逐次跑分的公开结果表见 [docs/benchmark-results.md](docs/benchmark-results.md)**
 （由原始输出生成，你可以自己跑一行加进去）；指标与失败归因见 [docs/benchmark.md](docs/benchmark.md)；右侧可编辑 Excel
 面板的设计与实测见 [docs/web-panel.md](docs/web-panel.md)。
@@ -256,10 +258,10 @@ goal 模式 + glm-5.3-flash 全量实测成功率 86%（DeepSeek 基线 52%）�
   — are pinned by tests in `tests/formula.test.ts` rather than left to chance.
 - Whole-column references (`Sales!$H:$H`) do not produce cell-level dependency edges.
 - Range edges are enumerated only up to 10,000 cells; larger ranges contribute start/end edges only.
-- **The web panel edits the first sheet only.** The grid library's edit event carries a row
-  and a column but no sheet identity, and its instance exposes only the sheet it was built
-  with. An edit made while another sheet is on screen is therefore reported against the
-  first one. Everything reachable through the tools and the CLI is unaffected.
+- **The web panel edits the sheet on screen.** The grid library's edit event carries no
+  sheet identity, so the address comes from the grid's active tab. A tab renamed, added or
+  deleted inside the grid no longer maps to a sheet in the file: the edit is refused with an
+  explanation rather than silently written to a guessed sheet. Tools and the CLI are unaffected.
 - **Undo restores the file but not the panel.** `/excel-undo` puts the workbook back, and
   the grid goes on showing the pre-undo data until the file is read again. A command result
   carries `kind`, `text` and `sourceEventSeq` and nothing else, so the panel has no channel

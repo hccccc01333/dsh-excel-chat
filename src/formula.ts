@@ -114,7 +114,11 @@ function toParsedRef(match: RegExpExecArray, patternIndex: number): ParsedRef {
 export function parseFormula(input: string): ParsedFormula {
   const trimmed = input.trim()
   const raw = trimmed.startsWith('=') ? trimmed.slice(1) : trimmed
-  const sanitized = raw.replace(/"(?:[^"\\]|\\.)*"/g, ' ')
+  // Keep the replacement the SAME LENGTH: callers slice `raw` with the ranges
+  // found in `sanitized`. A single space shortened the string, so every
+  // reference after a literal shifted left and got rewritten at the wrong
+  // offset (`=IF(A1="x",B2,0)` moved A1 but left B2 alone).
+  const sanitized = raw.replace(/"(?:[^"\\]|\\.)*"/g, (match) => ' '.repeat(match.length))
   const references: ParsedRef[] = []
   let index = 0
   while (index < sanitized.length) {

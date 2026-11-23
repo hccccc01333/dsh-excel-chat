@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const POWERSHELL_PATH = process.env.SystemRoot
@@ -31,23 +31,43 @@ try {
 }
 Write-Output $count
 `;
+/**
+ * Write the PowerShell body to a unique temp file and always remove it. The
+ * scripts used to accumulate in tmpdir — every chart/PDF call left one behind.
+ */
+async function withPowerShellScript(script, prefix, args, signal) {
+    const scriptPath = join(tmpdir(), `vera-${prefix}-${randomUUID()}.ps1`);
+    await writeFile(scriptPath, script, 'utf8');
+    try {
+        return await runPowerShell(args(scriptPath), signal);
+    }
+    finally {
+        await rm(scriptPath, { force: true }).catch(() => { });
+    }
+}
+const chartIndex = (name) => Number(/chart-(\d+)\.png$/.exec(name)?.[1] ?? 0);
+/**
+ * Only the PNGs this export actually produced are results; older files in the
+ * same outDir must not be reported as charts of the current workbook.
+ */
+export function selectExportedCharts(files, stdout) {
+    const charts = files.filter((name) => /^chart-\d+\.png$/.test(name))
+        .sort((left, right) => chartIndex(left) - chartIndex(right));
+    const tail = stdout.trim().split(/\r?\n/).pop()?.trim() ?? '';
+    // Number('') is 0; an empty stdout must mean "no count reported", not "zero charts".
+    const count = tail === '' ? Number.NaN : Number(tail);
+    return Number.isInteger(count) && count >= 0 ? charts.slice(0, count) : charts;
+}
 export async function exportChartsWithExcel(path, outDir, signal) {
     await mkdir(outDir, { recursive: true });
-    const scriptPath = join(tmpdir(), `vera-export-${randomUUID()}.ps1`);
-    await writeFile(scriptPath, EXCEL_EXPORT_SCRIPT, 'utf8');
-    await runPowerShell([
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        scriptPath,
-        '-WorkbookPath',
-        path,
-        '-OutDir',
-        outDir,
+    const stdout = await withPowerShellScript(EXCEL_EXPORT_SCRIPT, 'export', (scriptPath) => [
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
+        '-WorkbookPath', path,
+        '-OutDir', outDir,
     ], signal);
-    const files = (await readdir(outDir)).filter((name) => name.startsWith('chart-') && name.endsWith('.png')).sort();
+    // The script prints how many charts it exported; use it to ignore stale PNGs
+    // from an earlier export into the same folder.
+    const files = selectExportedCharts(await readdir(outDir), stdout);
     return files.map((name) => join(outDir, name));
 }
 const CHART_TYPE_CODES = {
@@ -120,9 +140,7 @@ try {
 `;
 /** Create a chart in an .xlsx copy using local Excel (Windows only). */
 export async function createChartWithExcel(inputPath, options, outPath, signal) {
-    const scriptPath = join(tmpdir(), `vera-chart-create-${randomUUID()}.ps1`);
-    await writeFile(scriptPath, CHART_CREATE_SCRIPT, 'utf8');
-    await runPowerShell([
+    await withPowerShellScript(CHART_CREATE_SCRIPT, 'chart-create', (scriptPath) => [
         '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
         '-WorkbookPath', inputPath,
         '-OutPath', outPath,
@@ -135,9 +153,7 @@ export async function createChartWithExcel(inputPath, options, outPath, signal) 
 }
 /** Modify chart parameters (type, title, legend, axis titles) in an .xlsx copy. */
 export async function modifyChartWithExcel(inputPath, chartName, changes, outPath, signal) {
-    const scriptPath = join(tmpdir(), `vera-chart-modify-${randomUUID()}.ps1`);
-    await writeFile(scriptPath, CHART_MODIFY_SCRIPT, 'utf8');
-    await runPowerShell([
+    await withPowerShellScript(CHART_MODIFY_SCRIPT, 'chart-modify', (scriptPath) => [
         '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
         '-WorkbookPath', inputPath,
         '-OutPath', outPath,
@@ -196,9 +212,7 @@ Write-Output "ok"
  * Windows only; the file is opened read-only and left untouched.
  */
 export async function exportWorkbookToPdf(inputPath, outPath, sheet, signal) {
-    const scriptPath = join(tmpdir(), `vera-pdf-${randomUUID()}.ps1`);
-    await writeFile(scriptPath, PDF_EXPORT_SCRIPT, 'utf8');
-    await runPowerShell([
+    await withPowerShellScript(PDF_EXPORT_SCRIPT, 'pdf', (scriptPath) => [
         '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
         '-WorkbookPath', inputPath,
         '-OutPath', outPath,

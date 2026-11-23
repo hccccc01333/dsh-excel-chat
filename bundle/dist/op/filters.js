@@ -38,10 +38,20 @@ export function applyFilterToRange(workbook, options) {
     }
 }
 export function matchesCriterion(actual, operator, expected) {
-    const actualNumber = typeof actual === 'number' ? actual : null;
-    const expectedNumber = typeof expected === 'number' ? expected : Number(expected);
-    const actualText = actual === null || actual === undefined ? '' : String(actual);
+    // Dates are not numbers to `typeof`, so every ordering comparison against a
+    // date used to be false. Normalise them to epoch milliseconds. An empty
+    // criterion must stay textual or `eq ''` would also match the number 0.
+    const actualNumber = typeof actual === 'number'
+        ? actual
+        : actual instanceof Date ? actual.getTime() : null;
     const expectedText = String(expected);
+    const parsedNumber = typeof expected === 'number' ? expected : Number(expected);
+    const expectedNumber = expectedText === ''
+        ? Number.NaN
+        : Number.isFinite(parsedNumber) ? parsedNumber : Date.parse(expectedText);
+    const actualText = actual === null || actual === undefined
+        ? ''
+        : actual instanceof Date ? actual.toISOString() : String(actual);
     switch (operator) {
         case 'eq':
             return actualNumber !== null && Number.isFinite(expectedNumber)
@@ -51,6 +61,8 @@ export function matchesCriterion(actual, operator, expected) {
             return !matchesCriterion(actual, 'eq', expected);
         case 'contains':
             return actualText.toLowerCase().includes(expectedText.toLowerCase());
+        case 'notContains':
+            return !actualText.toLowerCase().includes(expectedText.toLowerCase());
         case 'gt':
             return actualNumber !== null && Number.isFinite(expectedNumber) && actualNumber > expectedNumber;
         case 'gte':

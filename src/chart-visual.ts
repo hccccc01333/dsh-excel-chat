@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdir, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -36,23 +36,55 @@ try {
 Write-Output $count
 `
 
+/**
+ * Write the PowerShell body to a unique temp file and always remove it. The
+ * scripts used to accumulate in tmpdir — every chart/PDF call left one behind.
+ */
+async function withPowerShellScript(
+  script: string,
+  prefix: string,
+  args: (scriptPath: string) => string[],
+  signal?: AbortSignal,
+): Promise<string> {
+  const scriptPath = join(tmpdir(), `vera-${prefix}-${randomUUID()}.ps1`)
+  await writeFile(scriptPath, script, 'utf8')
+  try {
+    return await runPowerShell(args(scriptPath), signal)
+  } finally {
+    await rm(scriptPath, { force: true }).catch(() => {})
+  }
+}
+
+const chartIndex = (name: string): number => Number(/chart-(\d+)\.png$/.exec(name)?.[1] ?? 0)
+
+/**
+ * Only the PNGs this export actually produced are results; older files in the
+ * same outDir must not be reported as charts of the current workbook.
+ */
+export function selectExportedCharts(files: string[], stdout: string): string[] {
+  const charts = files.filter((name) => /^chart-\d+\.png$/.test(name))
+    .sort((left, right) => chartIndex(left) - chartIndex(right))
+  const tail = stdout.trim().split(/\r?\n/).pop()?.trim() ?? ''
+  // Number('') is 0; an empty stdout must mean "no count reported", not "zero charts".
+  const count = tail === '' ? Number.NaN : Number(tail)
+  return Number.isInteger(count) && count >= 0 ? charts.slice(0, count) : charts
+}
+
 export async function exportChartsWithExcel(path: string, outDir: string, signal?: AbortSignal): Promise<string[]> {
   await mkdir(outDir, { recursive: true })
-  const scriptPath = join(tmpdir(), `vera-export-${randomUUID()}.ps1`)
-  await writeFile(scriptPath, EXCEL_EXPORT_SCRIPT, 'utf8')
-  await runPowerShell([
-    '-NoProfile',
-    '-NonInteractive',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-File',
-    scriptPath,
-    '-WorkbookPath',
-    path,
-    '-OutDir',
-    outDir,
-  ], signal)
-  const files = (await readdir(outDir)).filter((name) => name.startsWith('chart-') && name.endsWith('.png')).sort()
+  const stdout = await withPowerShellScript(
+    EXCEL_EXPORT_SCRIPT,
+    'export',
+    (scriptPath) => [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
+      '-WorkbookPath', path,
+      '-OutDir', outDir,
+    ],
+    signal,
+  )
+  // The script prints how many charts it exported; use it to ignore stale PNGs
+  // from an earlier export into the same folder.
+  const files = selectExportedCharts(await readdir(outDir), stdout)
   return files.map((name) => join(outDir, name))
 }
 
@@ -153,18 +185,21 @@ export async function createChartWithExcel(
   outPath: string,
   signal?: AbortSignal,
 ): Promise<void> {
-  const scriptPath = join(tmpdir(), `vera-chart-create-${randomUUID()}.ps1`)
-  await writeFile(scriptPath, CHART_CREATE_SCRIPT, 'utf8')
-  await runPowerShell([
-    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
-    '-WorkbookPath', inputPath,
-    '-OutPath', outPath,
-    '-SheetName', options.sheet ?? '',
-    '-Range', options.range,
-    '-ChartType', String(CHART_TYPE_CODES[options.type ?? 'column']),
-    '-ChartName', options.name ?? 'Chart 1',
-    '-Title', options.title ?? '',
-  ], signal)
+  await withPowerShellScript(
+    CHART_CREATE_SCRIPT,
+    'chart-create',
+    (scriptPath) => [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
+      '-WorkbookPath', inputPath,
+      '-OutPath', outPath,
+      '-SheetName', options.sheet ?? '',
+      '-Range', options.range,
+      '-ChartType', String(CHART_TYPE_CODES[options.type ?? 'column']),
+      '-ChartName', options.name ?? 'Chart 1',
+      '-Title', options.title ?? '',
+    ],
+    signal,
+  )
 }
 
 /** Modify chart parameters (type, title, legend, axis titles) in an .xlsx copy. */
@@ -175,19 +210,22 @@ export async function modifyChartWithExcel(
   outPath: string,
   signal?: AbortSignal,
 ): Promise<void> {
-  const scriptPath = join(tmpdir(), `vera-chart-modify-${randomUUID()}.ps1`)
-  await writeFile(scriptPath, CHART_MODIFY_SCRIPT, 'utf8')
-  await runPowerShell([
-    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
-    '-WorkbookPath', inputPath,
-    '-OutPath', outPath,
-    '-ChartName', chartName,
-    '-ChartType', changes.type ? String(CHART_TYPE_CODES[changes.type]) : '0',
-    '-Title', changes.title ?? '',
-    '-AxisX', changes.axisTitleX ?? '',
-    '-AxisY', changes.axisTitleY ?? '',
-    '-Legend', changes.hasLegend === undefined ? '' : String(changes.hasLegend),
-  ], signal)
+  await withPowerShellScript(
+    CHART_MODIFY_SCRIPT,
+    'chart-modify',
+    (scriptPath) => [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
+      '-WorkbookPath', inputPath,
+      '-OutPath', outPath,
+      '-ChartName', chartName,
+      '-ChartType', changes.type ? String(CHART_TYPE_CODES[changes.type]) : '0',
+      '-Title', changes.title ?? '',
+      '-AxisX', changes.axisTitleX ?? '',
+      '-AxisY', changes.axisTitleY ?? '',
+      '-Legend', changes.hasLegend === undefined ? '' : String(changes.hasLegend),
+    ],
+    signal,
+  )
 }
 
 export function runPowerShell(args: string[], signal?: AbortSignal): Promise<string> {
@@ -242,14 +280,17 @@ export async function exportWorkbookToPdf(
   sheet?: string,
   signal?: AbortSignal,
 ): Promise<void> {
-  const scriptPath = join(tmpdir(), `vera-pdf-${randomUUID()}.ps1`)
-  await writeFile(scriptPath, PDF_EXPORT_SCRIPT, 'utf8')
-  await runPowerShell([
-    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
-    '-WorkbookPath', inputPath,
-    '-OutPath', outPath,
-    '-SheetName', sheet ?? '',
-  ], signal)
+  await withPowerShellScript(
+    PDF_EXPORT_SCRIPT,
+    'pdf',
+    (scriptPath) => [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath,
+      '-WorkbookPath', inputPath,
+      '-OutPath', outPath,
+      '-SheetName', sheet ?? '',
+    ],
+    signal,
+  )
 }
 
 export type VisionText = (imagePath: string, prompt: string, signal?: AbortSignal) => Promise<string>

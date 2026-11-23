@@ -179,25 +179,44 @@ export function fillSeries(workbook, startId, targetRange, step) {
         }
     }
 }
-export function findReplace(workbook, find, replace, sheetName, matchCase) {
+export function findReplace(workbook, find, replace, sheetName, matchCase, range, wholeCell = false, regex = false) {
     let count = 0;
+    const pattern = regex
+        ? new RegExp(find, matchCase ? 'g' : 'gi')
+        : new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'g' : 'gi');
+    const replaceIn = (cell) => {
+        const content = cellContentOf(cell);
+        if (!content)
+            return;
+        pattern.lastIndex = 0;
+        let replaced;
+        if (wholeCell) {
+            const match = pattern.exec(content);
+            pattern.lastIndex = 0;
+            replaced = match && match.index === 0 && match[0].length === content.length ? replace : content;
+        }
+        else {
+            replaced = content.replace(pattern, replace);
+        }
+        if (replaced === content)
+            return;
+        count += 1;
+        cell.value = content.startsWith('=') ? { formula: replaced.slice(1) } : contentToCellValue(replaced);
+    };
     const visit = (sheet) => {
         sheet.eachRow({ includeEmpty: false }, (row) => {
-            row.eachCell({ includeEmpty: false }, (cell) => {
-                const content = cellContentOf(cell);
-                if (!content)
-                    return;
-                const replaced = replaceAllCase(content, find, replace, matchCase);
-                if (replaced === content)
-                    return;
-                count += 1;
-                cell.value = content.startsWith('=')
-                    ? { formula: replaced.slice(1) }
-                    : contentToCellValue(replaced);
-            });
+            row.eachCell({ includeEmpty: false }, replaceIn);
         });
     };
-    if (sheetName) {
+    if (range) {
+        const parsed = parseRange(workbook, range);
+        for (let row = parsed.startRow; row <= parsed.endRow; row += 1) {
+            for (let col = parsed.startCol; col <= parsed.endCol; col += 1) {
+                replaceIn(parsed.sheet.getCell(`${numberToColumn(col)}${row}`));
+            }
+        }
+    }
+    else if (sheetName) {
         const sheet = findSheet(workbook, sheetName);
         if (!sheet)
             requireSheet(workbook, sheetName);
@@ -208,11 +227,32 @@ export function findReplace(workbook, find, replace, sheetName, matchCase) {
     }
     return count;
 }
-function replaceAllCase(text, find, replace, matchCase) {
-    if (matchCase)
-        return text.replaceAll(find, replace);
-    const escaped = find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return text.replace(new RegExp(escaped, 'gi'), replace);
+/** Merge consecutive rows carrying the same value in one column of a range. */
+export function mergeEqualRuns(workbook, range, groupColumn) {
+    const parsed = parseRange(workbook, range);
+    const col = columnToNumber(groupColumn);
+    if (col < parsed.startCol || col > parsed.endCol) {
+        throw new Error(`groupColumn ${groupColumn} is outside range ${range}`);
+    }
+    const letter = numberToColumn(col);
+    let merged = 0;
+    let runStart = parsed.startRow;
+    let previous = null;
+    for (let row = parsed.startRow; row <= parsed.endRow + 1; row += 1) {
+        const cell = row <= parsed.endRow ? parsed.sheet.getCell(`${letter}${row}`) : null;
+        const key = cell && cell.value !== null && cell.value !== undefined
+            ? cellContentOf(cell).trim()
+            : null;
+        if (key === previous)
+            continue;
+        if (previous !== null && runStart < row - 1) {
+            parsed.sheet.mergeCells(`${letter}${runStart}:${letter}${row - 1}`);
+            merged += 1;
+        }
+        runStart = row;
+        previous = key;
+    }
+    return merged;
 }
 export function duplicateSheet(workbook, name, newName) {
     const source = findSheet(workbook, name);

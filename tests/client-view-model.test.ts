@@ -5,6 +5,7 @@ import {
   FULLSCREEN_RENDER_ROWS,
   INLINE_RENDER_COLS,
   INLINE_RENDER_ROWS,
+  activeSheetName,
   cellText,
   columnName,
   measureSheets,
@@ -108,4 +109,35 @@ test('toGridData converts A1 ids into 0-based row/col keys with display text', (
     },
   })
   assert.deepEqual(data[1], { name: '汇总', rows: { 0: { cells: { 0: { text: 'ok' } } } } })
+})
+
+/** Mimic the parts of an x-data-spreadsheet instance the editor reads. */
+function gridWith(...names: string[]): { datas: Array<{ name: string }>; sheet: { data: unknown } } {
+  const datas = names.map((name) => ({ name }))
+  return { datas, sheet: { data: datas[0] } }
+}
+
+test('activeSheetName follows the selected tab, not the first sheet', () => {
+  const grid = gridWith('Sheet1', 'Sheet2')
+  const sheets = [sheet('Sheet1', []), sheet('Sheet2', [])]
+  assert.equal(activeSheetName(grid, sheets), 'Sheet1')
+  grid.sheet.data = grid.datas[1]!
+  assert.equal(activeSheetName(grid, sheets), 'Sheet2')
+})
+
+test('activeSheetName refuses a renamed, added or deleted tab', () => {
+  const sheets = [sheet('Sheet1', []), sheet('Sheet2', [])]
+  const renamed = gridWith('Sheet1', 'Sheet2')
+  renamed.datas[1]!.name = 'Sheet1' // renamed to another existing sheet's name
+  renamed.sheet.data = renamed.datas[1]!
+  assert.equal(activeSheetName(renamed, sheets), null)
+  const added = gridWith('Sheet1', '新建表')
+  added.sheet.data = added.datas[1]!
+  assert.equal(activeSheetName(added, [sheet('Sheet1', [])]), null)
+  assert.equal(activeSheetName(gridWith('Sheet2'), sheets), null)
+})
+
+test('activeSheetName falls back only when there is exactly one sheet', () => {
+  assert.equal(activeSheetName({}, [sheet('唯一表', [])]), '唯一表')
+  assert.equal(activeSheetName({}, [sheet('一', []), sheet('二', [])]), null)
 })

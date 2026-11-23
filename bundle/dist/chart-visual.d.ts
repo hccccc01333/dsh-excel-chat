@@ -1,4 +1,9 @@
 export type ChartImageExporter = (path: string, outDir: string, signal?: AbortSignal) => Promise<string[]>;
+/**
+ * Only the PNGs this export actually produced are results; older files in the
+ * same outDir must not be reported as charts of the current workbook.
+ */
+export declare function selectExportedCharts(files: string[], stdout: string): string[];
 export declare function exportChartsWithExcel(path: string, outDir: string, signal?: AbortSignal): Promise<string[]>;
 export type ChartTypeName = 'column' | 'line' | 'pie' | 'bar' | 'area';
 export interface ChartCreateOptions {

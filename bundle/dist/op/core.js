@@ -1,5 +1,5 @@
 import { columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula } from '../formula.js';
-import { contentToCellValue } from '../workbook.js';
+import { cellContent, contentToCellValue } from '../workbook.js';
 import { listJoin, t } from '../i18n.js';
 /**
  * A sheet-qualified range body: `A1:B2`, or a bare `A1` meaning that one cell.
@@ -128,7 +128,14 @@ export function shiftFormulaReferences(formula, baseSheet, editedSheet, options 
         }
         else {
             const newEnd = shiftPointToken(endToken, ref.end, baseSheet, editedSheet, { rowDelta, colDelta, rowThreshold, colThreshold, rowDeletedStart, rowDeletedEnd, colDeletedStart, colDeletedEnd });
-            edits.push({ start: ref.range.start, end: ref.range.end, text: `${newStart}:${newEnd}` });
+            // Excel's deleted-reference sentinel is a single #REF!. A range whose
+            // endpoint was deleted (`=SUM(A5:A6)` after deleting rows 5-6) must not
+            // become `=SUM(#REF!:#REF!)` — that is not a formula Excel accepts.
+            edits.push({
+                start: ref.range.start,
+                end: ref.range.end,
+                text: newStart === '#REF!' || newEnd === '#REF!' ? '#REF!' : `${newStart}:${newEnd}`,
+            });
         }
     }
     let result = raw;
@@ -175,12 +182,10 @@ function shiftPointToken(token, point, baseSheet, editedSheet, options) {
     return `${prefix}${colPart}${rowPart}`;
 }
 export function cellContentOf(cell) {
-    if (cell.formula)
-        return `=${cell.formula}`;
-    const value = cell.value;
-    if (value === null || value === undefined)
-        return '';
-    return typeof value === 'object' ? JSON.stringify(value) : String(value);
+    // Reuse the reader's canonical serialisation. JSON.stringify on a Date adds
+    // quotes around the ISO string, and `contentToCellValue` then writes the
+    // quoted text back into the copied cell instead of a real date.
+    return cellContent(cell) ?? '';
 }
 /**
  * Qualify a sheet name for embedding inside an Excel formula string. Names
@@ -218,6 +223,32 @@ export function normalizeTextValue(text) {
             out += char;
     }
     return out.trim().replace(/\s+/g, ' ');
+}
+/**
+ * Parse the numeric-looking text Excel users paste from websites and other
+ * systems: fullwidth digits, currency marks, thousands separators, accounting
+ * negatives and percentages. Returns null when the text is not a number, so a
+ * genuine label like "订单 123" is never silently turned into a value.
+ */
+export function parseNumericText(text) {
+    const normalized = normalizeTextValue(text);
+    if (normalized === '')
+        return null;
+    const percent = normalized.endsWith('%');
+    const accounting = /^\(.*\)$/.test(normalized);
+    let body = accounting
+        ? normalized.slice(1, -1)
+        : percent ? normalized.slice(0, -1) : normalized;
+    body = body.replace(/^[¥$€£\s]+|[¥$€£\s]+$/g, '').replace(/,/g, '').trim();
+    if (accounting)
+        body = body.replace(/^\+/, '');
+    if (!/^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(body))
+        return null;
+    const value = Number(body);
+    if (!Number.isFinite(value))
+        return null;
+    const signed = accounting ? -value : value;
+    return percent ? signed / 100 : signed;
 }
 /**
  * Normalized similarity in [0, 1] for fuzzy matching: exact match is 1,

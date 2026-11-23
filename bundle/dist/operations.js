@@ -11,14 +11,16 @@ import { annotateWorkbookXml, emptyAnnotations } from './xml-postprocess.js';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 export * from './operation-types.js';
-import { findSheet, resolveCell, writeContent, parseRange, cellContentOf, qualifySheetName, properCase, normalizeTextValue, similarity, splitByWidth, requireSheet } from './op/core.js';
-import { assertPositiveSpan, deleteColumnsFromSheet, deleteRowsFromSheet, shiftWorkbookColumns, shiftWorkbookRows } from './op/structure.js';
+import { findSheet, resolveCell, writeContent, parseRange, cellContentOf, qualifySheetName, properCase, normalizeTextValue, parseNumericText, similarity, splitByWidth, requireSheet } from './op/core.js';
+import { assertPositiveSpan, deleteColumnsFromSheet, deleteRowsFromSheet, shiftSheetRanges, shiftWorkbookColumns, shiftWorkbookRows } from './op/structure.js';
 import { sortRange } from './op/sorting.js';
 import { addTable, applyConditionalFormatting, applyDataValidation, applyStyle, normalizeColor } from './op/formatting.js';
 import { applyFilterToRange, applyMailMerge, matchesCriterion } from './op/filters.js';
 import { exportCsv, importCsv } from './op/csv.js';
 import { insertImageIntoSheet } from './op/images.js';
-import { applyFill, applyMerge, clearRange, copyRange, duplicateSheet, fillSeries, findReplace, renameSheetReferences, transposeRange } from './op/editing.js';
+import { buildChartSpec } from './op/charts.js';
+import { buildPivot } from './op/pivot-table.js';
+import { applyFill, applyMerge, clearRange, copyRange, duplicateSheet, fillSeries, findReplace, mergeEqualRuns, renameSheetReferences, transposeRange } from './op/editing.js';
 import { applyPageSetup, displayTextOf, displayWidth } from './op/layout.js';
 import { joinSheets } from './op/joins.js';
 import { applyCrosstab } from './op/crosstab.js';
@@ -97,6 +99,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 assertPositiveSpan('insertRows', operation.row, 'row', operation.count);
                 sheet.spliceRows(operation.row, 0, ...Array.from({ length: operation.count }, () => []));
                 shiftWorkbookRows(workbook, sheet.name, operation.row, operation.count);
+                shiftSheetRanges(sheet, 'row', operation.row, operation.row, operation.count);
                 break;
             }
             case 'deleteRows': {
@@ -111,6 +114,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 assertPositiveSpan('insertColumns', columnNumber, 'column', operation.count);
                 sheet.spliceColumns(columnNumber, 0, ...Array.from({ length: operation.count }, () => []));
                 shiftWorkbookColumns(workbook, sheet.name, columnNumber, operation.count);
+                shiftSheetRanges(sheet, 'col', columnNumber, columnNumber, operation.count);
                 break;
             }
             case 'deleteColumns': {
@@ -275,9 +279,16 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                         const cell = parsed.sheet.getCell(`${numberToColumn(col)}${row}`);
                         if (cell.formula || typeof cell.value !== 'string')
                             continue;
-                        const next = normalizeTextValue(cell.value);
-                        if (next !== cell.value) {
-                            cell.value = next;
+                        const normalizedText = normalizeTextValue(cell.value);
+                        const number = operation.toNumber ? parseNumericText(normalizedText) : null;
+                        if (number !== null) {
+                            cell.value = number;
+                            if (normalizedText.endsWith('%'))
+                                cell.numFmt = '0.00%';
+                            normalized++;
+                        }
+                        else if (normalizedText !== cell.value) {
+                            cell.value = normalizedText;
                             normalized++;
                         }
                     }
@@ -355,7 +366,9 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                     const key = cellContentOf(targetParsed.sheet.getCell(`${numberToColumn(targetKeyCol)}${row}`)).trim().toLowerCase();
                     if (!key)
                         continue;
-                    targetRows.push({ key, value: cellContentOf(targetParsed.sheet.getCell(`${numberToColumn(targetValueCol)}${row}`)) });
+                    // Keep the typed value: stringifying here turned numbers and dates
+                    // into text in the back-filled column, and SUM() then ignored them.
+                    targetRows.push({ key, value: targetParsed.sheet.getCell(`${numberToColumn(targetValueCol)}${row}`).value });
                 }
                 const threshold = operation.threshold ?? 0.6;
                 const outputCol = columnToNumber(operation.outputColumn);
@@ -696,6 +709,29 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 annotations.sparklines.set(sparkSheet.name, groups);
                 break;
             }
+            case 'pivot': {
+                const usedIds = [...(preserved.pivotCaches ?? '').matchAll(/cacheId="(\d+)"/g)]
+                    .map((match) => Number(match[1]));
+                const cacheId = Math.max(0, ...usedIds, ...annotations.pivots.map((pivot) => pivot.cacheId)) + 1;
+                let partSuffix = annotations.pivots.length + 1;
+                while (preserved.parts[`xl/pivotTables/pivotTable${partSuffix}.xml`] ||
+                    preserved.parts[`xl/pivotCache/pivotCacheDefinition${partSuffix}.xml`] ||
+                    preserved.parts[`xl/pivotCache/pivotCacheRecords${partSuffix}.xml`])
+                    partSuffix += 1;
+                const spec = buildPivot(workbook, operation, cacheId, partSuffix);
+                annotations.pivots.push(spec);
+                warnings.push({ op: index, message: t('pivot 在 {sheet} 创建了原生透视表', { sheet: spec.outputSheet }) });
+                break;
+            }
+            case 'addChart': {
+                const spec = buildChartSpec(workbook, operation);
+                const sheetName = parseRange(workbook, operation.values).sheet.name;
+                const list = annotations.charts.get(sheetName) ?? [];
+                list.push(spec);
+                annotations.charts.set(sheetName, list);
+                warnings.push({ op: index, message: t('addChart 在 {sheet} 添加了 {type} 图表', { sheet: sheetName, type: spec.type }) });
+                break;
+            }
             case 'insertImage': {
                 await insertImageIntoSheet(workbook, operation);
                 break;
@@ -725,7 +761,13 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 break;
             }
             case 'merge': {
-                applyMerge(workbook, operation.range, false);
+                if (operation.groupColumn) {
+                    const merged = mergeEqualRuns(workbook, operation.range, operation.groupColumn);
+                    warnings.push({ op: index, message: t('merge 按 {column} 合并了 {count} 段相同值', { column: operation.groupColumn, count: merged }) });
+                }
+                else {
+                    applyMerge(workbook, operation.range, false);
+                }
                 break;
             }
             case 'unmerge': {
@@ -772,7 +814,7 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 break;
             }
             case 'findReplace': {
-                const count = findReplace(workbook, operation.find, operation.replace, operation.sheet, operation.matchCase ?? false);
+                const count = findReplace(workbook, operation.find, operation.replace, operation.sheet, operation.matchCase ?? false, operation.range, operation.wholeCell ?? false, operation.regex ?? false);
                 warnings.push({ op: index, message: t('findReplace 替换了 {count} 处', { count }) });
                 break;
             }
@@ -825,10 +867,52 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
             }
             case 'autoFilter': {
                 const parsed = parseRange(workbook, operation.range);
+                const top = Math.min(parsed.startRow, parsed.endRow);
+                const bottom = Math.max(parsed.startRow, parsed.endRow);
+                const left = Math.min(parsed.startCol, parsed.endCol);
+                const right = Math.max(parsed.startCol, parsed.endCol);
                 parsed.sheet.autoFilter = {
-                    from: { row: parsed.startRow, column: parsed.startCol },
-                    to: { row: parsed.endRow, column: parsed.endCol },
+                    from: { row: top, column: left },
+                    to: { row: bottom, column: right },
                 };
+                const criteria = (operation.criteria ?? []).map((criterion) => {
+                    const column = columnToNumber(criterion.column);
+                    if (column < left || column > right) {
+                        throw new Error(`autoFilter criterion column ${criterion.column} is outside range ${operation.range}`);
+                    }
+                    return { column, operator: criterion.operator ?? 'eq', value: criterion.value };
+                });
+                if (criteria.length > 0) {
+                    const rowMatches = (row) => criteria.every((criterion) => matchesCriterion(parsed.sheet.getCell(row, criterion.column).value, criterion.operator, criterion.value));
+                    let hidden = 0;
+                    for (let row = top + 1; row <= bottom; row += 1) {
+                        const show = rowMatches(row);
+                        parsed.sheet.getRow(row).hidden = !show;
+                        if (!show)
+                            hidden += 1;
+                    }
+                    const customOperators = {
+                        eq: 'equal', neq: 'notEqual', gt: 'greaterThan',
+                        gte: 'greaterThanOrEqual', lt: 'lessThan', lte: 'lessThanOrEqual',
+                    };
+                    const specs = criteria.map((criterion) => {
+                        const colId = criterion.column - left;
+                        if (criterion.operator === 'contains' || criterion.operator === 'notContains') {
+                            const values = new Set();
+                            for (let row = top + 1; row <= bottom; row += 1) {
+                                if (rowMatches(row))
+                                    values.add(cellContentOf(parsed.sheet.getCell(row, criterion.column)));
+                            }
+                            return { colId, values: [...values] };
+                        }
+                        return {
+                            colId,
+                            custom: { operator: customOperators[criterion.operator], val: criterion.value },
+                        };
+                    });
+                    annotations.filterColumns.set(parsed.sheet.name, specs);
+                    warnings.push({ op: index, message: t('autoFilter 按 {count} 条条件隐藏了 {hidden} 行', { count: criteria.length, hidden }) });
+                }
                 break;
             }
             case 'subtotal': {
@@ -870,6 +954,28 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
                 sheet.unprotect();
                 break;
             }
+            case 'setCellProtection': {
+                const protection = {
+                    locked: operation.locked ?? true,
+                    hidden: operation.hidden ?? false,
+                };
+                if (operation.unlockAll) {
+                    workbook.eachSheet((sheet) => {
+                        sheet.eachRow({ includeEmpty: true }, (row) => {
+                            row.eachCell({ includeEmpty: true }, (cell) => { cell.protection = { ...cell.protection, locked: false, hidden: false }; });
+                        });
+                    });
+                }
+                const parsed = parseRange(workbook, operation.range);
+                for (let row = Math.min(parsed.startRow, parsed.endRow); row <= Math.max(parsed.startRow, parsed.endRow); row += 1) {
+                    for (let col = Math.min(parsed.startCol, parsed.endCol); col <= Math.max(parsed.startCol, parsed.endCol); col += 1) {
+                        const cell = parsed.sheet.getCell(row, col);
+                        cell.protection = { ...cell.protection, ...protection };
+                    }
+                }
+                warnings.push({ op: index, message: t('setCellProtection 更新了 {range} 的单元格保护', { range: operation.range }) });
+                break;
+            }
             case 'mailMerge': {
                 applyMailMerge(workbook, operation);
                 break;
@@ -890,13 +996,17 @@ export async function applyOperationsToWorkbook(inputPath, operations, outputPat
     }
     const buffer = await workbook.xlsx.writeBuffer();
     const sheetFileOf = new Map();
-    if (annotations.comments.size > 0 || annotations.sparklines.size > 0 || annotations.showFormulas.size > 0) {
+    if (annotations.comments.size > 0 || annotations.sparklines.size > 0 ||
+        annotations.showFormulas.size > 0 || annotations.filterColumns.size > 0 ||
+        annotations.charts.size > 0 || annotations.pivots.length > 0) {
         workbook.eachSheet((sheet) => {
             sheetFileOf.set(sheet.name, `xl/worksheets/sheet${sheet.id}.xml`);
         });
     }
-    const written = annotations.comments.size > 0 || annotations.sparklines.size > 0 || annotations.showFormulas.size > 0
-        // ExcelJS cannot write comments or sparklines; inject the XML parts now.
+    const written = annotations.comments.size > 0 || annotations.sparklines.size > 0 ||
+        annotations.showFormulas.size > 0 || annotations.filterColumns.size > 0 ||
+        annotations.charts.size > 0 || annotations.pivots.length > 0
+        // ExcelJS cannot write comments, charts or pivots; inject the XML parts now.
         ? annotateWorkbookXml(new Uint8Array(buffer), annotations, sheetFileOf)
         : new Uint8Array(buffer);
     const merged = applyPreserved(written, preserved);

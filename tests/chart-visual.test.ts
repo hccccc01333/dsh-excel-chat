@@ -13,6 +13,7 @@ import {
   exportChartsWithExcel,
   modifyChartWithExcel,
   parseVisionReply,
+  selectExportedCharts,
   validateChartsVisually,
   type VisionText,
 } from '../src/chart-visual.ts'
@@ -25,6 +26,14 @@ test('buildVisionPrompt covers the visual checklist', () => {
   for (const keyword of ['title truncated', 'legend', 'labels overlapping', 'axis', 'crowded', 'trends']) {
     assert.match(prompt, new RegExp(keyword))
   }
+})
+
+test('chart export results ignore stale PNGs from earlier runs', () => {
+  const files = ['chart-1.png', 'chart-10.png', 'chart-2.png', 'notes.txt']
+  // The script prints the count last; older exports may have left chart-2/10.
+  assert.deepEqual(selectExportedCharts(files, 'exporting...\n1\n'), ['chart-1.png'])
+  assert.deepEqual(selectExportedCharts(files, '2'), ['chart-1.png', 'chart-2.png'])
+  assert.deepEqual(selectExportedCharts(files, ''), ['chart-1.png', 'chart-2.png', 'chart-10.png'])
 })
 
 test('parseVisionReply handles fenced JSON and returns issues', () => {

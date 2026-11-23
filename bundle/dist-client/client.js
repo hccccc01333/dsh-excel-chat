@@ -8639,6 +8639,30 @@ window.__ModuleLoader__.load({
 				truncated: maxRows > capRows || maxCols > capCols
 			};
 		}
+		/**
+		* Name of the sheet the grid is actually showing, or null when it cannot be
+		* trusted. The library's edit event carries only row/col, so deriving the
+		* address from `sheets[0]` silently writes edits to the wrong sheet.
+		*
+		* The active DataProxy is `grid.sheet.data` and its index in `grid.datas`
+		* identifies which loaded sheet is on screen. A tab renamed/added/deleted in
+		* the grid no longer matches the file at that index: return null so the caller
+		* reports an error instead of guessing an address.
+		*/
+		function activeSheetName(grid, sheets) {
+			const instance = grid;
+			const datas = Array.isArray(instance?.datas) ? instance.datas : null;
+			const active = instance?.sheet?.data;
+			if (datas !== null && active !== void 0) {
+				const index = datas.indexOf(active);
+				if (index >= 0 && index < sheets.length) {
+					const liveName = datas[index]?.name;
+					return typeof liveName === "string" && liveName === sheets[index].sheet ? liveName : null;
+				}
+				return null;
+			}
+			return sheets.length === 1 ? sheets[0].sheet : null;
+		}
 		/** x-data-spreadsheet payload: row/col keyed cells with display text, per sheet. */
 		function toGridData(sheets) {
 			return sheets.map((sheet) => {
@@ -8666,27 +8690,37 @@ window.__ModuleLoader__.load({
 		*/
 		function captureWindowListeners(build) {
 			const listeners = [];
-			const native = window.addEventListener;
-			const patched = function(type, listener, options) {
-				listeners.push([
-					type,
-					listener,
-					options
-				]);
-				native.call(this, type, listener, options);
+			const windowNative = window.addEventListener;
+			const bodyNative = document.body.addEventListener;
+			const patch = (target, native, source) => {
+				target.addEventListener = function(type, listener, options) {
+					listeners.push([
+						type,
+						listener,
+						options,
+						source
+					]);
+					native.call(this, type, listener, options);
+				};
 			};
-			window.addEventListener = patched;
+			patch(window, windowNative, "window");
+			patch(document.body, bodyNative, "body");
 			try {
 				return {
 					value: build(),
 					listeners
 				};
 			} catch (error) {
-				for (const [type, listener, options] of listeners) window.removeEventListener(type, listener, options);
+				removeCapturedListeners(listeners);
 				throw error;
 			} finally {
-				window.addEventListener = native;
+				window.addEventListener = windowNative;
+				document.body.addEventListener = bodyNative;
 			}
+		}
+		/** Remove captured handlers from the target they were actually added to. */
+		function removeCapturedListeners(listeners) {
+			for (const [type, listener, options, source] of listeners) (source === "body" ? document.body : window).removeEventListener(type, listener, options);
 		}
 		/**
 		* The library decides that "the keyboard belongs to the grid" from the last
@@ -8700,8 +8734,8 @@ window.__ModuleLoader__.load({
 		*/
 		function scopeGlobalTypingToGrid(listeners, root) {
 			for (let index = 0; index < listeners.length; index += 1) {
-				const [type, listener, options] = listeners[index];
-				if (type !== "keydown" && type !== "paste") continue;
+				const [type, listener, options, source] = listeners[index];
+				if (source === "body" || type !== "keydown" && type !== "paste") continue;
 				window.removeEventListener(type, listener, options);
 				const guarded = (event) => {
 					const target = event.target;
@@ -8798,13 +8832,21 @@ window.__ModuleLoader__.load({
 			const viewHeight = fullscreen ? Math.max(320, window.innerHeight - 96) : INLINE_VIEW_HEIGHT;
 			(0, react.useEffect)(() => {
 				if (!fullscreen) return;
-				const onResize = () => setViewportTick((tick) => tick + 1);
+				let frame = 0;
+				const onResize = () => {
+					if (frame !== 0) return;
+					frame = requestAnimationFrame(() => {
+						frame = 0;
+						setViewportTick((tick) => tick + 1);
+					});
+				};
 				const onKeyDown = (event) => {
 					if (event.key === "Escape") setFullscreen(false);
 				};
 				window.addEventListener("resize", onResize);
 				window.addEventListener("keydown", onKeyDown);
 				return () => {
+					if (frame !== 0) cancelAnimationFrame(frame);
 					window.removeEventListener("resize", onResize);
 					window.removeEventListener("keydown", onKeyDown);
 				};
@@ -8838,9 +8880,9 @@ window.__ModuleLoader__.load({
 					listeners = built.listeners;
 					ss.loadData(toGridData(sheets));
 					if (editable) ss.on("cell-edited", (editedCell, rowIndex, colIndex) => {
-						const sheetName = sheets[0]?.sheet ?? "Sheet1";
+						const sheetName = activeSheetName(ss, sheets);
 						const text = editedCell && typeof editedCell === "object" ? String(editedCell.text ?? "") : "";
-						onCellEdited(`${sheetName}!${columnName(Number(colIndex) + 1)}${Number(rowIndex) + 1}`, text);
+						onCellEdited(`${sheetName ?? sheets[0]?.sheet ?? "Sheet1"}!${columnName(Number(colIndex) + 1)}${Number(rowIndex) + 1}`, text, sheetName);
 					});
 					scopeGlobalTypingToGrid(listeners, el);
 					keepGridFocusInPlace(el);
@@ -8862,7 +8904,7 @@ window.__ModuleLoader__.load({
 				}
 				return () => {
 					if (observer !== null) observer.disconnect();
-					for (const [type, listener, options] of listeners) window.removeEventListener(type, listener, options);
+					removeCapturedListeners(listeners);
 					el.innerHTML = "";
 				};
 			}, [
@@ -9138,7 +9180,14 @@ window.__ModuleLoader__.load({
 					const record = parsed;
 					const filePath = record.path ?? (typeof record.previewPath === "string" ? record.previewPath.replace(/\.preview\.html$/i, ".xlsx") : void 0);
 					const inPlace = Boolean(filePath && commandsRemote);
-					const commitEdit = async (cellId, newValue) => {
+					const commitEdit = async (cellId, newValue, sheetName) => {
+						if (sheetName === null) {
+							setSavedNote({
+								kind: "error",
+								text: "当前工作表无法对应到文件里的表（可能被改名或新建），改动未提交；请切回原有工作表。"
+							});
+							return;
+						}
 						if (!inPlace || !filePath) {
 							if (!newValue) return;
 							const instruction = `请把 ${cellId} 的值改成 ${newValue}，用 excel_operate 的 set 执行，完成后用 excel_read 重新预览并回复“完成”。`;

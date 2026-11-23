@@ -87,6 +87,13 @@ export declare function properCase(text: string): string;
 /** Fullwidth ASCII/space/punctuation to halfwidth, then trim and collapse spaces. */
 export declare function normalizeTextValue(text: string): string;
 /**
+ * Parse the numeric-looking text Excel users paste from websites and other
+ * systems: fullwidth digits, currency marks, thousands separators, accounting
+ * negatives and percentages. Returns null when the text is not a number, so a
+ * genuine label like "订单 123" is never silently turned into a value.
+ */
+export declare function parseNumericText(text: string): number | null;
+/**
  * Normalized similarity in [0, 1] for fuzzy matching: exact match is 1,
  * otherwise 1 minus the Levenshtein distance ratio over the longer string.
  * Callers normalize (trim/lowercase) before calling.

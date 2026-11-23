@@ -4,6 +4,7 @@ import { JSDOM } from 'jsdom'
 import {
   captureWindowListeners,
   keepGridFocusInPlace,
+  removeCapturedListeners,
   scopeGlobalTypingToGrid,
   type WindowListener,
 } from '../src/client/dom-guards.ts'
@@ -47,6 +48,25 @@ test('captureWindowListeners records the window handlers and lets go of them', (
   assert.equal(calls, 1)
   for (const [type, listener, options] of built.listeners) win.removeEventListener(type, listener, options)
   win.dispatchEvent(new win.Event('resize'))
+  assert.equal(calls, 1)
+})
+
+test('body handlers are captured and removed from the body, not from window', () => {
+  // x-data-spreadsheet binds `xclickoutside` on document.body. The old capture
+  // only patched window, so unmount removed a non-existent window handler and
+  // left the body one firing on a canvas that was no longer in the page.
+  const { window: win, document: doc } = install()
+  let calls = 0
+  const handler = (): void => { calls += 1 }
+  const built = captureWindowListeners(() => {
+    doc.body.addEventListener('click', handler)
+    return 'grid'
+  })
+  assert.equal(built.listeners[0]![3], 'body')
+  doc.body.dispatchEvent(new win.Event('click'))
+  assert.equal(calls, 1)
+  removeCapturedListeners(built.listeners)
+  doc.body.dispatchEvent(new win.Event('click'))
   assert.equal(calls, 1)
 })
 

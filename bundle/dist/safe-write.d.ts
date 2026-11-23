@@ -17,7 +17,9 @@ export interface SafeWriteResult {
  * On any failure the temp file is removed and the target is left exactly as it
  * was, so a failed write is a no-op rather than a corruption.
  */
-export declare function writeWorkbookSafely(path: string, data: Uint8Array): Promise<SafeWriteResult>;
+export declare function writeWorkbookSafely(path: string, data: Uint8Array, options?: {
+    backup?: boolean;
+}): Promise<SafeWriteResult>;
 /** Where the pre-edit copy of `path` lives, when one was taken. */
 export declare function snapshotPath(path: string): string;
 /**

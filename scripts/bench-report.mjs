@@ -14,7 +14,7 @@
  * Two guardrails, both earned from real mistakes:
  *
  * - **A run that never reached the model is not a result.** Without an API key
- *   the runner does not fail fast: it walks all 100 tasks and records every one
+ *   the runner does not fail fast: it walks all corpus tasks and records every one
  *   as `execution`/0 checks. That looks exactly like a 0% model and would be
  *   published as one, so such a run is rejected here instead.
  * - **A row without provenance is not comparable.** Model, date and replanning
@@ -47,7 +47,7 @@ const CATEGORY_LABELS = { editing: '编辑', analysis: '分析', formula: '公�
 const FAILURE_LABELS = {
   verification: 'Verification', replan: 'Replan', planning: 'Planning',
   argument: 'Argument', execution: 'Execution', intent: 'Intent',
-  semantic: 'Semantic', 'tool-selection': 'Tool Selection', other: 'Other',
+  semantic: 'Semantic', 'tool-selection': 'Tool Selection', infrastructure: 'Infrastructure', other: 'Other',
 }
 
 const pct = (value) => `${(value * 100).toFixed(1)}%`.replace(/\.0%$/, '%')

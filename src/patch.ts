@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs'
 import { readFile } from 'node:fs/promises'
 import { cellContent, contentToCellValue, stripPivotTableParts } from './workbook.ts'
-import { writeWorkbookSafely } from './safe-write.ts'
+import { writeWorkbookPreserving } from './preserve-write.ts'
 
 export interface CellPatch {
   id: string
@@ -35,8 +35,9 @@ export async function applyPatchesToWorkbook(
   patches: CellPatch[],
   outputPath: string = inputPath,
 ): Promise<void> {
+  const original = await readFile(inputPath)
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(stripPivotTableParts(await readFile(inputPath)) as any)
+  await workbook.xlsx.load(stripPivotTableParts(original) as any)
   for (const patch of patches) {
     const bang = patch.id.lastIndexOf('!')
     const sheetName = bang >= 0
@@ -61,5 +62,5 @@ export async function applyPatchesToWorkbook(
     // looked wrong.
     target.value = patch.newValue === '' ? null : contentToCellValue(patch.newValue)
   }
-  await writeWorkbookSafely(outputPath, new Uint8Array(await workbook.xlsx.writeBuffer()))
+  await writeWorkbookPreserving(original, new Uint8Array(await workbook.xlsx.writeBuffer()), outputPath)
 }

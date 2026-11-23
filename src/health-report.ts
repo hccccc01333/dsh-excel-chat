@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs'
 import { t } from './i18n.ts'
 import { validate } from './validator.ts'
 import { readWorkbookCells, stripPivotTableParts } from './workbook.ts'
-import { writeWorkbookSafely } from './safe-write.ts'
+import { writeWorkbookPreserving } from './preserve-write.ts'
 
 /**
  * Sheet name is an identifier, not prose: it is written into the file, exported
@@ -28,9 +28,10 @@ export interface HealthReportResult {
  * Validators skip `_dsh_` sheets so the report never flags itself.
  */
 export async function writeWorkbookHealthReport(path: string, outPath?: string): Promise<HealthReportResult> {
+  const original = await readFile(path)
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(stripPivotTableParts(await readFile(path)) as any)
-  const cells = await readWorkbookCells(await readFile(path))
+  await workbook.xlsx.load(stripPivotTableParts(original) as any)
+  const cells = await readWorkbookCells(original)
   const result = validate(cells)
   const anomalyCount = result.anomalies.length
   const formulaCount = result.formulaCount
@@ -64,7 +65,7 @@ export async function writeWorkbookHealthReport(path: string, outPath?: string):
   report.getColumn(3).width = 80
 
   const target = outPath ?? path
-  await writeWorkbookSafely(target, new Uint8Array(await workbook.xlsx.writeBuffer()))
+  await writeWorkbookPreserving(original, new Uint8Array(await workbook.xlsx.writeBuffer()), target)
   const summary = t('健康分 {score}：{formulas} 个公式，{anomalies} 个异常，报告已写入 {path} 的「{sheet}」表', {
     score: healthScore,
     formulas: formulaCount,

@@ -24,7 +24,7 @@ export type ExcelOperation =
   | { op: 'renameSheet'; oldName: string; newName: string }
   | { op: 'deleteSheet'; name: string }
   | { op: 'clear'; cells: string[] }
-  | { op: 'merge'; range: string }
+  | { op: 'merge'; range: string; groupColumn?: string }
   | { op: 'unmerge'; range: string }
   | { op: 'copyRange'; source: string; target: string; move?: boolean; valuesOnly?: boolean }
   | { op: 'fillSeries'; start: string; target: string; step?: number }
@@ -32,7 +32,16 @@ export type ExcelOperation =
   | { op: 'setColumnWidth'; sheet: string; column: string; width: number }
   | { op: 'setRowHeight'; sheet: string; row: number; height: number }
   | { op: 'freezePanes'; sheet: string; row: number; column: string }
-  | { op: 'findReplace'; find: string; replace: string; sheet?: string; matchCase?: boolean }
+  | {
+      op: 'findReplace'
+      find: string
+      replace: string
+      sheet?: string
+      range?: string
+      matchCase?: boolean
+      wholeCell?: boolean
+      regex?: boolean
+    }
   | { op: 'duplicateSheet'; name: string; newName: string }
   | { op: 'hideSheet'; name: string; hidden?: boolean }
   | { op: 'setTabColor'; name: string; color: string }
@@ -88,6 +97,7 @@ export type ExcelOperation =
       errorStyle?: 'stop' | 'warning' | 'information'
       error?: string
       errorTitle?: string
+      remove?: boolean
     }
   | {
       op: 'conditionalFormatting'
@@ -127,9 +137,29 @@ export type ExcelOperation =
         style?: ExcelStyle
       }>
     }
-  | { op: 'autoFilter'; range: string }
+  | {
+      op: 'autoFilter'
+      range: string
+      criteria?: Array<{
+        column: string
+        operator?: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'notContains'
+        value: string
+      }>
+    }
   | { op: 'subtotal'; sheet: string; range: string; groupColumn: string; summaryColumns: Array<{ column: string; function: 'sum' | 'average' | 'count' | 'max' | 'min' }>; addGrandTotal?: boolean }
   | { op: 'aggregateReport'; source: string; groupColumn: string; metrics: Array<{ column: string; function: 'sum' | 'average' | 'count' | 'counta' | 'max' | 'min' }>; outputSheet?: string }
+  | {
+      op: 'pivot'
+      source: string
+      rowField: string
+      columnField?: string
+      pageField?: string
+      pageItem?: string
+      valueField: string
+      aggregate?: 'sum' | 'average' | 'count' | 'max' | 'min'
+      valueFields?: Array<{ column: string; aggregate?: 'sum' | 'average' | 'count' | 'max' | 'min' }>
+      outputSheet?: string
+    }
   | { op: 'filterToRange'; source: string; criteria: Array<{ column: string; operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains'; value: string | number }>; target: string; matchAll?: boolean }
   | {
       op: 'protectSheet'
@@ -150,6 +180,13 @@ export type ExcelOperation =
       }
     }
   | { op: 'unprotectSheet'; sheet: string; password?: string }
+  | {
+      op: 'setCellProtection'
+      range: string
+      locked?: boolean
+      hidden?: boolean
+      unlockAll?: boolean
+    }
   | {
       op: 'pageSetup'
       sheet: string
@@ -179,7 +216,7 @@ export type ExcelOperation =
   | { op: 'removeEmptyColumns'; range: string }
   | { op: 'trimText'; range: string }
   | { op: 'changeCase'; range: string; case: 'upper' | 'lower' | 'proper' }
-  | { op: 'normalizeText'; range: string }
+  | { op: 'normalizeText'; range: string; toNumber?: boolean }
   | {
       op: 'splitColumn'
       sheet: string
@@ -297,6 +334,20 @@ export type ExcelOperation =
       markers?: boolean
       highColor?: string
       lowColor?: string
+    }
+  | {
+      op: 'addChart'
+      categories: string
+      values: string
+      type?: 'column' | 'bar' | 'line' | 'pie'
+      title?: string
+      series?: Array<{ values: string; name?: string }>
+      legend?: boolean
+      xAxisTitle?: string
+      yAxisTitle?: string
+      anchor?: string
+      width?: number
+      height?: number
     }
   | {
       op: 'insertImage'

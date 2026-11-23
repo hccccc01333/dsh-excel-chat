@@ -56,6 +56,36 @@ test('autofixWorkbookFile repairs a silent reference-pattern error and re-valida
   assert.equal(outcome.reportSheet, '_dsh_体检报告')
 })
 
+test('autofixWorkbookFile says so when it cannot repair a hardcode', async () => {
+  // The demo promises this branch ("手打数字覆盖公式会明说未自动修复"), but
+  // only the repaired and clean paths were covered. A deterministic repair
+  // cannot restore a hand-overwritten formula, so it must be reported.
+  const dir = await mkdtemp(join(tmpdir(), 'vera-autofix-hardcode-'))
+  const path = join(dir, 'hardcode.xlsx')
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Sheet1')
+  sheet.getCell('D2').value = { formula: 'B2*C2' }
+  sheet.getCell('D3').value = { formula: 'B3*C3' }
+  sheet.getCell('D4').value = 1600
+  sheet.getCell('D5').value = { formula: 'B5*C5' }
+  sheet.getCell('B2').value = 10
+  sheet.getCell('C2').value = 100
+  sheet.getCell('B3').value = 5
+  sheet.getCell('C3').value = 200
+  sheet.getCell('B4').value = 8
+  sheet.getCell('C4').value = 200
+  sheet.getCell('B5').value = 4
+  sheet.getCell('C5').value = 100
+  await writeFile(path, await workbook.xlsx.writeBuffer())
+
+  const outcome = await autofixWorkbookFile(path, { healthReport: false })
+  assert.equal(outcome.before.total, 1)
+  assert.equal(outcome.before.byKind['hardcode-break'], 1)
+  assert.equal(outcome.repairs.length, 0)
+  assert.equal(outcome.after.total, 1)
+  assert.ok(outcome.message.includes('未自动修复 1 处'), outcome.message)
+})
+
 test('autofixWorkbookFile can skip the embedded health report', async () => {
   const path = await makeBrokenWorkbook()
   const outcome = await autofixWorkbookFile(path, { healthReport: false })

@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { findUnpreservedParts, writeWorkbookSafely } from '../src/safe-write.ts'
+import { findUnpreservedParts, restoreSnapshot, writeWorkbookSafely } from '../src/safe-write.ts'
 
 async function tempDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'vera-safe-write-'))
@@ -32,6 +32,26 @@ test('a fresh write needs no backup and leaves no temp file behind', async () =>
   // The temp file is a sibling so the rename stays on one filesystem; it must not
   // survive the write, or every edit would litter the user's folder.
   assert.deepEqual((await readdir(dir)).sort(), ['new.xlsx'])
+})
+
+test('two edits keep two snapshots and two undos walk back through both', async () => {
+  const dir = await tempDir()
+  const target = join(dir, 'book.xlsx')
+  const write = (text: string): Promise<unknown> => writeWorkbookSafely(target, new TextEncoder().encode(text))
+  await writeFile(target, 'original')
+  await write('edit1')
+  await write('edit2')
+
+  assert.equal(await readFile(target, 'utf8'), 'edit2')
+  assert.equal(await readFile(`${target}.bak`, 'utf8'), 'edit1')
+  assert.equal(await readFile(`${target}.bak.1`, 'utf8'), 'original')
+
+  // A restore must not back up the edited file into `.bak`, or the second undo
+  // would replay "edit2" — a redo dressed up as an undo.
+  assert.equal((await restoreSnapshot(target)).restored, true)
+  assert.equal(await readFile(target, 'utf8'), 'edit1')
+  assert.equal((await restoreSnapshot(target)).restored, true)
+  assert.equal(await readFile(target, 'utf8'), 'original')
 })
 
 test('a failed write leaves the target exactly as it was', async () => {

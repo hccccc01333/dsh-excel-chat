@@ -26,7 +26,7 @@ documentation — see [README](../README.en.md) for that, including the tool lis
 - `src/profile.ts` — `profileWorkbook`: structured table encoding, producing a compact per-sheet, per-column profile and a suggested read range for the `excel_profile` tool.
 - `src/autofix.ts` — `autofixWorkbookFile`: the check → repair → re-check → plain-language summary self-healing loop behind `excel_autofix`.
 - `src/pivot.ts` — `createPivotTable`: drives Excel COM to generate a native pivot table (pivotCache + pivotTable) that always opens cleanly.
-- `src/operation-schema.ts` — the strict discriminated-union schema for `excel_operate`'s 77 operations, so the model emits the right shape straight from the `op` field.
+- `src/operation-schema.ts` — the strict discriminated-union schema for `excel_operate`'s 80 operations, so the model emits the right shape straight from the `op` field.
 - `src/operations.ts` — the Excel operation DSL: set (type inference) / fill / fillSeries / insertRows / deleteRows / insertColumns / deleteColumns (references shift like Excel, including across sheets, and deleted cells become `#REF!`) / sortRange (multi-key) / copyRange / moveRange / style / dataValidation (dropdowns and numeric checks) / conditionalFormatting / setColumnWidth / autoFilter / addTable (structured tables) / setRowHeight / freezePanes / findReplace / addSheet / renameSheet / deleteSheet / duplicateSheet / hideSheet / setTabColor / clear / merge / unmerge.
 - `src/benchmark.ts` — Pass@1 benchmark: deterministic repair → LLM repair, scored against an oracle.
 - `src/benchmark-cases.ts` — 11 benchmark tasks: range endpoints, absolute references, empty rows, cross-sheet, multi-sheet, aggregate structure, hardcode and more.

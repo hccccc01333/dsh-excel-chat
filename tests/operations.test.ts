@@ -676,6 +676,568 @@ test('conditionalFormatting supports duplicate, blank, error, average, and timeP
   assert.ok(formulae.some((formula) => formula.includes('SEARCH("x"')))
 })
 
+test('fuzzyMatch writes typed numbers instead of text', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const source = workbook.addWorksheet('订单')
+    source.getCell('A2').value = 'Widget'
+    const target = workbook.addWorksheet('价目表')
+    target.getCell('A2').value = 'Widget'
+    target.getCell('B2').value = 25.5
+  })
+  const outPath = join(join(path, '..'), 'fuzzy-typed.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'fuzzyMatch', source: '订单!A2:A2', sourceKey: 'A',
+    target: '价目表!A2:B2', targetKey: 'A', valueColumn: 'B', outputColumn: 'C', threshold: 0.6,
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const value = workbook.getWorksheet('订单')!.getCell('C2').value
+  assert.equal(value, 25.5)
+  assert.equal(typeof value, 'number')
+})
+
+test('addChart normalizes reversed ranges and parses formatted numbers', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A2').value = 'b'
+    sheet.getCell('A3').value = 'a'
+    sheet.getCell('B2').value = '1,234'
+    sheet.getCell('B3').value = '¥500'
+  })
+  const outPath = join(join(path, '..'), 'chart-reversed.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'addChart', categories: 'Sheet1!A3:A2', values: 'Sheet1!B3:B2',
+  }], outPath)
+  const chart = await readZipEntry(outPath, 'xl/charts/chart1.xml')
+  assert.match(chart, /<c:f>Sheet1!\$A\$2:\$A\$3<\/c:f>/)
+  assert.match(chart, /<c:v>1234<\/c:v>/)
+  assert.match(chart, /<c:v>500<\/c:v>/)
+})
+
+test('autoFilter rejects criteria outside the range', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('B1').value = 'name'
+    sheet.getCell('B2').value = 'x'
+  })
+  await assert.rejects(
+    applyOperationsToWorkbook(path, [{
+      op: 'autoFilter', range: 'Sheet1!B1:B2',
+      criteria: [{ column: 'A', value: 'x' }],
+    }], join(join(path, '..'), 'bad-filter.xlsx')),
+    /outside range/,
+  )
+})
+
+test('setCellProtection unlocks input cells and hides formulas for protected templates', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'name'
+    sheet.getCell('B1').value = 'total'
+    sheet.getCell('A2').value = 'x'
+    sheet.getCell('B2').value = { formula: 'A2&"!"', result: 'x!' }
+  })
+  const outPath = join(join(path, '..'), 'protected.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'setCellProtection', range: 'Sheet1!A2:A2', locked: false },
+    { op: 'setCellProtection', range: 'Sheet1!B2:B2', locked: true, hidden: true },
+    { op: 'protectSheet', sheet: 'Sheet1' },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('A2').protection.locked, false)
+  assert.equal(sheet.getCell('B2').protection.locked, true)
+  assert.equal(sheet.getCell('B2').protection.hidden, true)
+})
+
+test('pivot builds a row-by-column cross-tab', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('销售')
+    sheet.getCell('A1').value = '地区'
+    sheet.getCell('B1').value = '渠道'
+    sheet.getCell('C1').value = '金额'
+    ;[['华东', '线上', 10], ['华东', '线下', 20], ['华南', '线上', 5], ['华南', '线下', 7]].forEach((row, index) => {
+      row.forEach((value, col) => { sheet.getCell(index + 2, col + 1).value = value })
+    })
+  })
+  const outPath = join(join(path, '..'), 'pivot-crosstab.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'pivot', source: '销售!A1:C5', rowField: 'A', columnField: 'B', valueField: 'C',
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const output = workbook.getWorksheet('销售透视')!
+  assert.equal(output.getCell('A2').value, '华东')
+  assert.equal(output.getCell('B1').value, '线上 - 求和:金额')
+  assert.equal(output.getCell('C1').value, '线下 - 求和:金额')
+  assert.equal(output.getCell('B2').value, 10)
+  assert.equal(output.getCell('C2').value, 20)
+  assert.equal(output.getCell('B3').value, 5)
+  const table = await readZipEntry(outPath, 'xl/pivotTables/pivotTable1.xml')
+  assert.match(table, /<colFields count="1"><field x="1"\/><\/colFields>/)
+  assert.match(table, /<colItems count="2"><i><x v="0"\/><\/i><i><x v="1"\/><\/i><\/colItems>/)
+  assert.match(table, /rowGrandTotals="0" colGrandTotals="0"/)
+})
+
+test('pivot applies a page field filter', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('销售')
+    sheet.getCell('A1').value = '地区'
+    sheet.getCell('B1').value = '金额'
+    sheet.getCell('C1').value = '年份'
+    ;[['华东', 10, '2024'], ['华东', 20, '2025'], ['华南', 5, '2024']].forEach((row, index) => {
+      row.forEach((value, col) => { sheet.getCell(index + 2, col + 1).value = value })
+    })
+  })
+  const outPath = join(join(path, '..'), 'pivot-page.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'pivot', source: '销售!A1:C4', rowField: 'A', valueField: 'B',
+    pageField: 'C', pageItem: '2025',
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const output = workbook.getWorksheet('销售透视')!
+  assert.equal(output.getCell('B2').value, 20)
+  assert.equal(output.getCell('A3').value, null)
+  const table = await readZipEntry(outPath, 'xl/pivotTables/pivotTable1.xml')
+  assert.match(table, /<pageFields count="1"><pageField fld="2" item="1"\/><\/pageFields>/)
+})
+
+test('pivot combines a column field with multiple measures', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('销售')
+    sheet.getCell('A1').value = '地区'
+    sheet.getCell('B1').value = '渠道'
+    sheet.getCell('C1').value = '金额'
+    sheet.getCell('D1').value = '数量'
+    ;[['华东', '线上', 10, 2], ['华东', '线下', 20, 3], ['华南', '线上', 5, 1]].forEach((row, index) => {
+      row.forEach((value, col) => { sheet.getCell(index + 2, col + 1).value = value })
+    })
+  })
+  const outPath = join(join(path, '..'), 'pivot-cross-multi.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'pivot', source: '销售!A1:D4', rowField: 'A', columnField: 'B',
+    valueField: 'C', valueFields: [{ column: 'D' }],
+  }], outPath)
+  const table = await readZipEntry(outPath, 'xl/pivotTables/pivotTable1.xml')
+  assert.match(table, /<colFields count="1"><field x="1"\/><\/colFields>/)
+  assert.equal((table.match(/<dataField /g) ?? []).length, 2)
+})
+
+test('pivot supports multiple measures', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('订单')
+    sheet.getCell('A1').value = '地区'
+    sheet.getCell('B1').value = '金额'
+    sheet.getCell('C1').value = '数量'
+    ;[['华东', 10, 2], ['华南', 20, 3], ['华东', 5, 1]].forEach((row, index) => {
+      row.forEach((value, col) => { sheet.getCell(index + 2, col + 1).value = value })
+    })
+  })
+  const outPath = join(join(path, '..'), 'pivot-multi.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'pivot', source: '订单!A1:C4', rowField: 'A', valueField: 'B',
+    valueFields: [{ column: 'C', aggregate: 'sum' }],
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const output = workbook.getWorksheet('订单透视')!
+  assert.equal(output.getCell('B1').value, '求和:金额')
+  assert.equal(output.getCell('C1').value, '求和:数量')
+  assert.equal(output.getCell('B2').value, 15)
+  assert.equal(output.getCell('C2').value, 3)
+  const table = await readZipEntry(outPath, 'xl/pivotTables/pivotTable1.xml')
+  assert.equal((table.match(/<dataField /g) ?? []).length, 2)
+  assert.match(table, /<colFields count="1"><field x="-2"\/><\/colFields>/)
+  const cache = await readZipEntry(outPath, 'xl/pivotCache/pivotCacheDefinition1.xml')
+  assert.match(cache, /<cacheFields count="3">/)
+})
+
+test('pivot creates a native pivot table with cache parts and aggregated cells', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('订单')
+    sheet.getCell('A1').value = '地区'
+    sheet.getCell('B1').value = '金额'
+    ;[['华东', 10], ['华南', 20], ['华东', 5], ['华北', 7]].forEach(([label, amount], index) => {
+      sheet.getCell(`A${index + 2}`).value = label
+      sheet.getCell(`B${index + 2}`).value = amount
+    })
+  })
+  const outPath = join(join(path, '..'), 'pivot.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'pivot', source: '订单!A1:B5', rowField: 'A', valueField: 'B', aggregate: 'sum',
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const output = workbook.getWorksheet('订单透视')!
+  assert.equal(output.getCell('A1').value, '地区')
+  assert.equal(output.getCell('A2').value, '华东')
+  assert.equal(output.getCell('B2').value, 15)
+  assert.equal(output.getCell('A3').value, '华南')
+  assert.equal(output.getCell('B3').value, 20)
+  const cache = await readZipEntry(outPath, 'xl/pivotCache/pivotCacheDefinition1.xml')
+  assert.match(cache, /<worksheetSource ref="A1:B5" sheet="订单"\/>/)
+  assert.match(cache, /<s v="华东"\/>/)
+  const table = await readZipEntry(outPath, 'xl/pivotTables/pivotTable1.xml')
+  assert.match(table, /<location ref="A1:B4"/)
+  assert.match(table, /<dataField name="金额" fld="1" baseField="0"/)
+  assert.match(table, /<item x="0"\/>/)
+  assert.match(table, /<i t="grand"><x\/><\/i>/)
+  const records = await readZipEntry(outPath, 'xl/pivotCache/pivotCacheRecords1.xml')
+  assert.match(records, /<r><x v="0"\/><n v="10"\/><\/r>/)
+  assert.match(records, /<r><x v="0"\/><n v="5"\/><\/r>/)
+  const tableRels = await readZipEntry(outPath, 'xl/pivotTables/_rels/pivotTable1.xml.rels')
+  assert.match(tableRels, /pivotCacheDefinition1\.xml/)
+  const book = await readZipEntry(outPath, 'xl/workbook.xml')
+  assert.match(book, /<pivotCaches><pivotCache cacheId="1" r:id="rId\d+"\/><\/pivotCaches>/)
+  const sheetRels = await readZipEntry(outPath, 'xl/worksheets/_rels/sheet2.xml.rels')
+  assert.match(sheetRels, /pivotTable1\.xml/)
+  const { validateStructure } = await import('../src/package-check.ts')
+  assert.deepEqual(validateStructure(await readFile(outPath)), [], 'the pivot package must stay structurally valid')
+})
+
+test('addChart reuses an existing drawing and keeps drawing before legacyDrawing', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = 'k'
+    sheet.getCell('A2').value = 'v'
+    sheet.getCell('B1').value = 1
+    sheet.getCell('B2').value = 2
+  })
+  const outPath = join(join(path, '..'), 'chart-comment.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'insertImage', cell: 'Sheet1!D1', base64: TINY_PNG },
+    { op: 'addChart', categories: 'Sheet1!A1:A2', values: 'Sheet1!B1:B2', anchor: 'Sheet1!F1' },
+    { op: 'addComment', cell: 'Sheet1!A1', text: 'note' },
+  ], outPath)
+  const sheetXml = await readZipEntry(outPath, 'xl/worksheets/sheet1.xml')
+  assert.equal((sheetXml.match(/<drawing\b/g) ?? []).length, 1)
+  assert.equal((sheetXml.match(/<legacyDrawing\b/g) ?? []).length, 1)
+  assert.ok(sheetXml.indexOf('<drawing') < sheetXml.indexOf('<legacyDrawing'), 'drawing must precede legacyDrawing')
+  const rels = await readZipEntry(outPath, 'xl/worksheets/_rels/sheet1.xml.rels')
+  assert.equal((rels.match(/\/drawing"/g) ?? []).length, 1, 'the image drawing must not be orphaned')
+  const drawing = await readZipEntry(outPath, 'xl/drawings/drawing1.xml')
+  assert.match(drawing, /<xdr:pic>/, 'the original image survived')
+  assert.match(drawing, /<c:chart/, 'the chart was appended to the same drawing')
+})
+
+test('addChart supports multiple series, a legend and axis titles', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '月份'
+    sheet.getCell('B1').value = '收入'
+    sheet.getCell('C1').value = '成本'
+    ;[['1月', 100, 60], ['2月', 120, 70]].forEach((row, index) => {
+      row.forEach((value, col) => { sheet.getCell(index + 2, col + 1).value = value })
+    })
+  })
+  const outPath = join(join(path, '..'), 'chart-multi.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'addChart', categories: 'Sheet1!A2:A3', values: 'Sheet1!B2:B3',
+    series: [{ values: 'Sheet1!C2:C3' }], type: 'line',
+    xAxisTitle: '月份', yAxisTitle: '金额',
+  }], outPath)
+  const chart = await readZipEntry(outPath, 'xl/charts/chart1.xml')
+  assert.equal((chart.match(/<c:ser>/g) ?? []).length, 2)
+  assert.match(chart, /<c:idx val="0"\/><c:order val="0"\/>/)
+  assert.match(chart, /<c:idx val="1"\/><c:order val="1"\/>/)
+  assert.match(chart, /<c:v>收入<\/c:v>/)
+  assert.match(chart, /<c:v>成本<\/c:v>/)
+  assert.match(chart, /<c:legend><c:legendPos val="r"\/><\/c:legend>/)
+  assert.match(chart, /<a:t>月份<\/a:t>/)
+  assert.match(chart, /<a:t>金额<\/a:t>/)
+})
+
+test('addChart writes chart and drawing parts without Excel', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '地区'
+    sheet.getCell('B1').value = '金额'
+    ;[['华东', 12], ['华南', 18], ['华北', 9]].forEach(([label, amount], index) => {
+      sheet.getCell(`A${index + 2}`).value = label
+      sheet.getCell(`B${index + 2}`).value = amount
+    })
+  })
+  const outPath = join(join(path, '..'), 'chart.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'addChart', categories: 'Sheet1!A2:A4', values: 'Sheet1!B2:B4',
+    type: 'column', title: '地区金额', anchor: 'Sheet1!D2',
+  }], outPath)
+  const chart = await readZipEntry(outPath, 'xl/charts/chart1.xml')
+  assert.match(chart, /<c:barChart>/)
+  assert.match(chart, /<c:barDir val="col"\/>/)
+  assert.match(chart, /<c:f>Sheet1!\$A\$2:\$A\$4<\/c:f>/)
+  assert.match(chart, /<c:f>Sheet1!\$B\$2:\$B\$4<\/c:f>/)
+  assert.match(chart, /<a:t>地区金额<\/a:t>/)
+  assert.match(chart, /<c:pt idx="1"><c:v>18<\/c:v><\/c:pt>/)
+  const drawing = await readZipEntry(outPath, 'xl/drawings/drawing1.xml')
+  assert.match(drawing, /<xdr:col>3<\/xdr:col>/)
+  assert.match(drawing, /<xdr:row>1<\/xdr:row>/)
+  const rels = await readZipEntry(outPath, 'xl/drawings/_rels/drawing1.xml.rels')
+  assert.match(rels, /Type="[^"]*\/chart" Target="\.\.\/charts\/chart1\.xml"/)
+  const sheetXml = await readZipEntry(outPath, 'xl/worksheets/sheet1.xml')
+  assert.match(sheetXml, /<drawing r:id="rId/)
+  const sheetRels = await readZipEntry(outPath, 'xl/worksheets/_rels/sheet1.xml.rels')
+  assert.match(sheetRels, /Type="[^"]*\/drawing" Target="\.\.\/drawings\/drawing1\.xml"/)
+})
+
+test('autoFilter with criteria hides rows and saves the filter in xlsx XML', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '金额'
+    ;[500, 1500, 2000, 800].forEach((value, index) => { sheet.getCell(`A${index + 2}`).value = value })
+  })
+  const outPath = join(join(path, '..'), 'filter-criteria.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'autoFilter', range: 'Sheet1!A1:A5',
+    criteria: [{ column: 'A', operator: 'gt', value: '1000' }],
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getRow(2).hidden, true)
+  assert.equal(sheet.getRow(3).hidden, false)
+  assert.equal(sheet.getRow(4).hidden, false)
+  assert.equal(sheet.getRow(5).hidden, true)
+  const xml = await readZipEntry(outPath, 'xl/worksheets/sheet1.xml')
+  assert.match(xml, /<filterColumn colId="0"><customFilters><customFilter operator="greaterThan" val="1000"\/><\/customFilters><\/filterColumn>/)
+})
+
+test('autoFilter contains criteria are saved as selected filter values', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '地区'
+    ;['华东', '华南', '华东一区', '华北'].forEach((value, index) => { sheet.getCell(`A${index + 2}`).value = value })
+  })
+  const outPath = join(join(path, '..'), 'filter-contains.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'autoFilter', range: 'Sheet1!A1:A5',
+    criteria: [{ column: 'A', operator: 'contains', value: '华东' }],
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getRow(2).hidden, false)
+  assert.equal(sheet.getRow(3).hidden, true)
+  assert.equal(sheet.getRow(4).hidden, false)
+  const xml = await readZipEntry(outPath, 'xl/worksheets/sheet1.xml')
+  assert.match(xml, /<filter val="华东"\/>/)
+  assert.match(xml, /<filter val="华东一区"\/>/)
+  assert.doesNotMatch(xml, /<filter val="华南"\/>/)
+})
+
+test('findReplace supports whole-cell, regex and range-restricted matching', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '华东'
+    sheet.getCell('A2').value = '华东一区'
+    sheet.getCell('A3').value = 'A-100'
+    sheet.getCell('B1').value = '华东'
+  })
+  const outPath = join(join(path, '..'), 'find-options.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'findReplace', find: '华东', replace: 'EA', wholeCell: true, sheet: 'Sheet1' },
+    { op: 'findReplace', find: '^A-(\\d+)$', replace: 'X$1', regex: true, range: 'Sheet1!A3:A3' },
+  ], outPath)
+  const cells = await readWorkbookCells(await readFile(outPath))
+  assert.equal(cells['Sheet1!A1'], 'EA')
+  assert.equal(cells['Sheet1!A2'], '华东一区', 'substring should not match with wholeCell')
+  assert.equal(cells['Sheet1!B1'], 'EA', 'the first op targets the whole sheet')
+  assert.equal(cells['Sheet1!A3'], 'X100')
+})
+
+test('dataValidation can remove a range and keeps INDIRECT formulas unquoted', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    for (let row = 1; row <= 3; row += 1) sheet.getCell(`A${row}`).dataValidation = { type: 'list', formulae: ['"a,b"'] }
+  })
+  const outPath = join(join(path, '..'), 'dv-options.xlsx')
+  await applyOperationsToWorkbook(path, [
+    { op: 'dataValidation', range: 'Sheet1!A2:A3', type: 'list', formula1: 'unused', remove: true },
+    { op: 'dataValidation', range: 'Sheet1!A1', type: 'list', formula1: 'INDIRECT("省份!A2:A10")' },
+  ], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  const validations = (sheet as unknown as { dataValidations: { model: Record<string, { formulae?: string[] }> } }).dataValidations.model
+  assert.deepEqual(Object.keys(validations), ['A1'])
+  assert.equal(validations['A1']!.formulae?.[0], 'INDIRECT("省份!A2:A10")')
+})
+
+test('merge with groupColumn combines consecutive equal values only', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    ;['销售', '销售', '销售', '技术', '技术', '销售'].forEach((value, index) => {
+      sheet.getCell(`A${index + 1}`).value = value
+    })
+  })
+  const outPath = join(join(path, '..'), 'merge-runs.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'merge', range: 'Sheet1!A1:A6', groupColumn: 'A',
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.deepEqual(sheet.model.merges.sort(), ['A1:A3', 'A4:A5'])
+})
+
+test('normalizeText toNumber converts pasted numeric text without touching labels', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = '１,２３４'
+    sheet.getCell('A2').value = '¥ 2,500'
+    sheet.getCell('A3').value = '(1,234)'
+    sheet.getCell('A4').value = '12.5%'
+    sheet.getCell('A5').value = '订单 123'
+    sheet.getCell('A6').value = '=1+1'
+  })
+  const outPath = join(join(path, '..'), 'numeric-text.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'normalizeText', range: 'Sheet1!A1:A6', toNumber: true,
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  assert.equal(sheet.getCell('A1').value, 1234)
+  assert.equal(sheet.getCell('A2').value, 2500)
+  assert.equal(sheet.getCell('A3').value, -1234)
+  assert.equal(sheet.getCell('A4').value, 0.125)
+  assert.equal(sheet.getCell('A4').numFmt, '0.00%')
+  assert.equal(sheet.getCell('A5').value, '订单 123')
+  assert.equal(sheet.getCell('A6').value, '=1+1', 'formula text must not be turned into a number')
+})
+
+test('date criteria compare as timestamps, and empty text does not match zero', async () => {
+  const { matchesCriterion } = await import('../src/op/filters.ts')
+  const date = new Date('2024-06-01T00:00:00.000Z')
+  assert.equal(matchesCriterion(date, 'gte', '2024-05-01'), true)
+  assert.equal(matchesCriterion(date, 'lt', '2024-07-01'), true)
+  assert.equal(matchesCriterion(0, 'eq', ''), false)
+  assert.equal(matchesCriterion('', 'eq', ''), true)
+})
+
+test('aggregateReport keeps date groups as real dates so SUMIFS can match', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('销售')
+    sheet.getCell('A1').value = '日期'
+    sheet.getCell('B1').value = '金额'
+    sheet.getCell('A2').value = new Date('2024-01-01T00:00:00.000Z')
+    sheet.getCell('B2').value = 12
+  })
+  const outPath = join(join(path, '..'), 'aggregate-date.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'aggregateReport', source: '销售!A1:B2', groupColumn: 'A',
+    metrics: [{ column: 'B', function: 'sum' }],
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const summary = workbook.getWorksheet('销售-汇总')!
+  const value = summary.getCell('A2').value
+  assert.ok(value instanceof Date, `expected a Date group label, got ${JSON.stringify(value)}`)
+  assert.equal(value.toISOString(), '2024-01-01T00:00:00.000Z')
+})
+
+test('copyRange keeps a date a date instead of writing quoted text', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = new Date('2024-01-15T08:30:00.000Z')
+  })
+  const outPath = join(join(path, '..'), 'date-copy.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'copyRange', source: 'Sheet1!A1', target: 'Sheet1!A2',
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const value = workbook.getWorksheet('Sheet1')!.getCell('A2').value
+  assert.ok(value instanceof Date, `expected a Date, got ${JSON.stringify(value)}`)
+  assert.equal(value.toISOString(), '2024-01-15T08:30:00.000Z')
+})
+
+test('deleting a range collapses a whole-range reference to one #REF!', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A1').value = { formula: 'SUM(A5:A6)', result: 0 }
+  })
+  const cells = await readAfter(path, [{ op: 'deleteRows', sheet: 'Sheet1', row: 5, count: 2 }], 'deleted-ref.xlsx')
+  assert.equal(cells['Sheet1!A1'], '=SUM(#REF!)')
+})
+
+test('row insertion keeps the cached result next to a shifted formula', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A2').value = 20
+    sheet.getCell('B2').value = { formula: 'A2*2', result: 40 }
+  })
+  const outPath = join(join(path, '..'), 'cached.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'insertRows', sheet: 'Sheet1', row: 1, count: 1 }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const value = workbook.getWorksheet('Sheet1')!.getCell('B3').value as { formula?: string; result?: number }
+  assert.equal(value.formula, 'A3*2')
+  assert.equal(value.result, 40, 'the cached result was lost, so valuesOnly pastes will copy the formula')
+})
+
+test('deleting rows moves merges, conditional formatting, filters and validations with them', async () => {
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('B4').value = 'header'
+    sheet.mergeCells('B4:C4')
+    sheet.addConditionalFormatting({ ref: 'B4:D6', rules: [{ type: 'expression', formulae: ['ISBLANK(B4)'] }] })
+    sheet.autoFilter = { from: 'B4', to: 'D6' }
+    for (let row = 4; row <= 6; row += 1) {
+      sheet.getCell(`B${row}`).dataValidation = { type: 'list', formulae: ['"a,b"'] }
+    }
+  })
+  const outPath = join(join(path, '..'), 'ranges-shifted.xlsx')
+  await applyOperationsToWorkbook(path, [{ op: 'deleteRows', sheet: 'Sheet1', row: 2, count: 1 }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  const model = sheet.model as unknown as {
+    merges?: string[]
+    conditionalFormattings?: Array<{ ref?: string }>
+    dataValidations?: Record<string, unknown>
+  }
+  assert.deepEqual(model.merges, ['B3:C3'])
+  assert.deepEqual(model.conditionalFormattings?.map((entry) => entry.ref), ['B3:D5'])
+  assert.deepEqual(Object.keys(model.dataValidations ?? {}).sort(), ['B3', 'B4', 'B5'])
+  const filter = sheet.autoFilter as unknown
+  const filterText = typeof filter === 'string'
+    ? filter
+    : `${(filter as { from?: string }).from}:${(filter as { to?: string }).to}`
+  assert.equal(filterText, 'B3:D5', JSON.stringify(filter))
+})
+
+test('conditional format expressions use the range anchor, not A1', async () => {
+  // Excel evaluates cfRule formulae relative to the top-left cell of sqref.
+  // A1 placeholders made a rule on C5:C5 decide from A5's unrelated value.
+  const path = await makeWorkbook((workbook) => {
+    const sheet = workbook.addWorksheet('Sheet1')
+    sheet.getCell('A5').value = 'different'
+    sheet.getCell('C5').value = 'x'
+  })
+  const outPath = join(join(path, '..'), 'cf-anchor.xlsx')
+  await applyOperationsToWorkbook(path, [{
+    op: 'conditionalFormatting',
+    range: 'Sheet1!C5:C7',
+    rules: [
+      { type: 'blanks', style: { fill: 'F8696B' } },
+      { type: 'duplicateValues', style: { fill: 'FFEB84' } },
+      { type: 'containsText', text: 'x', style: { fill: 'FFFF00' } },
+    ],
+  }], outPath)
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(outPath)
+  const sheet = workbook.getWorksheet('Sheet1')!
+  const cf = (sheet as unknown as { conditionalFormattings: Array<{ rules: Array<{ formulae?: string[] }> }> }).conditionalFormattings
+  const formulae = cf.flatMap((entry) => entry.rules.flatMap((rule) => rule.formulae ?? []))
+  assert.ok(formulae.some((formula) => formula === 'ISBLANK(C5)'), formulae.join('|'))
+  assert.ok(formulae.some((formula) => /COUNTIF\(\$C\$5:\$C\$7,C5\)/.test(formula)), formulae.join('|'))
+  assert.ok(formulae.some((formula) => /SEARCH\("x",C5\)/.test(formula)), formulae.join('|'))
+  assert.ok(!formulae.some((formula) => /(?:^|[^A-Z])A1(?:[^0-9]|$)/.test(formula)), formulae.join('|'))
+})
+
 test('autoFilter adds filter dropdowns to the header range', async () => {
   const path = await makeWorkbook((workbook) => {
     const sheet = workbook.addWorksheet('Sheet1')

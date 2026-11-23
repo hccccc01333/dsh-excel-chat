@@ -109,7 +109,15 @@ export function apply(host: Context, config?: ExcelChatConfig) {
  * path itself, separately from a failure of one individual tool.
  */
 function registerAll(ctx: Context) {
-  registerCommands(ctx)
+  if (ctx.get('commands') !== undefined) {
+    registerCommands(ctx)
+  } else {
+    // Some hosts publish `commands` after this plugin's apply. A hard inject
+    // would refuse to load at all on hosts without the service, while checking
+    // once skipped the three slash commands silently. Cordis parks an inject
+    // dependency until it arrives, so wait for it without making it mandatory.
+    ctx.inject(['commands'], (commandCtx) => registerCommands(commandCtx))
+  }
   ctx.effect(() => ctx.systemPrompt.section({
     name: 'dsh-excel-chat:interaction',
     order: 150,

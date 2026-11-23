@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { readFile } from 'node:fs/promises';
 import { cellContent, contentToCellValue, stripPivotTableParts } from './workbook.js';
-import { writeWorkbookSafely } from './safe-write.js';
+import { writeWorkbookPreserving } from './preserve-write.js';
 export function applyPatches(cells, patches) {
     const result = { ...cells };
     for (const patch of patches) {
@@ -20,8 +20,9 @@ export function revertPatches(cells, patches) {
     return applyPatches(cells, patches.map((patch) => ({ ...patch, oldValue: patch.newValue, newValue: patch.oldValue })));
 }
 export async function applyPatchesToWorkbook(inputPath, patches, outputPath = inputPath) {
+    const original = await readFile(inputPath);
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(stripPivotTableParts(await readFile(inputPath)));
+    await workbook.xlsx.load(stripPivotTableParts(original));
     for (const patch of patches) {
         const bang = patch.id.lastIndexOf('!');
         const sheetName = bang >= 0
@@ -47,5 +48,5 @@ export async function applyPatchesToWorkbook(inputPath, patches, outputPath = in
         // looked wrong.
         target.value = patch.newValue === '' ? null : contentToCellValue(patch.newValue);
     }
-    await writeWorkbookSafely(outputPath, new Uint8Array(await workbook.xlsx.writeBuffer()));
+    await writeWorkbookPreserving(original, new Uint8Array(await workbook.xlsx.writeBuffer()), outputPath);
 }

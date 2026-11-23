@@ -16,6 +16,7 @@ import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import {
+  activeSheetName,
   FULLSCREEN_RENDER_COLS,
   FULLSCREEN_RENDER_ROWS,
   columnName,
@@ -26,6 +27,7 @@ import {
 import {
   captureWindowListeners,
   keepGridFocusInPlace,
+  removeCapturedListeners,
   scopeGlobalTypingToGrid,
   type WindowListener,
 } from './dom-guards.ts'
@@ -144,7 +146,7 @@ function SpreadsheetView({
 }: {
   sheets: NonNullable<TableShape['sheets']>
   editable: boolean
-  onCellEdited: (cellId: string, text: string) => void
+  onCellEdited: (cellId: string, text: string, sheetName: string | null) => void
 }): ReactNode {
   const ref = useRef<HTMLDivElement | null>(null)
   /** Current inner width of the column; the grid's view.width reads it. */
@@ -157,13 +159,24 @@ function SpreadsheetView({
   const viewHeight = fullscreen ? Math.max(320, window.innerHeight - 96) : INLINE_VIEW_HEIGHT
   useEffect(() => {
     if (!fullscreen) return
-    const onResize = (): void => setViewportTick((tick) => tick + 1)
+    // Resize fires dozens of times while a window is dragged. Rebuilding the
+    // grid on each event made the fullscreen view flash and dropped edits; one
+    // rebuild per animation frame is enough to track the new height.
+    let frame = 0
+    const onResize = (): void => {
+      if (frame !== 0) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        setViewportTick((tick) => tick + 1)
+      })
+    }
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') setFullscreen(false)
     }
     window.addEventListener('resize', onResize)
     window.addEventListener('keydown', onKeyDown)
     return () => {
+      if (frame !== 0) cancelAnimationFrame(frame)
       window.removeEventListener('resize', onResize)
       window.removeEventListener('keydown', onKeyDown)
     }
@@ -195,11 +208,18 @@ function SpreadsheetView({
       ss.loadData(toGridData(sheets))
       if (editable) {
         ss.on('cell-edited', (editedCell, rowIndex, colIndex) => {
-          const sheetName = sheets[0]?.sheet ?? 'Sheet1'
+          // The edit event has no sheet identity. Ask the live grid which sheet
+          // is on screen; a renamed/added tab yields null and the caller refuses
+          // to guess an address (the old code always wrote to sheets[0]).
+          const sheetName = activeSheetName(ss, sheets)
           const text = editedCell && typeof editedCell === 'object'
             ? String((editedCell as { text?: unknown }).text ?? '')
             : ''
-          onCellEdited(`${sheetName}!${columnName(Number(colIndex) + 1)}${Number(rowIndex) + 1}`, text)
+          onCellEdited(
+            `${sheetName ?? sheets[0]?.sheet ?? 'Sheet1'}!${columnName(Number(colIndex) + 1)}${Number(rowIndex) + 1}`,
+            text,
+            sheetName,
+          )
         })
       }
       scopeGlobalTypingToGrid(listeners, el)
@@ -229,7 +249,7 @@ function SpreadsheetView({
     }
     return () => {
       if (observer !== null) observer.disconnect()
-      for (const [type, listener, options] of listeners) window.removeEventListener(type, listener, options)
+      removeCapturedListeners(listeners)
       el.innerHTML = ''
     }
   }, [sheets, editable, fullscreen, viewportTick, layout.rows, layout.cols, viewHeight])
@@ -440,7 +460,11 @@ export function ExcelToolView(props: ToolCallViewProps): ReactNode {
       const record = parsed as { path?: string; previewPath?: string }
       const filePath = record.path ?? (typeof record.previewPath === 'string' ? record.previewPath.replace(/\.preview\.html$/i, '.xlsx') : undefined)
       const inPlace = Boolean(filePath && commandsRemote)
-      const commitEdit = async (cellId: string, newValue: string) => {
+      const commitEdit = async (cellId: string, newValue: string, sheetName: string | null) => {
+        if (sheetName === null) {
+          setSavedNote({ kind: 'error', text: '当前工作表无法对应到文件里的表（可能被改名或新建），改动未提交；请切回原有工作表。' })
+          return
+        }
         if (!inPlace || !filePath) {
           if (!newValue) return
           const instruction = `请把 ${cellId} 的值改成 ${newValue}，用 excel_operate 的 set 执行，完成后用 excel_read 重新预览并回复“完成”。`

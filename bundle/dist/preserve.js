@@ -31,7 +31,7 @@ export function isEmpty(preserved) {
 }
 /** Read everything an edit would otherwise destroy out of the original file. */
 export function capturePreserved(data) {
-    const empty = { parts: {}, sheetRelationships: new Map(), sheetTableParts: new Map(), contentTypes: [] };
+    const empty = { parts: {}, sheetRelationships: new Map(), sheetTableParts: new Map(), contentTypes: [], cacheRelationships: [] };
     let files;
     try {
         files = unzipSync(data);
@@ -81,9 +81,9 @@ export function capturePreserved(data) {
         if (tableParts)
             sheetTableParts.set(name, tableParts[0]);
     }
-    const cacheRelationship = [...workbookRels.matchAll(/<Relationship\b[^>]*\/>/g)]
+    const cacheRelationships = [...workbookRels.matchAll(/<Relationship\b[^>]*\/>/g)]
         .map((match) => match[0])
-        .find((xml) => PIVOT_CACHE_REL.test(/\bType="([^"]*)"/.exec(xml)?.[1] ?? ''));
+        .filter((xml) => PIVOT_CACHE_REL.test(/\bType="([^"]*)"/.exec(xml)?.[1] ?? ''));
     const overrides = [...contentTypes.matchAll(/<Override\b[^>]*\/>/g)]
         .map((match) => match[0])
         .filter((xml) => {
@@ -93,7 +93,7 @@ export function capturePreserved(data) {
     return {
         parts,
         pivotCaches: /<pivotCaches\b[\s\S]*?<\/pivotCaches>/.exec(workbook)?.[0],
-        cacheRelationship,
+        cacheRelationships,
         sheetRelationships,
         sheetTableParts,
         contentTypes: overrides,
@@ -122,18 +122,34 @@ export function applyPreserved(output, preserved) {
     // 1. Workbook-level cache declaration + the relationship it points at.
     const workbookPath = 'xl/workbook.xml';
     const relsPath = 'xl/_rels/workbook.xml.rels';
-    if (preserved.pivotCaches && preserved.cacheRelationship) {
+    if (preserved.pivotCaches && preserved.cacheRelationships.length > 0) {
         const rels = text(relsPath);
         const used = usedIds(rels);
-        const id = nextId(used);
-        const relationship = preserved.cacheRelationship.replace(/\bId="[^"]*"/, `Id="${id}"`);
-        files[relsPath] = strToU8(rels.replace('</Relationships>', `${relationship}</Relationships>`));
+        const newIds = preserved.cacheRelationships.map((relationship) => {
+            const id = nextId(used);
+            used.add(id);
+            return { id, relationship: relationship.replace(/\bId="[^"]*"/, `Id="${id}"`) };
+        });
+        files[relsPath] = strToU8(rels.replace('</Relationships>', `${newIds.map(({ relationship }) => relationship).join('')}</Relationships>`));
         const workbook = text(workbookPath);
-        const caches = preserved.pivotCaches.replace(/\br:id="[^"]*"/, `r:id="${id}"`);
+        const originalInner = /<pivotCaches\b[^>]*>([\s\S]*?)<\/pivotCaches>/.exec(preserved.pivotCaches)?.[1] ?? '';
+        const inner = [...originalInner.matchAll(/<pivotCache\b[^>]*\/>/g)]
+            .map((match, index) => {
+            const id = newIds[index]?.id;
+            return id ? match[0].replace(/\br:id="[^"]*"/, `r:id="${id}"`) : match[0];
+        })
+            .join('');
+        // An edit may already have injected a <pivotCaches> for a newly created
+        // pivot. The workbook schema allows only one such element, so merge the
+        // restored caches into it instead of appending a second one.
+        const existing = /<pivotCaches\b[^>]*>[\s\S]*?<\/pivotCaches>/.exec(workbook);
+        const caches = `<pivotCaches>${inner}</pivotCaches>`;
         // `<pivotCaches>` belongs after `<calcPr>` and before `<extLst>` per the schema.
-        const anchored = /<extLst\b/.test(workbook)
-            ? workbook.replace(/<extLst\b/, `${caches}<extLst`)
-            : workbook.replace('</workbook>', `${caches}</workbook>`);
+        const anchored = existing
+            ? workbook.replace(existing[0], existing[0].replace('</pivotCaches>', `${inner}</pivotCaches>`))
+            : /<extLst\b/.test(workbook)
+                ? workbook.replace(/<extLst\b/, `${caches}<extLst`)
+                : workbook.replace('</workbook>', `${caches}</workbook>`);
         files[workbookPath] = strToU8(anchored);
     }
     // 2. Per-sheet anchors. Sheet files are renumbered by ExcelJS, so resolve the
@@ -172,13 +188,21 @@ export function applyPreserved(output, preserved) {
         }
         files[sheetRelsPath] = strToU8(sheetRels.replace('</Relationships>', `${added.join('')}</Relationships>`));
         if (tableParts) {
-            // The element has to name one of the relationships just added, and it has to
-            // sit in the right place in the worksheet schema — before `</worksheet>`,
-            // after everything else the sheet declares.
-            const firstId = /\bId="([^"]+)"/.exec(added[0] ?? '')?.[1];
-            const restored = firstId
-                ? tableParts.replace(/<tableParts\b[^>]*>/, `<tableParts count="1"><tablePart r:id="${firstId}"/>`)
-                : tableParts;
+            // Each original <tablePart> points at one of the relationships just
+            // restored. Match by Target so a sheet with several tables/pivots keeps
+            // every anchor, not just the first one.
+            const targetOf = (rel) => /\bTarget="([^"]+)"/.exec(rel)?.[1];
+            const idOf = (rel) => /\bId="([^"]+)"/.exec(rel)?.[1];
+            const newIdByTarget = new Map(added.map((rel) => [targetOf(rel), idOf(rel)]));
+            const oldTargetById = new Map((declared ?? []).map((rel) => [idOf(rel), targetOf(rel)]));
+            let restored = tableParts.replace(/<tablePart\b[^>]*\/>/g, (child) => {
+                const oldId = /\br:id="([^"]+)"/.exec(child)?.[1];
+                const target = oldId ? oldTargetById.get(oldId) : undefined;
+                const newId = target ? newIdByTarget.get(target) : undefined;
+                return newId ? child.replace(/\br:id="[^"]+"/, `r:id="${newId}"`) : child;
+            });
+            const count = (restored.match(/<tablePart\b/g) ?? []).length;
+            restored = restored.replace(/<tableParts\b[^>]*>/, `<tableParts count="${count}">`);
             const sheet = text(sheetPath);
             if (sheet && !/<tableParts\b/.test(sheet)) {
                 files[sheetPath] = strToU8(sheet.replace('</worksheet>', `${restored}</worksheet>`));

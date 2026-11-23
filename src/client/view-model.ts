@@ -111,6 +111,37 @@ export function measureSheets(sheets: TableSheetShape[], fullscreen: boolean): S
   }
 }
 
+/**
+ * Name of the sheet the grid is actually showing, or null when it cannot be
+ * trusted. The library's edit event carries only row/col, so deriving the
+ * address from `sheets[0]` silently writes edits to the wrong sheet.
+ *
+ * The active DataProxy is `grid.sheet.data` and its index in `grid.datas`
+ * identifies which loaded sheet is on screen. A tab renamed/added/deleted in
+ * the grid no longer matches the file at that index: return null so the caller
+ * reports an error instead of guessing an address.
+ */
+export function activeSheetName(grid: unknown, sheets: TableSheetShape[]): string | null {
+  const instance = grid as {
+    datas?: Array<{ name?: unknown }>
+    sheet?: { data?: unknown }
+  } | null
+  const datas = Array.isArray(instance?.datas) ? instance.datas : null
+  const active = instance?.sheet?.data
+  const exposesInternals = datas !== null && active !== undefined
+  if (exposesInternals) {
+    const index = datas!.indexOf(active as { name?: unknown })
+    if (index >= 0 && index < sheets.length) {
+      const liveName = datas![index]?.name
+      return typeof liveName === 'string' && liveName === sheets[index]!.sheet ? liveName : null
+    }
+    // A tab added or removed in the grid no longer maps to a loaded sheet.
+    return null
+  }
+  // Without library internals, only a one-sheet workbook is unambiguous.
+  return sheets.length === 1 ? sheets[0]!.sheet : null
+}
+
 /** x-data-spreadsheet payload: row/col keyed cells with display text, per sheet. */
 export function toGridData(sheets: TableSheetShape[]): GridSheetData[] {
   return sheets.map((sheet) => {

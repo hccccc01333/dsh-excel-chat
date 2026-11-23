@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url'
 
 import { readmeNotes } from './readme-notes.mjs'
 import { docFiles, stampPinnedVersions } from './doc-versions.mjs'
+import { stampChangelog } from './changelog-stamp.mjs'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const BUNDLE_MANIFEST = join(ROOT, 'bundle', 'package.json')
@@ -102,7 +103,7 @@ runNpm(['version', version, '--no-git-tag-version', '--allow-same-version'], { q
 // 2. Date the notes. The body is untouched: this script does not write prose.
 const today = new Date()
 const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-writeFileSync(CHANGELOG, changelog.replace(/^## Unreleased[ \t]*$/m, `## ${tag} — ${stamp}`))
+writeFileSync(CHANGELOG, stampChangelog(changelog, tag, stamp))
 
 // 2b. Refresh the "latest release" block in both READMEs.
 //
@@ -137,8 +138,11 @@ for (const file of docFiles(ROOT)) {
   if (stamped !== text) writeFileSync(path, stamped)
 }
 
-// 3. The published bundle must match the tag, so rebuild before testing.
+// 3. Both published artifacts must match the tag: the host half and the web
+//    client half. A source-only fix to the toolview used to ship a stale
+//    dist-client/client.js because nothing rebuilt it here.
 runNpm(['run', 'build:bundle'])
+runNpm(['run', 'build:client'])
 run('node', ['--test', 'tests/*.test.ts'])
 
 // 4. Commit, tag, push. The tag push is what starts the publish workflow.

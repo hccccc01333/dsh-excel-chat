@@ -55,6 +55,7 @@ export type ExcelOperation = {
 } | {
     op: 'merge';
     range: string;
+    groupColumn?: string;
 } | {
     op: 'unmerge';
     range: string;
@@ -93,7 +94,10 @@ export type ExcelOperation = {
     find: string;
     replace: string;
     sheet?: string;
+    range?: string;
     matchCase?: boolean;
+    wholeCell?: boolean;
+    regex?: boolean;
 } | {
     op: 'duplicateSheet';
     name: string;
@@ -176,6 +180,7 @@ export type ExcelOperation = {
     errorStyle?: 'stop' | 'warning' | 'information';
     error?: string;
     errorTitle?: string;
+    remove?: boolean;
 } | {
     op: 'conditionalFormatting';
     range: string;
@@ -199,6 +204,11 @@ export type ExcelOperation = {
 } | {
     op: 'autoFilter';
     range: string;
+    criteria?: Array<{
+        column: string;
+        operator?: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'notContains';
+        value: string;
+    }>;
 } | {
     op: 'subtotal';
     sheet: string;
@@ -216,6 +226,20 @@ export type ExcelOperation = {
     metrics: Array<{
         column: string;
         function: 'sum' | 'average' | 'count' | 'counta' | 'max' | 'min';
+    }>;
+    outputSheet?: string;
+} | {
+    op: 'pivot';
+    source: string;
+    rowField: string;
+    columnField?: string;
+    pageField?: string;
+    pageItem?: string;
+    valueField: string;
+    aggregate?: 'sum' | 'average' | 'count' | 'max' | 'min';
+    valueFields?: Array<{
+        column: string;
+        aggregate?: 'sum' | 'average' | 'count' | 'max' | 'min';
     }>;
     outputSheet?: string;
 } | {
@@ -249,6 +273,12 @@ export type ExcelOperation = {
     op: 'unprotectSheet';
     sheet: string;
     password?: string;
+} | {
+    op: 'setCellProtection';
+    range: string;
+    locked?: boolean;
+    hidden?: boolean;
+    unlockAll?: boolean;
 } | {
     op: 'pageSetup';
     sheet: string;
@@ -310,6 +340,7 @@ export type ExcelOperation = {
 } | {
     op: 'normalizeText';
     range: string;
+    toNumber?: boolean;
 } | {
     op: 'splitColumn';
     sheet: string;
@@ -494,6 +525,22 @@ export type ExcelOperation = {
     markers?: boolean;
     highColor?: string;
     lowColor?: string;
+} | {
+    op: 'addChart';
+    categories: string;
+    values: string;
+    type?: 'column' | 'bar' | 'line' | 'pie';
+    title?: string;
+    series?: Array<{
+        values: string;
+        name?: string;
+    }>;
+    legend?: boolean;
+    xAxisTitle?: string;
+    yAxisTitle?: string;
+    anchor?: string;
+    width?: number;
+    height?: number;
 } | {
     op: 'insertImage';
     /** Anchor cell, sheet-qualified, e.g. "Sheet1!B2". */

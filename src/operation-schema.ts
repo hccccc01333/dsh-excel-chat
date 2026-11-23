@@ -191,6 +191,7 @@ export const excelOperationSchema = {
       errorStyle: { type: 'string', enum: ['stop', 'warning', 'information'], description: 'Error alert style.' },
       error: text('Error message text.'),
       errorTitle: text('Error alert title.'),
+      remove: bool('Remove existing validations from the range instead of adding one.'),
     }),
     opSchema('conditionalFormatting', {
       range: rangeSchema,
@@ -237,7 +238,26 @@ export const excelOperationSchema = {
         },
       },
     }),
-    opSchema('autoFilter', { range: rangeSchema }),
+    opSchema('autoFilter', {
+      range: rangeSchema,
+      criteria: {
+        type: 'array',
+        description: 'Optional filter rules. Rows failing any rule are hidden and the rule is saved in the xlsx autoFilter.',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            column: text('Column letter inside the range, e.g. "B".', true),
+            operator: {
+              type: 'string',
+              enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains', 'notContains'],
+              description: 'Comparison to apply to the column (default eq).',
+            },
+            value: text('Value to compare against (numbers and dates as strings are accepted).', true),
+          },
+        },
+      },
+    }),
     opSchema('subtotal', {
       sheet: text('Sheet name.', true),
       range: rangeSchema,
@@ -272,6 +292,28 @@ export const excelOperationSchema = {
         },
       },
       outputSheet: text('Output sheet name (default "<source>汇总").'),
+    }),
+    opSchema('pivot', {
+      source: text('Source range including a header row, e.g. "订单!A1:C50".', true),
+      rowField: text('Column letter to group by, e.g. "A".', true),
+      columnField: text('Optional second grouping column for a cross-tab, e.g. "B".'),
+      pageField: text('Optional filter column, e.g. "D".'),
+      pageItem: text('Value to select in pageField (default: first distinct value).'),
+      valueField: text('Numeric column letter to aggregate, e.g. "C".', true),
+      aggregate: { type: 'string', enum: ['sum', 'average', 'count', 'max', 'min'], description: 'Aggregation (default sum).' },
+      valueFields: {
+        type: 'array',
+        description: 'Additional numeric columns to aggregate; `valueField` is always the first measure.',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            column: text('Column letter in the source range, e.g. "C".', true),
+            aggregate: { type: 'string', enum: ['sum', 'average', 'count', 'max', 'min'] },
+          },
+        },
+      },
+      outputSheet: text('Sheet name for the pivot table (default "<source>透视").'),
     }),
     opSchema('filterToRange', {
       source: text('Source data range including the header row.', true),
@@ -311,6 +353,12 @@ export const excelOperationSchema = {
           autoFilter: bool('Allow using filters.'),
         },
       },
+    }),
+    opSchema('setCellProtection', {
+      range: text('Range, e.g. "Sheet1!B2:B20".', true),
+      locked: bool('Whether cells are locked (default true). Unlock input cells before protecting the sheet.'),
+      hidden: bool('Whether to hide formulas from the formula bar (default false).'),
+      unlockAll: bool('Unlock every cell in the workbook first (useful before locking a specific range).'),
     }),
     opSchema('unprotectSheet', {
       sheet: text('Sheet name.', true),
@@ -371,10 +419,13 @@ export const excelOperationSchema = {
       column: text('First scrollable column letter (1-based; "B" freezes column A).', true),
     }),
     opSchema('findReplace', {
-      find: text('Text to find.', true),
+      find: text('Text to find, or a regular-expression pattern when regex is true.', true),
       replace: text('Replacement text.', true),
       sheet: text('Restrict to one sheet (optional).'),
+      range: text('Restrict to one range, e.g. "订单!B2:D50" (overrides sheet).'),
       matchCase: bool('Case-sensitive match (default false).'),
+      wholeCell: bool('Replace only cells whose entire content matches (default false).'),
+      regex: bool('Treat "find" as a regular expression (default false).'),
     }),
     opSchema('addSheet', { name: text('New sheet name.', true) }),
     opSchema('renameSheet', {
@@ -408,7 +459,10 @@ export const excelOperationSchema = {
       guardFormulas: bool('Prefix literal values starting with = + - @ to prevent formula injection (default true).'),
     }),
     opSchema('clear', { cells: stringList('Cell ids to clear, e.g. ["Sheet1!A1"].') }),
-    opSchema('merge', { range: rangeSchema }),
+    opSchema('merge', {
+      range: rangeSchema,
+      groupColumn: text('Instead of merging the whole range, merge each vertical run of identical values in this column (e.g. "A").'),
+    }),
     opSchema('unmerge', { range: rangeSchema }),
     opSchema('dedupeRows', {
       sheet: text('Sheet name.', true),
@@ -431,7 +485,10 @@ export const excelOperationSchema = {
       range: rangeSchema,
       case: { type: 'string', enum: ['upper', 'lower', 'proper'], required: true, description: 'Case conversion: upper / lower / proper (capitalize each word).' },
     }),
-    opSchema('normalizeText', { range: rangeSchema }),
+    opSchema('normalizeText', {
+      range: rangeSchema,
+      toNumber: bool('Also convert numeric-looking text (fullwidth digits, currency symbols, thousands separators, accounting negatives, percentages) into real numbers and set a matching percent format.'),
+    }),
     opSchema('splitColumn', {
       sheet: text('Sheet name.', true),
       column: text('Source column letter, e.g. "A".', true),
@@ -625,6 +682,30 @@ export const excelOperationSchema = {
       markers: bool('Show markers with high/low highlighting.'),
       highColor: text('Color for the highest point (default orange FF7C00).'),
       lowColor: text('Color for the lowest point (default red D00000).'),
+    }),
+    opSchema('addChart', {
+      categories: text('Category labels range, e.g. "Sheet1!A2:A6".', true),
+      values: text('Numeric values range, same length as categories, e.g. "Sheet1!B2:B6".', true),
+      type: { type: 'string', enum: ['column', 'bar', 'line', 'pie'], description: 'Chart type (default column).' },
+      title: text('Optional chart title.'),
+      series: {
+        type: 'array',
+        description: 'Additional data series; `values` above is always the first series. Each series uses the same categories.',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            values: text('Numeric values range for this series, e.g. "Sheet1!C2:C6".', true),
+            name: text('Series name (default: header cell above the values range).'),
+          },
+        },
+      },
+      legend: bool('Show the legend (default true when there is more than one series).'),
+      xAxisTitle: text('Optional category-axis title.'),
+      yAxisTitle: text('Optional value-axis title.'),
+      anchor: text('Top-left cell where the chart is placed, e.g. "Sheet1!D2".'),
+      width: num('Chart width in pixels (default 480).'),
+      height: num('Chart height in pixels (default 300).'),
     }),
     opSchema('insertImage', {
       cell: text('Anchor cell for the image top-left corner, e.g. "Sheet1!B2".', true),

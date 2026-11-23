@@ -13,7 +13,9 @@ export declare function copyRange(workbook: ExcelJS.Workbook, sourceRange: strin
     push(w: OperationWarning): void;
 }, opIndex?: number): void;
 export declare function fillSeries(workbook: ExcelJS.Workbook, startId: string, targetRange: string, step?: number): void;
-export declare function findReplace(workbook: ExcelJS.Workbook, find: string, replace: string, sheetName: string | undefined, matchCase: boolean): number;
+export declare function findReplace(workbook: ExcelJS.Workbook, find: string, replace: string, sheetName: string | undefined, matchCase: boolean, range?: string, wholeCell?: boolean, regex?: boolean): number;
+/** Merge consecutive rows carrying the same value in one column of a range. */
+export declare function mergeEqualRuns(workbook: ExcelJS.Workbook, range: string, groupColumn: string): number;
 export declare function duplicateSheet(workbook: ExcelJS.Workbook, name: string, newName: string): void;
 export declare function renameSheetReferences(workbook: ExcelJS.Workbook, oldName: string, newName: string): void;
 export declare function applyMerge(workbook: ExcelJS.Workbook, range: string, unmerge: boolean): void;

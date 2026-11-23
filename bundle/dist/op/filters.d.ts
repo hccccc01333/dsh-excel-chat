@@ -9,7 +9,7 @@ import type { ExcelOperation } from '../operation-types.ts';
 export declare function applyFilterToRange(workbook: ExcelJS.Workbook, options: Extract<ExcelOperation, {
     op: 'filterToRange';
 }>): void;
-export declare function matchesCriterion(actual: ExcelJS.CellValue, operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains', expected: string | number): boolean;
+export declare function matchesCriterion(actual: ExcelJS.CellValue, operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'notContains', expected: string | number): boolean;
 export declare function applyMailMerge(workbook: ExcelJS.Workbook, options: Extract<ExcelOperation, {
     op: 'mailMerge';
 }>): void;

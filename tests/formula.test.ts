@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { canonicalCellId, columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula } from '../src/formula.ts'
+import { canonicalCellId, columnToNumber, normalizeSheet, numberToColumn, parseCellId, parseFormula, shiftFormulaRow } from '../src/formula.ts'
 
 test('column letters convert to their 1-based number', () => {
   assert.equal(columnToNumber('A'), 1)
@@ -105,4 +105,18 @@ test('cell-like text inside a string is not a reference', () => {
   // Excel escapes a quote by doubling it, not with a backslash.
   assert.deepEqual(refs('="x""A1"""&B2'), ['B2'])
   assert.deepEqual(refs('=IF(A1="""","",A1)'), ['A1', 'A1'])
+})
+
+test('references after a string literal keep their raw offsets', () => {
+  // Replacing a literal with one space used to shorten the scanner's input, so
+  // every range after it pointed at the wrong slice of the original formula.
+  assert.deepEqual(refs('=IF(A1="x",B2,0)'), ['A1', 'B2'])
+  assert.deepEqual(refs('="long label"&A1+B2'), ['A1', 'B2'])
+  assert.deepEqual(refs('=IF(A1="x""A1""",B2,C3)'), ['A1', 'B2', 'C3'])
+})
+
+test('row shifts move references after a string literal too', () => {
+  assert.equal(shiftFormulaRow('=IF(A1="x",B2,0)', 1), '=IF(A2="x",B3,0)')
+  assert.equal(shiftFormulaRow('="label"&A1+B2', 1), '="label"&A2+B3')
+  assert.equal(shiftFormulaRow('=IF(A1="x",$B$2,C3)', 1), '=IF(A2="x",$B$2,C4)')
 })

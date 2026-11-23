@@ -10,7 +10,7 @@ import { t } from '../i18n.ts'
 import { columnToNumber, numberToColumn } from '../formula.ts'
 import { cellContent, contentToCellValue } from '../workbook.ts'
 import type { ExcelOperation, OperationWarning } from '../operation-types.ts'
-import { cellContentOf, findSheet, parseRange, resolveCell, writeContent } from './core.ts'
+import { cellContentOf, findSheet, parseRange, resolveCell, shiftFormulaReferences, writeContent } from './core.ts'
 
 export function joinSheets(
   workbook: ExcelJS.Workbook,
@@ -26,13 +26,16 @@ export function joinSheets(
   const lookupKeyCol = columnToNumber(operation.lookupKey)
 
   // First match wins, mirroring VLOOKUP's approximate=false behaviour.
-  const index = new Map<string, string[]>()
+  type LookupValue = { raw: ExcelJS.CellValue; formula: string | null; row: number; col: number }
+  const index = new Map<string, LookupValue[]>()
   for (let row = lookupParsed.startRow + 1; row <= lookupParsed.endRow; row++) {
     const key = normalizeJoinKey(lookupParsed.sheet.getCell(`${numberToColumn(lookupKeyCol)}${row}`).value)
     if (!key || index.has(key)) continue
-    index.set(key, operation.valueColumns.map((column) =>
-      cellContentOf(lookupParsed.sheet.getCell(`${numberToColumn(columnToNumber(column))}${row}`)),
-    ))
+    index.set(key, operation.valueColumns.map((column) => {
+      const col = columnToNumber(column)
+      const cell = lookupParsed.sheet.getCell(`${numberToColumn(col)}${row}`)
+      return { raw: cell.value, formula: cell.formula ? `=${cell.formula}` : null, row, col }
+    }))
   }
 
   const sourceKeyCol = columnToNumber(operation.sourceKey)
@@ -54,8 +57,18 @@ export function joinSheets(
     matched++
     values.forEach((value, i) => {
       const column = columnToNumber(operation.outputColumns[i]!)
-      sourceParsed.sheet.getCell(`${numberToColumn(column)}${row}`).value =
-        value.startsWith('=') ? { formula: value.slice(1) } : contentToCellValue(value)
+      const cell = sourceParsed.sheet.getCell(`${numberToColumn(column)}${row}`)
+      if (value.formula) {
+        // A copied formula must follow its new row, and a cross-sheet lookup
+        // must gain the destination sheet as its base for unqualified refs.
+        const shifted = shiftFormulaReferences(value.formula, lookupParsed.sheet.name, null, {
+          rowDelta: row - value.row,
+          colDelta: column - value.col,
+        })
+        cell.value = contentToCellValue(shifted)
+      } else {
+        cell.value = value.raw
+      }
     })
   }
   warnings.push({ op: opIndex, message: t('joinSheets 匹配了 {matched} 行，{missed} 行没有找到对应值', { matched, missed }) })

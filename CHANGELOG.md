@@ -1,5 +1,92 @@
 # Changelog
 
+## Unreleased
+
+<!-- 在这里写下一条条对用户可见的改动。发版脚本会去掉本注释并要求本节非空。 -->
+
+- **含字符串的公式，插入/删除行后引用不再错位。** 扫描器此前把字符串字面量换成
+  一个空格，导致后续引用的索引整体前移：`=IF(A1="x",B2,0)` 下移一行会变成
+  `=IF(A2="x",B3,0)`（B2 没动）。现在替换为等长空格；补齐了扫描器与空行填补的回归测试。
+
+- **Web 面板改哪张表就写哪张表。** 表格库的编辑事件不带表名，过去一律按第一张表
+  生成地址，切到 Sheet2 编辑会静默改到 Sheet1。现在地址取自网格当前活动标签；
+  被改名/新增/删除的标签无法对应到文件时，拒绝提交并给出提示，不再猜地址。
+
+- **评测口径说清楚。** 中英文 README 此前把「144 题」和旧 100 题语料的
+  86%/52% 写在一句里，容易被读成当前成绩；现在明确当前 144 题实测为 88.9%，
+  旧数字标明不可比。
+
+- **Web 面板的全局监听器不再泄漏。** 表格库把「点击外部」绑在 `document.body`，
+  卸载时旧代码只从 `window` 上摘监听器，反复挂载会留下失效回调；现在按真实挂载目标
+  记录并移除。全屏拖拽窗口时同一帧内的多次 resize 也合并成一次重建。
+
+- **透视表页字段筛选**：`pivot` 新增 `pageField`/`pageItem`，源文件按选中值过滤后再汇总；
+  pageFields 元数据已由 openpyxl 校验，能正确读回选中项。
+
+- **透视表行列交叉表**：`pivot` 新增 `columnField`，可按行、列两个维度分组生成交叉表；
+  可与 `valueFields` 组合，同时输出多度量。生成文件经 openpyxl 校验，能正确解析 rowItems/colItems/dataFields。
+
+- **透视表多度量**：`pivot` 新增 `valueFields`，可在同一张透视表里汇总多列（各自可选 sum/average/count/max/min）。
+  缓存字段与记录改为按源列通用建模；生成文件经 openpyxl 校验，能正确解析 2 个 dataField 与 1 个 colField。
+
+- **图表多系列**：`addChart` 新增 `series`（追加同长度数值区域）、`legend`、`xAxisTitle`/`yAxisTitle`；
+  column/bar/line/pie 均支持，多系列时默认显示图例。生成的 XML 已用 lxml 做结构解析验证。
+
+- **模板保护补全**：新增 `setCellProtection`，可锁定/解锁单元格、隐藏公式，并支持先解锁全表；
+  与 `protectSheet` 组合可做"只让黄色输入格可编辑"的模板。操作总数 79 → 80。
+
+- **图表/透视/保留机制的正确性修复**（团队审计）：
+  - 图表与透视区域支持反向写法（如 `A5:A2`），数值解析改用容错解析器并跳过空值；
+  - 生成的 pivot XML 改为与 Excel 一致的 `<item x>` / `<rowItems><i><x/></i>` 结构，
+    缓存记录改为逐源行写入，已用 openpyxl 重新读取验证；
+  - 注释、VML、图表、drawing 部件编号避开已有文件；同一工作表的图片与图表共用一个 drawing，
+    `<drawing>` 始终排在 `<legacyDrawing>` 之前；
+  - 保留多个透视缓存时，每个缓存都拿到独立的 relationship；`tableParts` 保留全部锚点；
+  - 自动筛选条件列必须在区间内，图表锚点必须在数值所在工作表。
+
+- **跨平台建原生透视表**：新增 `pivot`，按列分组汇总并写入结果，同时注入 pivotCache、
+  pivotTable 及全部关系和内容类型；`refreshOnLoad` 让 Excel 打开时按源区域刷新。
+  操作总数从 78 增至 79。
+
+- **跨平台建图表**：新增 `addChart`，用分类区域 + 数值区域创建 column/bar/line/pie 图，
+  图表、drawing、工作表关系和内容类型都由 XML 后处理写入 xlsx，无需本机 Excel。
+  操作总数从 77 增至 78。
+
+- **自动筛选支持条件**：`autoFilter` 新增 `criteria`，可写 `gt/gte/lt/lte/eq/neq/contains/notContains`；
+  不匹配的行会被隐藏，条件写进 XLSX 的 `<autoFilter>`（ExcelJS 只会输出裸 ref，这里由
+  XML 后处理补齐），打开文件时筛选状态与可见结果一致。
+
+- **操控能力补强**：`findReplace` 新增 `range` / `wholeCell` / `regex`（支持 `$1` 反向引用）；
+  `dataValidation` 新增 `remove`，且 `INDIRECT(...)` 等动态范围不再被误加引号；
+  `merge` 新增 `groupColumn`，可把一列中连续相同的值分段合并。
+
+- **Excel 操作正确性**：复制/填充/模糊匹配回填时日期和数字不再被字符串化；
+  `insertRows`/`deleteRows` 现在同步搬动合并区、条件格式、数据验证、筛选和表格范围，
+  并在位移公式时保留缓存结果；删除整段引用只产生一个 `#REF!`；条件格式的 expression
+  规则改用范围左上角作为锚点；日期筛选可正确比较，`aggregateReport` 的日期分组
+  保留为真实日期，`normalizeText` 新增 `toNumber` 把粘贴的金额文本转成数字。
+
+- **斜杠命令不再受宿主加载顺序影响。** 宿主若在插件之后才发布 `commands` 服务，
+  三个命令此前会被静默跳过；现在用 Cordis 的 `inject` 等它到位，同时保持插件在
+  根本没有该服务的宿主上照常加载。
+
+- **透视表不再被修复/回滚/健康报告悄悄删掉。** 这三条路径此前把 ExcelJS
+  无法处理的 `xl/pivotTables/*`、`xl/pivotCache/*` 剥掉后直接写回，文件还能打开，
+  透视表却永久消失。现在统一走 `preserve-write.ts`：写入前重新注入并校验包结构。
+
+- **连续两次撤销真的回到两个不同状态。** 备份此前只有一个固定 `.bak`，第二次编辑
+  会覆盖原始快照；撤销时又把当前内容写进 `.bak`，第二次撤销反而变 redo。现在保留
+  最多 5 层快照，原地撤销消费一层。
+
+- **`excel_undo` 不再要求补丁日志。** 快照恢复本来不需要它，但只要 `.patch.json`
+  缺失或无效，工具就会在恢复前抛错。现在 `patchPath` 可选；两者都没有时明确报错。
+
+- **图表导出的临时脚本会被清理，结果不再混入旧 PNG。** 每次 COM 调用写的 `.ps1`
+  现在放在 `finally` 里删除；导出结果按脚本报告的本轮数量截取。
+
+- **发版会重建 Web 客户端产物。** `npm run build:client` 正式入 scripts，
+  发版脚本同时重建 server/client 两份产物；`## Unreleased` 段在打版后自动补回。
+
 ## v0.44.0 — 2026-11-22
 
 - **表格卡片不再每帧重建，对话输出不再上下跳（issue #6）。**

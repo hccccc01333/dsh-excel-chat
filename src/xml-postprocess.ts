@@ -32,15 +32,111 @@ export interface SparklineGroupSpec {
   lowColor: string
 }
 
+/** A saved autoFilter criterion ExcelJS cannot express on its own. */
+export interface AutoFilterColumnSpec {
+  /** Zero-based column index within the autoFilter range. */
+  colId: number
+  /** Exact values to select (the <filters> form). */
+  values?: string[]
+  /** Comparison to write as <customFilters>, e.g. { operator: 'greaterThan', val: '1000' }. */
+  custom?: { operator: string; val: string }
+}
+
+export interface ChartSeries {
+  name: string
+  ref: string
+  values: number[]
+}
+
+/** A chart ExcelJS cannot create, described entirely in worksheet coordinates. */
+export interface ChartSpec {
+  type: 'column' | 'bar' | 'line' | 'pie'
+  title?: string
+  categoryRef: string
+  categories: string[]
+  series: ChartSeries[]
+  legend?: boolean
+  xAxisTitle?: string
+  yAxisTitle?: string
+  /** Zero-based top-left cell for the chart. */
+  anchorCol: number
+  anchorRow: number
+  /** Drawing size in EMU (914400 per inch). */
+  width: number
+  height: number
+}
+
+export type PivotAggregate = 'sum' | 'average' | 'count' | 'max' | 'min'
+
+export interface PivotCacheField {
+  name: string
+  /** Numeric fields carry raw values in records; text fields carry shared-item indexes. */
+  numeric: boolean
+  /** Shared string items for text fields. */
+  items?: string[]
+  min?: number
+  max?: number
+}
+
+export interface PivotMeasure {
+  name: string
+  /** Zero-based index into PivotSpec.fields. */
+  fieldIndex: number
+  aggregate: PivotAggregate
+  /** Aggregated values in row order. */
+  values: number[]
+  /** Row-by-column values when a column field is present. */
+  matrix?: number[][]
+}
+
+/** A native pivot table built from a workbook range, without Excel. */
+export interface PivotSpec {
+  name: string
+  cacheId: number
+  /** Part-number suffix, kept clear of pivot parts restored from the original file. */
+  partSuffix: number
+  sourceSheet: string
+  /** Source range body without the sheet name, e.g. "A1:B4". */
+  sourceRef: string
+  /** Destination sheet and its body range, e.g. "透视!A3:B6". */
+  outputSheet: string
+  outputRef: string
+  fields: PivotCacheField[]
+  /** Zero-based index of the row field in `fields`. */
+  rowFieldIndex: number
+  /** Shared-item index of each output row's row-field value. */
+  rowItemIndices: number[]
+  /** Zero-based index of the optional column field in `fields`. */
+  columnFieldIndex?: number
+  /** Shared-item index of each output column's column-field value. */
+  columnItemIndices?: number[]
+  /** Zero-based index of the optional page (filter) field in `fields`. */
+  pageFieldIndex?: number
+  /** Shared-item index selected by the page field. */
+  pageItemIndex?: number
+  measures: PivotMeasure[]
+  /** One entry per source data row, one number per field. */
+  records: number[][]
+}
+
 export interface WorkbookAnnotations {
   comments: Map<string, CommentSpec[]>
   sparklines: Map<string, SparklineGroupSpec[]>
   /** Sheets whose saved view should show formulas instead of their results. */
   showFormulas: Set<string>
+  /** Criteria to inject into an autoFilter that ExcelJS wrote as a bare ref. */
+  filterColumns: Map<string, AutoFilterColumnSpec[]>
+  /** Charts to add as chart/drawing parts. */
+  charts: Map<string, ChartSpec[]>
+  /** Native pivot tables to add as pivotCache/pivotTable parts. */
+  pivots: PivotSpec[]
 }
 
 export function emptyAnnotations(): WorkbookAnnotations {
-  return { comments: new Map(), sparklines: new Map(), showFormulas: new Set() }
+  return {
+    comments: new Map(), sparklines: new Map(), showFormulas: new Set(),
+    filterColumns: new Map(), charts: new Map(), pivots: [],
+  }
 }
 
 function escapeXml(text: string): string {
@@ -54,11 +150,12 @@ function escapeXml(text: string): string {
 /** The inverse of {@link escapeXml}, for values read back out of a part. */
 function unescapeXml(text: string): string {
   return text
-    .replaceAll('&amp;', '&')
     .replaceAll('&lt;', '<')
     .replaceAll('&gt;', '>')
     .replaceAll('&quot;', '"')
     .replaceAll('&#39;', "'")
+    // Must be last: earlier replacements must not decode the amp in &amp;lt;.
+    .replaceAll('&amp;', '&')
 }
 
 /**
@@ -109,12 +206,36 @@ function withShowFormulas(sheetXml: string): string {
 }
 
 /**
+ * ExcelJS writes `<autoFilter ref="A1:D9"/>` as a leaf, so the criteria live
+ * only in our model. Replace that leaf with a container carrying the filter
+ * columns; Excel then shows the same arrows and applies the same filter on
+ * open instead of an unfiltered range.
+ */
+function withAutoFilterCriteria(sheetXml: string, specs: AutoFilterColumnSpec[]): string {
+  const children = specs.map((spec) => {
+    if (spec.values) {
+      const filters = spec.values.map((value) => `<filter val="${escapeXml(value)}"/>`).join('')
+      return `<filterColumn colId="${spec.colId}"><filters>${filters}</filters></filterColumn>`
+    }
+    const custom = spec.custom!
+    return `<filterColumn colId="${spec.colId}"><customFilters>`
+      + `<customFilter operator="${escapeXml(custom.operator)}" val="${escapeXml(custom.val)}"/>`
+      + '</customFilters></filterColumn>'
+  }).join('')
+  return sheetXml.replace(/<autoFilter\b([^>]*?)\/>/g, (match, attrs: string) => `<autoFilter${attrs}>${children}</autoFilter>`)
+}
+
+/**
  * Rewrite the saved xlsx zip: inject comments parts, VML shapes, sparkline
  * extensions, and the worksheet plumbing (legacyDrawing + rels + content
  * types) they require.
  */
 export function annotateWorkbookXml(data: Uint8Array, annotations: WorkbookAnnotations, sheetFileOf: Map<string, string>): Uint8Array {
-  if (annotations.comments.size === 0 && annotations.sparklines.size === 0 && annotations.showFormulas.size === 0) return data
+  if (
+    annotations.comments.size === 0 && annotations.sparklines.size === 0 &&
+    annotations.showFormulas.size === 0 && annotations.filterColumns.size === 0 &&
+    annotations.charts.size === 0 && annotations.pivots.length === 0
+  ) return data
   const files = unzipSync(data)
 
   // ExcelJS names sheets xl/worksheets/sheetN.xml in id order; map sheet
@@ -136,14 +257,18 @@ export function annotateWorkbookXml(data: Uint8Array, annotations: WorkbookAnnot
   }
 
   let contentTypes = strFromU8(files['[Content_Types].xml'] ?? new Uint8Array(0))
-  let commentFileIndex = 0
-  let vmlFileIndex = 0
+  let chartFileIndex = 0
+
+  const nextFreeIndex = (prefix: string, extension: string): number => {
+    let index = 1
+    while (files[`${prefix}${index}${extension}`]) index += 1
+    return index
+  }
 
   for (const [sheetName, comments] of annotations.comments) {
     const sheetFile = sheetFileOf.get(sheetName)
     if (!sheetFile) throw new Error(`sheet not found for comments: ${sheetName}`)
-    commentFileIndex += 1
-    const commentsFile = `xl/comments${commentFileIndex}.xml`
+    const commentsFile = `xl/comments${nextFreeIndex('xl/comments', '.xml')}.xml`
     files[commentsFile] = strToU8(commentsXml(comments))
     contentTypes = addOverride(contentTypes, `/${commentsFile}`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml')
     if (!/<Default Extension="vml"/.test(contentTypes)) {
@@ -152,10 +277,10 @@ export function annotateWorkbookXml(data: Uint8Array, annotations: WorkbookAnnot
         '$1<Default Extension="vml" ContentType="application/vnd.openxmlformats-officedocument.vmlDrawing"/>',
       )
     }
-    vmlFileIndex += 1
-    const vmlFile = `xl/drawings/vmlDrawing${vmlFileIndex}.vml`
-    files[vmlFile] = strToU8(commentVml(comments))
-    patchSheetForComments(files, sheetFile, commentsFile, vmlFile)
+    const vmlFile = `xl/drawings/vmlDrawing${nextFreeIndex('xl/drawings/vmlDrawing', '.vml')}.vml`
+    const vmlXml = commentVml(comments)
+    files[vmlFile] = strToU8(vmlXml)
+    patchSheetForComments(files, sheetFile, commentsFile, vmlFile, vmlXml)
   }
 
   for (const [sheetName, groups] of annotations.sparklines) {
@@ -168,6 +293,84 @@ export function annotateWorkbookXml(data: Uint8Array, annotations: WorkbookAnnot
     const sheetFile = sheetFileOf.get(sheetName)
     if (!sheetFile) throw new Error(`sheet not found for showFormulas: ${sheetName}`)
     files[sheetFile] = strToU8(withShowFormulas(strFromU8(files[sheetFile] ?? new Uint8Array(0))))
+  }
+
+  for (const [sheetName, specs] of annotations.filterColumns) {
+    const sheetFile = sheetFileOf.get(sheetName)
+    if (!sheetFile) throw new Error(`sheet not found for filterColumns: ${sheetName}`)
+    const xml = strFromU8(files[sheetFile] ?? new Uint8Array(0))
+    const patched = withAutoFilterCriteria(xml, specs)
+    if (patched === xml) throw new Error(`no autoFilter found in ${sheetFile} for criteria on ${sheetName}`)
+    files[sheetFile] = strToU8(patched)
+  }
+
+  for (const [sheetName, specs] of annotations.charts) {
+    const sheetFile = sheetFileOf.get(sheetName)
+    if (!sheetFile) throw new Error(`sheet not found for charts: ${sheetName}`)
+    const sheetRelsFile = sheetFile.replace('xl/worksheets/', 'xl/worksheets/_rels/') + '.rels'
+    let sheetRels = strFromU8(files[sheetRelsFile] ?? new Uint8Array(0)) || emptyRelationships()
+
+    // A sheet may already carry a drawing from an inserted image or a previous
+    // edit. Reuse that part instead of overwriting it and orphaning its rels.
+    const declaredDrawing = [...sheetRels.matchAll(/<Relationship\b[^>]*?\/>/g)]
+      .map((match) => match[0])
+      .find((rel) => /\/drawing$/.test(attributeOf(rel, 'Type') ?? ''))
+    const reusingDrawing = Boolean(declaredDrawing)
+    let drawingFile: string
+    let drawingRelsFile: string
+    let drawingRels: string
+    if (declaredDrawing) {
+      drawingFile = resolvePartPath('xl/worksheets', attributeOf(declaredDrawing, 'Target') ?? '')
+      drawingRelsFile = drawingRelsFileOf(drawingFile)
+      drawingRels = strFromU8(files[drawingRelsFile] ?? new Uint8Array(0)) || emptyRelationships()
+    } else {
+      drawingFile = `xl/drawings/drawing${nextFreeIndex('xl/drawings/drawing', '.xml')}.xml`
+      drawingRelsFile = drawingRelsFileOf(drawingFile)
+      drawingRels = emptyRelationships()
+      files[drawingFile] = strToU8(emptyDrawingXml())
+    }
+
+    const chartRids: string[] = []
+    for (const spec of specs) {
+      chartFileIndex = nextFreeIndex('xl/charts/chart', '.xml')
+      const chartFile = `xl/charts/chart${chartFileIndex}.xml`
+      files[chartFile] = strToU8(chartXml(spec))
+      const rid = nextRelationshipId(drawingRels)
+      drawingRels = appendRelationship(
+        drawingRels, rid, `${ns.rels}/chart`, `../charts/chart${chartFileIndex}.xml`,
+      )
+      chartRids.push(rid)
+      contentTypes = addOverride(
+        contentTypes, `/${chartFile}`,
+        'application/vnd.openxmlformats-officedocument.drawingml.chart+xml',
+      )
+    }
+
+    const existingDrawingXml = strFromU8(files[drawingFile] ?? new Uint8Array(0))
+    const shapeIds = [...existingDrawingXml.matchAll(/<xdr:cNvPr id="(\d+)"/g)]
+      .map((match) => Number(match[1]))
+    const anchors = drawingAnchors(specs, chartRids, Math.max(1, ...shapeIds) + 1)
+    files[drawingFile] = strToU8(reusingDrawing
+      ? existingDrawingXml.replace('</xdr:wsDr>', `${anchors}</xdr:wsDr>`)
+      : wrapDrawingXml(anchors))
+    files[drawingRelsFile] = strToU8(drawingRels)
+    contentTypes = addOverride(
+      contentTypes, `/${drawingFile}`,
+      'application/vnd.openxmlformats-officedocument.drawing+xml',
+    )
+
+    if (!reusingDrawing) {
+      const sheetRid = nextRelationshipId(sheetRels)
+      const target = `../drawings/${drawingFile.slice(drawingFile.lastIndexOf('/') + 1)}`
+      sheetRels = appendRelationship(sheetRels, sheetRid, `${ns.rels}/drawing`, target)
+      files[sheetRelsFile] = strToU8(sheetRels)
+      const sheetXml = strFromU8(files[sheetFile] ?? new Uint8Array(0))
+      files[sheetFile] = strToU8(insertDrawingElement(sheetXml, sheetRid))
+    }
+  }
+
+  if (annotations.pivots.length > 0) {
+    contentTypes = addPivotParts(files, contentTypes, sheetFileOf, annotations.pivots)
   }
 
   files['[Content_Types].xml'] = strToU8(contentTypes)
@@ -216,7 +419,13 @@ function columnIndexOf(ref: string): number {
 }
 
 /** Append the legacyDrawing plumbing a sheet needs before comments render. */
-function patchSheetForComments(files: Record<string, Uint8Array>, sheetFile: string, commentsFile: string, vmlFile: string): void {
+function patchSheetForComments(
+  files: Record<string, Uint8Array>,
+  sheetFile: string,
+  commentsFile: string,
+  vmlFile: string,
+  vmlXml: string,
+): void {
   const sheetPath = sheetFile
   const relsPath = `${sheetPath.replace('xl/worksheets/', 'xl/worksheets/_rels/')}.rels`
   const commentsRelType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments'
@@ -226,20 +435,38 @@ function patchSheetForComments(files: Record<string, Uint8Array>, sheetFile: str
   let nextRid = 1
   for (const match of rels.matchAll(/Id="rId(\d+)"/g)) nextRid = Math.max(nextRid, Number(match[1]) + 1)
   const commentsRid = `rId${nextRid}`
-  const vmlRid = `rId${nextRid + 1}`
-  rels = rels.replace('</Relationships>', `<Relationship Id="${commentsRid}" Type="${commentsRelType}" Target="../${commentsFile.replace('xl/', '')}"/><Relationship Id="${vmlRid}" Type="${vmlRelType}" Target="../${vmlFile.replace('xl/', '')}"/></Relationships>`)
+  const existingVmlRel = [...rels.matchAll(/<Relationship\b[^>]*\/>/g)]
+    .map((match) => match[0])
+    .find((rel) => vmlRelType === (attributeOf(rel, 'Type') ?? ''))
+  let vmlRid = `rId${nextRid + 1}`
+  let addedRels = `<Relationship Id="${commentsRid}" Type="${commentsRelType}" Target="../${commentsFile.replace('xl/', '')}"/>`
+  if (existingVmlRel) {
+    vmlRid = attributeOf(existingVmlRel, 'Id') ?? vmlRid
+    const existingVmlFile = resolvePartPath('xl/worksheets', attributeOf(existingVmlRel, 'Target') ?? '')
+    const existingVml = strFromU8(files[existingVmlFile] ?? new Uint8Array(0))
+    const ids = [...existingVml.matchAll(/_x0000_s(\d+)/g)].map((match) => Number(match[1]))
+    let nextShapeId = Math.max(0, ...ids) + 1
+    const shapes = [...vmlXml.matchAll(/<v:shape\b[\s\S]*?<\/v:shape>/g)].map((match) =>
+      match[0].replace(/_x0000_s\d+/, `_x0000_s${nextShapeId++}`)).join('')
+    files[existingVmlFile] = strToU8(existingVml.replace('</xml>', `${shapes}</xml>`))
+  } else {
+    addedRels += `<Relationship Id="${vmlRid}" Type="${vmlRelType}" Target="../${vmlFile.replace('xl/', '')}"/>`
+  }
+  rels = rels.replace('</Relationships>', `${addedRels}</Relationships>`)
   files[relsPath] = strToU8(rels)
 
   const xml = strFromU8(files[sheetPath] ?? new Uint8Array(0))
   const legacy = `<legacyDrawing r:id="${vmlRid}"/>`
   let patched = xml
-  if (!xml.includes(legacy)) {
+  if (!/<legacyDrawing\b/.test(xml)) {
     // legacyDrawing sits after <drawing> and before tableParts, which itself
     // precedes extLst. Inserting at whichever of those two comes first keeps
     // that order. Matching the first `<extLst` instead would drop it inside a
     // nested list — the one a conditional-formatting rule carries — and make
     // the sheet invalid.
-    const bounds = [worksheetExtListStart(xml), xml.indexOf('<tableParts')].filter((at) => at >= 0)
+    const drawingEnd = /<drawing\b[^>]*\/>/g.exec(xml)
+    const afterDrawing = drawingEnd ? drawingEnd.index + drawingEnd[0].length : -1
+    const bounds = [afterDrawing, worksheetExtListStart(xml), xml.indexOf('<tableParts')].filter((at) => at >= 0)
     const at = bounds.length > 0 ? Math.min(...bounds) : -1
     patched = at >= 0
       ? xml.slice(0, at) + legacy + xml.slice(at)
@@ -369,6 +596,297 @@ function columnName(index: number): string {
     value = Math.floor((value - remaider - 1) / 26)
   }
   return name
+}
+
+function chartTitleXml(text: string): string {
+  return `<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US"/>`
+    + `<a:t>${escapeXml(text)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title>`
+}
+
+function chartXml(spec: ChartSpec): string {
+  const title = spec.title ? chartTitleXml(spec.title) : ''
+  const categories = spec.categories.map((value, index) =>
+    `<c:pt idx="${index}"><c:v>${escapeXml(value)}</c:v></c:pt>`).join('')
+  const series = spec.series.map((item, index) => {
+    const values = item.values.map((value, point) =>
+      `<c:pt idx="${point}"><c:v>${value}</c:v></c:pt>`).join('')
+    return `<c:ser><c:idx val="${index}"/><c:order val="${index}"/>`
+      + `<c:tx><c:v>${escapeXml(item.name)}</c:v></c:tx>`
+      + `<c:cat><c:strRef><c:f>${escapeXml(spec.categoryRef)}</c:f><c:strCache>`
+      + `<c:ptCount val="${spec.categories.length}"/>${categories}</c:strCache></c:strRef></c:cat>`
+      + `<c:val><c:numRef><c:f>${escapeXml(item.ref)}</c:f><c:numCache>`
+      + `<c:formatCode>General</c:formatCode><c:ptCount val="${item.values.length}"/>${values}`
+      + '</c:numCache></c:numRef></c:val></c:ser>'
+  }).join('')
+  const xTitle = spec.xAxisTitle ? chartTitleXml(spec.xAxisTitle) : ''
+  const yTitle = spec.yAxisTitle ? chartTitleXml(spec.yAxisTitle) : ''
+  const axes = spec.type === 'pie' ? '' : `
+    <c:catAx><c:axId val="111111"/><c:scaling><c:orientation val="minMax"/></c:scaling>
+      <c:delete val="0"/><c:axPos val="b"/>${xTitle}<c:crossAx val="222222"/></c:catAx>
+    <c:valAx><c:axId val="222222"/><c:scaling><c:orientation val="minMax"/></c:scaling>
+      <c:delete val="0"/><c:axPos val="l"/>${yTitle}<c:numFmt formatCode="General" sourceLinked="1"/>
+      <c:crossAx val="111111"/></c:valAx>`
+  let plot: string
+  if (spec.type === 'pie') {
+    plot = `<c:pieChart>${series}<c:firstSliceAng val="0"/></c:pieChart>`
+  } else if (spec.type === 'line') {
+    plot = `<c:lineChart><c:grouping val="standard"/>${series}<c:marker val="1"/>`
+      + '<c:axId val="111111"/><c:axId val="222222"/></c:lineChart>'
+  } else {
+    plot = `<c:barChart><c:barDir val="${spec.type === 'bar' ? 'bar' : 'col'}"/>`
+      + `<c:grouping val="clustered"/>${series}<c:gapWidth val="150"/>`
+      + '<c:axId val="111111"/><c:axId val="222222"/></c:barChart>'
+  }
+  const legend = spec.legend ?? (spec.series.length > 1)
+    ? '<c:legend><c:legendPos val="r"/></c:legend>'
+    : ''
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"'
+    + ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+    + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+    + `<c:chart>${title}<c:plotArea><c:layout/>${plot}${axes}</c:plotArea>${legend}`
+    + '<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>'
+}
+
+function drawingAnchors(specs: ChartSpec[], rids: string[], firstShapeId: number): string {
+  return specs.map((spec, index) => `
+    <xdr:oneCellAnchor>
+      <xdr:from><xdr:col>${spec.anchorCol}</xdr:col><xdr:colOff>0</xdr:colOff>
+        <xdr:row>${spec.anchorRow}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>
+      <xdr:ext cx="${spec.width}" cy="${spec.height}"/>
+      <xdr:graphicFrame macro="">
+        <xdr:nvGraphicFramePr><xdr:cNvPr id="${firstShapeId + index}" name="Chart ${firstShapeId + index}"/>
+          <xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>
+        <xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>
+        <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+          <c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            r:id="${rids[index]}"/>
+        </a:graphicData></a:graphic>
+      </xdr:graphicFrame><xdr:clientData/>
+    </xdr:oneCellAnchor>`).join('')
+}
+
+const drawingOpen = '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"'
+  + ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+
+function emptyDrawingXml(): string {
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + drawingOpen + '</xdr:wsDr>'
+}
+
+function wrapDrawingXml(anchors: string): string {
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + drawingOpen + anchors + '</xdr:wsDr>'
+}
+
+function emptyRelationships(): string {
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + `<Relationships xmlns="${ns.packageRel}"/>`
+}
+
+function drawingRelsFileOf(drawingFile: string): string {
+  return drawingFile.replace('xl/drawings/', 'xl/drawings/_rels/') + '.rels'
+}
+
+function resolvePartPath(base: string, target: string): string {
+  const parts = base.split('/')
+  for (const segment of target.split('/')) {
+    if (segment === '' || segment === '.') continue
+    if (segment === '..') parts.pop()
+    else parts.push(segment)
+  }
+  return parts.join('/')
+}
+
+/** CT_Worksheet puts drawing before legacyDrawing, tableParts and extLst. */
+function insertDrawingElement(xml: string, rid: string): string {
+  const element = `<drawing r:id="${rid}"/>`
+  const points = [
+    xml.indexOf('<drawing'), xml.indexOf('<legacyDrawing'), xml.indexOf('<tableParts'),
+    worksheetExtListStart(xml),
+  ].filter((at) => at >= 0)
+  const at = points.length > 0 ? Math.min(...points) : -1
+  return at >= 0 ? xml.slice(0, at) + element + xml.slice(at) : xml.replace('</worksheet>', `${element}</worksheet>`)
+}
+
+function pivotCacheDefinitionXml(spec: PivotSpec): string {
+  const cacheFields = spec.fields.map((field) => {
+    if (field.numeric) {
+      return `<cacheField name="${escapeXml(field.name)}" numFmtId="0">`
+        + '<sharedItems containsSemiMixedTypes="0" containsString="0" containsNumber="1"'
+        + ` containsInteger="1" minValue="${field.min ?? 0}" maxValue="${field.max ?? 0}"/></cacheField>`
+    }
+    const items = (field.items ?? []).map((value) => `<s v="${escapeXml(value)}"/>`).join('')
+    return `<cacheField name="${escapeXml(field.name)}" numFmtId="0">`
+      + `<sharedItems count="${field.items?.length ?? 0}">${items}</sharedItems></cacheField>`
+  }).join('')
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + `<pivotCacheDefinition xmlns="${ns.main}" xmlns:r="${ns.rels}" r:id="rId1"`
+    + ` refreshOnLoad="1" refreshedVersion="7" createdVersion="3"`
+    + ` minRefreshableVersion="3" recordCount="${spec.records.length}">`
+    + `<cacheSource type="worksheet"><worksheetSource ref="${escapeXml(spec.sourceRef)}" sheet="${escapeXml(spec.sourceSheet)}"/></cacheSource>`
+    + `<cacheFields count="${spec.fields.length}">${cacheFields}</cacheFields></pivotCacheDefinition>`
+}
+
+function pivotCacheRecordsXml(spec: PivotSpec): string {
+  const records = spec.records.map((record) => `<r>${record.map((value, index) =>
+    spec.fields[index]!.numeric ? `<n v="${value}"/>` : `<x v="${value}"/>`).join('')}</r>`).join('')
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + `<pivotCacheRecords xmlns="${ns.main}" count="${spec.records.length}">${records}</pivotCacheRecords>`
+}
+
+function pivotTableXml(spec: PivotSpec): string {
+  const body = spec.outputRef.slice(spec.outputRef.lastIndexOf('!') + 1)
+  const measureFields = new Set(spec.measures.map((measure) => measure.fieldIndex))
+  const pivotFields = spec.fields.map((_field, index) => {
+    if (index === spec.rowFieldIndex) {
+      const items = spec.rowItemIndices.map((value) => `<item x="${value}"/>`).join('') + '<item t="default"/>'
+      return `<pivotField axis="axisRow" showAll="0"><items count="${spec.rowItemIndices.length + 1}">${items}</items></pivotField>`
+    }
+    if (index === spec.columnFieldIndex) return '<pivotField axis="axisCol" showAll="0"/>'
+    if (index === spec.pageFieldIndex) {
+      const items = (_field.items ?? []).map((_value, itemIndex) => `<item x="${itemIndex}"/>`).join('')
+        + '<item t="default"/>'
+      return `<pivotField showAll="0"><items count="${(_field.items ?? []).length + 1}">${items}</items></pivotField>`
+    }
+    if (measureFields.has(index)) return '<pivotField dataField="1" showAll="0"/>'
+    return '<pivotField showAll="0"/>'
+  }).join('')
+  const crossTab = spec.columnFieldIndex !== undefined
+  const rowItems = spec.rowItemIndices.map((value) => `<i><x v="${value}"/></i>`).join('')
+    + (crossTab ? '' : '<i t="grand"><x/></i>')
+  // A column field occupies the column area directly; without one, several
+  // measures use Excel's synthetic data field (-2) instead.
+  const multi = spec.measures.length > 1
+  let colFields = '<colFields count="0"/>'
+  let colItems = '<colItems count="1"><i/></colItems>'
+  if (crossTab) {
+    const items = spec.columnItemIndices ?? []
+    colFields = `<colFields count="1"><field x="${spec.columnFieldIndex}"/></colFields>`
+    colItems = `<colItems count="${items.length}">${items.map((value) =>
+      `<i><x v="${value}"/></i>`).join('')}</colItems>`
+  } else if (multi) {
+    colFields = '<colFields count="1"><field x="-2"/></colFields>'
+    colItems = `<colItems count="${spec.measures.length}">${spec.measures.map((_measure, index) =>
+      `<i><x v="${index}"/></i>`).join('')}</colItems>`
+  }
+  const grandTotals = crossTab ? ' rowGrandTotals="0" colGrandTotals="0"' : ''
+  const pageFields = spec.pageFieldIndex === undefined ? ''
+    : `<pageFields count="1"><pageField fld="${spec.pageFieldIndex}" item="${spec.pageItemIndex ?? 0}"/></pageFields>`
+  const dataFields = spec.measures.map((measure) => {
+    const subtotal = measure.aggregate === 'sum' ? '' : ` subtotal="${measure.aggregate}"`
+    return `<dataField name="${escapeXml(measure.name)}" fld="${measure.fieldIndex}"`
+      + `${subtotal} baseField="0" baseItem="0"/>`
+  }).join('')
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + `<pivotTableDefinition xmlns="${ns.main}" name="${escapeXml(spec.name)}"`
+    + ` cacheId="${spec.cacheId}" dataCaption="值" updatedVersion="7"`
+    + ` minRefreshableVersion="3" createdVersion="3"`
+    + ' useAutoFormatting="1" itemPrintTitles="1"'
+    + ' applyNumberFormats="0" applyBorderFormats="0" applyFontFormats="0"'
+    + ' applyPatternFormats="0" applyAlignmentFormats="0" applyWidthHeightFormats="1"'
+    + ' indent="0" outline="1" outlineData="1" multipleFieldFilters="0"' + grandTotals + '>'
+    + `<location ref="${escapeXml(body)}" firstHeaderRow="1" firstDataRow="1" firstDataCol="1"/>`
+    + `<pivotFields count="${spec.fields.length}">${pivotFields}</pivotFields>`
+    + `<rowFields count="1"><field x="${spec.rowFieldIndex}"/></rowFields>`
+    + `<rowItems count="${rowItems === '' ? 0 : spec.rowItemIndices.length + (crossTab ? 0 : 1)}">${rowItems}</rowItems>`
+    + colFields + colItems + pageFields
+    + `<dataFields count="${spec.measures.length}">${dataFields}</dataFields>`
+    + '<pivotTableStyleInfo name="PivotStyleLight16" showRowHeaders="1" showColHeaders="1"'
+    + ' showRowStripes="0" showColStripes="0" showLastColumn="1"/>'
+    + '</pivotTableDefinition>'
+}
+
+const ns = {
+  main: 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+  rels: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+  packageRel: 'http://schemas.openxmlformats.org/package/2006/relationships',
+}
+
+function nextRelationshipId(rels: string): string {
+  const used = [...rels.matchAll(/Id="rId(\d+)"/g)].map((match) => Number(match[1]))
+  return `rId${Math.max(0, ...used) + 1}`
+}
+
+function appendRelationship(rels: string, id: string, type: string, target: string): string {
+  const relationship = `<Relationship Id="${id}" Type="${type}" Target="${target}"/>`
+  return rels.includes('</Relationships>')
+    ? rels.replace('</Relationships>', `${relationship}</Relationships>`)
+    : rels.replace(/\/>\s*$/, `>${relationship}</Relationships>`)
+}
+
+function addPivotParts(
+  files: Record<string, Uint8Array>,
+  contentTypes: string,
+  sheetFileOf: Map<string, string>,
+  specs: PivotSpec[],
+): string {
+  const workbookFile = 'xl/workbook.xml'
+  const workbookRelsFile = 'xl/_rels/workbook.xml.rels'
+  let workbookXml = strFromU8(files[workbookFile] ?? new Uint8Array(0))
+  let workbookRels = strFromU8(files[workbookRelsFile] ?? new Uint8Array(0))
+  const cacheRefs: string[] = []
+
+  specs.forEach((spec, index) => {
+    const suffix = spec.partSuffix || index + 1
+    const cacheFile = `xl/pivotCache/pivotCacheDefinition${suffix}.xml`
+    const recordsFile = `xl/pivotCache/pivotCacheRecords${suffix}.xml`
+    const tableFile = `xl/pivotTables/pivotTable${suffix}.xml`
+    files[cacheFile] = strToU8(pivotCacheDefinitionXml(spec))
+    files[recordsFile] = strToU8(pivotCacheRecordsXml(spec))
+    files[tableFile] = strToU8(pivotTableXml(spec))
+    files[`xl/pivotCache/_rels/pivotCacheDefinition${suffix}.xml.rels`] = strToU8(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      + `<Relationships xmlns="${ns.packageRel}">`
+      + `<Relationship Id="rId1" Type="${ns.rels}/pivotCacheRecords" Target="pivotCacheRecords${suffix}.xml"/>`
+      + '</Relationships>',
+    )
+    files[`xl/pivotTables/_rels/pivotTable${suffix}.xml.rels`] = strToU8(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      + `<Relationships xmlns="${ns.packageRel}">`
+      + `<Relationship Id="rId1" Type="${ns.rels}/pivotCacheDefinition" Target="../pivotCache/pivotCacheDefinition${suffix}.xml"/>`
+      + '</Relationships>',
+    )
+    for (const [part, type] of [
+      [cacheFile, 'pivotCacheDefinition'], [recordsFile, 'pivotCacheRecords'], [tableFile, 'pivotTable'],
+    ] as const) {
+      contentTypes = addOverride(
+        contentTypes, `/${part}`,
+        `application/vnd.openxmlformats-officedocument.spreadsheetml.${type}+xml`,
+      )
+    }
+
+    const cacheRel = nextRelationshipId(workbookRels)
+    workbookRels = appendRelationship(workbookRels, cacheRel, `${ns.rels}/pivotCacheDefinition`, `pivotCache/pivotCacheDefinition${suffix}.xml`)
+    cacheRefs.push(`<pivotCache cacheId="${spec.cacheId}" r:id="${cacheRel}"/>`)
+
+    const outputFile = sheetFileOf.get(spec.outputSheet)
+    if (!outputFile) throw new Error(`sheet not found for pivot output: ${spec.outputSheet}`)
+    const relsFile = outputFile.replace('xl/worksheets/', 'xl/worksheets/_rels/') + '.rels'
+    const sheetRels = files[relsFile]
+      ? strFromU8(files[relsFile])
+      : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${ns.packageRel}"/>`
+    const tableRel = nextRelationshipId(sheetRels)
+    files[relsFile] = strToU8(appendRelationship(sheetRels, tableRel, `${ns.rels}/pivotTable`, `../pivotTables/pivotTable${suffix}.xml`))
+  })
+
+  const existingCaches = /<pivotCaches\b[^>]*>([\s\S]*?)<\/pivotCaches>/.exec(workbookXml)
+  if (existingCaches) {
+    workbookXml = workbookXml.replace(
+      existingCaches[0],
+      existingCaches[0].replace('</pivotCaches>', `${cacheRefs.join('')}</pivotCaches>`),
+    )
+  } else {
+    const caches = `<pivotCaches>${cacheRefs.join('')}</pivotCaches>`
+    workbookXml = /<extLst\b/.test(workbookXml)
+      ? workbookXml.replace(/<extLst\b/, `${caches}<extLst`)
+      : workbookXml.replace('</workbook>', `${caches}</workbook>`)
+  }
+  if (!/xmlns:r\s*=/.test(workbookXml)) {
+    workbookXml = workbookXml.replace(/<workbook\b/, '<workbook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"')
+  }
+  files[workbookFile] = strToU8(workbookXml)
+  files[workbookRelsFile] = strToU8(workbookRels)
+  return contentTypes
 }
 
 function addOverride(contentTypes: string, partName: string, contentType: string): string {

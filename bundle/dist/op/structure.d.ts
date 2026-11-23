@@ -22,6 +22,13 @@ export declare function assertPositiveSpan(kind: string, first: unknown, label: 
 export declare function deleteRowsFromSheet(workbook: ExcelJS.Workbook, sheetName: string, start: number, count: number, warnings: OperationWarning[], opIndex: number): void;
 /** Delete columns with the same reference-shift semantics as the deleteColumns op. */
 export declare function deleteColumnsFromSheet(workbook: ExcelJS.Workbook, sheetName: string, column: number, count: number, warnings: OperationWarning[], opIndex: number): void;
+/**
+ * ExcelJS's splice only moves cell values and styles. A conditional-format
+ * rule, filter, table or merged range left at its old address after a row
+ * deletion silently starts judging the wrong data — worse than losing the
+ * rule outright. Move every sheet-level range with the edit.
+ */
+export declare function shiftSheetRanges(sheet: ExcelJS.Worksheet, axis: 'row' | 'col', first: number, last: number, delta: number): void;
 export declare function shiftWorkbookRows(workbook: ExcelJS.Workbook, editedSheet: string, threshold: number, rowDelta: number): void;
 export declare function collectDeletedRangeRefs(workbook: ExcelJS.Workbook, editedSheet: string, start: number, end: number): string[];
 export declare function shiftWorkbookColumns(workbook: ExcelJS.Workbook, editedSheet: string, threshold: number, colDelta: number): void;

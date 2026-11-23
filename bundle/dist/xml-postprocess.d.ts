@@ -27,11 +27,100 @@ export interface SparklineGroupSpec {
     highColor: string;
     lowColor: string;
 }
+/** A saved autoFilter criterion ExcelJS cannot express on its own. */
+export interface AutoFilterColumnSpec {
+    /** Zero-based column index within the autoFilter range. */
+    colId: number;
+    /** Exact values to select (the <filters> form). */
+    values?: string[];
+    /** Comparison to write as <customFilters>, e.g. { operator: 'greaterThan', val: '1000' }. */
+    custom?: {
+        operator: string;
+        val: string;
+    };
+}
+export interface ChartSeries {
+    name: string;
+    ref: string;
+    values: number[];
+}
+/** A chart ExcelJS cannot create, described entirely in worksheet coordinates. */
+export interface ChartSpec {
+    type: 'column' | 'bar' | 'line' | 'pie';
+    title?: string;
+    categoryRef: string;
+    categories: string[];
+    series: ChartSeries[];
+    legend?: boolean;
+    xAxisTitle?: string;
+    yAxisTitle?: string;
+    /** Zero-based top-left cell for the chart. */
+    anchorCol: number;
+    anchorRow: number;
+    /** Drawing size in EMU (914400 per inch). */
+    width: number;
+    height: number;
+}
+export type PivotAggregate = 'sum' | 'average' | 'count' | 'max' | 'min';
+export interface PivotCacheField {
+    name: string;
+    /** Numeric fields carry raw values in records; text fields carry shared-item indexes. */
+    numeric: boolean;
+    /** Shared string items for text fields. */
+    items?: string[];
+    min?: number;
+    max?: number;
+}
+export interface PivotMeasure {
+    name: string;
+    /** Zero-based index into PivotSpec.fields. */
+    fieldIndex: number;
+    aggregate: PivotAggregate;
+    /** Aggregated values in row order. */
+    values: number[];
+    /** Row-by-column values when a column field is present. */
+    matrix?: number[][];
+}
+/** A native pivot table built from a workbook range, without Excel. */
+export interface PivotSpec {
+    name: string;
+    cacheId: number;
+    /** Part-number suffix, kept clear of pivot parts restored from the original file. */
+    partSuffix: number;
+    sourceSheet: string;
+    /** Source range body without the sheet name, e.g. "A1:B4". */
+    sourceRef: string;
+    /** Destination sheet and its body range, e.g. "透视!A3:B6". */
+    outputSheet: string;
+    outputRef: string;
+    fields: PivotCacheField[];
+    /** Zero-based index of the row field in `fields`. */
+    rowFieldIndex: number;
+    /** Shared-item index of each output row's row-field value. */
+    rowItemIndices: number[];
+    /** Zero-based index of the optional column field in `fields`. */
+    columnFieldIndex?: number;
+    /** Shared-item index of each output column's column-field value. */
+    columnItemIndices?: number[];
+    /** Zero-based index of the optional page (filter) field in `fields`. */
+    pageFieldIndex?: number;
+    /** Shared-item index selected by the page field. */
+    pageItemIndex?: number;
+    measures: PivotMeasure[];
+    /** One entry per source data row, one number per field. */
+    records: number[][];
+}
 export interface WorkbookAnnotations {
     comments: Map<string, CommentSpec[]>;
     sparklines: Map<string, SparklineGroupSpec[]>;
     /** Sheets whose saved view should show formulas instead of their results. */
     showFormulas: Set<string>;
+    /** Criteria to inject into an autoFilter that ExcelJS wrote as a bare ref. */
+    filterColumns: Map<string, AutoFilterColumnSpec[]>;
+    /** Charts to add as chart/drawing parts. */
+    charts: Map<string, ChartSpec[]>;
+    /** Native pivot tables to add as pivotCache/pivotTable parts. */
+    pivots: PivotSpec[];
 }
 export declare function emptyAnnotations(): WorkbookAnnotations;
 /**

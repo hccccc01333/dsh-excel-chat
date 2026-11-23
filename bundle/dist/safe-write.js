@@ -73,13 +73,17 @@ export function findUnpreservedParts(data) {
  * On any failure the temp file is removed and the target is left exactly as it
  * was, so a failed write is a no-op rather than a corruption.
  */
-export async function writeWorkbookSafely(path, data) {
+export async function writeWorkbookSafely(path, data, options = {}) {
     const temp = join(dirname(path), `.${basename(path)}.writing-${randomUUID()}`);
     await writeFile(temp, data);
     try {
         let backupPath;
-        if (existsSync(path)) {
-            backupPath = `${path}.bak`;
+        if (existsSync(path) && options.backup !== false) {
+            backupPath = snapshotPath(path);
+            // A single fixed `.bak` made a second edit overwrite the only copy of the
+            // original. Keep a short chain so two undos walk back two edits instead
+            // of turning the second undo into a redo.
+            await rotateSnapshots(path);
             await copyFile(path, backupPath);
         }
         await rename(temp, path);
@@ -88,6 +92,33 @@ export async function writeWorkbookSafely(path, data) {
     catch (error) {
         await rm(temp, { force: true }).catch(() => { });
         throw error;
+    }
+}
+/** How many pre-edit states to keep: `.bak`, `.bak.1`, … `.bak.4`. */
+const SNAPSHOT_DEPTH = 5;
+async function rotateSnapshots(path) {
+    const latest = snapshotPath(path);
+    if (!existsSync(latest))
+        return;
+    for (let index = SNAPSHOT_DEPTH - 1; index >= 1; index -= 1) {
+        const from = index === 1 ? latest : `${latest}.${index - 1}`;
+        const to = `${latest}.${index}`;
+        if (!existsSync(from))
+            continue;
+        if (existsSync(to))
+            await rm(to, { force: true });
+        await rename(from, to);
+    }
+}
+/** Drop the newest snapshot and promote the next one, after an in-place undo. */
+async function consumeSnapshot(path) {
+    const latest = snapshotPath(path);
+    await rm(latest, { force: true });
+    for (let index = 1; index < SNAPSHOT_DEPTH; index += 1) {
+        const from = `${latest}.${index}`;
+        if (!existsSync(from))
+            break;
+        await rename(from, index === 1 ? latest : `${latest}.${index - 1}`);
     }
 }
 /** Where the pre-edit copy of `path` lives, when one was taken. */
@@ -112,7 +143,12 @@ export async function restoreSnapshot(path, outPath = path) {
     if (!existsSync(snapshot))
         return { restored: false, snapshotPath: snapshot };
     // Going through the safe write keeps the property that a failed restore leaves
-    // the current file alone rather than half-replacing it.
-    await writeWorkbookSafely(outPath, new Uint8Array(await readFile(snapshot)));
+    // the current file alone rather than half-replacing it. Restoring must NOT back
+    // up the edited file into `.bak` — that turned undo into redo on a second call.
+    await writeWorkbookSafely(outPath, new Uint8Array(await readFile(snapshot)), { backup: false });
+    // An in-place undo consumes one layer, so a second undo reaches the state
+    // before the previous edit. Writing to a different path leaves the chain alone.
+    if (outPath === path)
+        await consumeSnapshot(path);
     return { restored: true, snapshotPath: snapshot };
 }

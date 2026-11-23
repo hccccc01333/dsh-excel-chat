@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdtemp, readFile, readdir } from 'node:fs/promises'
+import { access, mkdtemp, readFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -10,6 +10,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as NativeExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import { buildCorpusWorkbook } from '../src/corpus/helpers.ts'
+import { readWorkbookCells } from '../src/workbook.ts'
 import { executeOne } from './execute-one.ts'
 
 /**
@@ -174,6 +175,52 @@ test('unloading removes every tool and command', async () => {
   assert.deepEqual(ctx.tools.schemas().map((schema) => schema.name), [], 'tools survived unload')
 })
 
+test('the plugin still loads on a host without a command service', async () => {
+  const { ctx, commands, dispose } = await boot({ withCommands: false })
+  assert.deepEqual(commands, [], 'no commands should be registered without the service')
+  assert.equal(ctx.tools.schemas().length, EXPECTED_TOOLS.length, 'tools must not depend on commands')
+  await dispose()
+})
+
+test('slash commands register when the command service arrives after the plugin', async () => {
+  const { ctx, commands, dispose } = await boot({ withCommands: false })
+  assert.deepEqual(commands, [], 'no command service was provided at boot')
+  ctx.provide('commands', {
+    register(definition: { name: string }) {
+      commands.push(definition.name)
+      return () => {}
+    },
+  })
+  // Cordis wakes the inject-parked fiber asynchronously.
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  assert.deepEqual(commands.sort(), EXPECTED_COMMANDS, 'late command service did not register the commands')
+  await dispose()
+})
+
+test('excel_undo restores from the snapshot without requiring a patch log', async () => {
+  const { ctx, dispose } = await boot()
+  const dir = await mkdtemp(join(tmpdir(), 'host-undo-'))
+  await buildCorpusWorkbook(dir, 'undo', [
+    { name: 'Sheet1', headers: ['a', 'b'], rows: [['seed', 1]] },
+  ])
+  const path = join(dir, 'undo.xlsx')
+  const edited = await executeOne(ctx, 'undo-edit', 'excel_operate', {
+    path,
+    outPath: path, // in-place, so a pre-edit snapshot exists
+    operations: [{ op: 'set', cells: { 'Sheet1!A1': 'changed' } }],
+  })
+  assert.notEqual(edited.isError, true, `editing failed: ${JSON.stringify(edited.error ?? edited.value)}`)
+
+  // No patchPath at all: a missing audit log used to throw before the snapshot
+  // restore was even attempted, so undo failed on exactly the normal in-place edit.
+  const undone = await executeOne(ctx, 'undo-call', 'excel_undo', { path })
+  assert.notEqual(undone.isError, true, `undo failed: ${JSON.stringify(undone.error ?? undone.value)}`)
+  assert.equal((undone.value as { method?: string }).method, 'snapshot')
+  const cells = await readWorkbookCells(await readFile(path))
+  assert.equal(cells['Sheet1!A1'], 'a', 'the snapshot was not restored')
+  await dispose()
+})
+
 test('the plugin reads and writes a real file end to end', async () => {
   const { ctx, dispose } = await boot()
   const dir = await mkdtemp(join(tmpdir(), 'host-smoke-'))
@@ -186,7 +233,11 @@ test('the plugin reads and writes a real file end to end', async () => {
     { name: 'Sheet1', headers: ['a', 'b'], rows: [['seed', 1]] },
   ])
   const seed = join(dir, 'smoke.xlsx')
-  assert.ok(seed === path || (await readdir(dir)).some((name) => name.endsWith('.xlsx')))
+  // A tautological assertion used to check "the path equals itself OR some xlsx
+  // exists", which was always true even if the fixture was never written.
+  await access(seed)
+  const seeded = await readWorkbookCells(await readFile(seed))
+  assert.equal(seeded['Sheet1!B2'], '1', 'the input workbook was not seeded')
 
   const created = await executeOne(ctx, 'smoke-create', 'excel_operate', {
     path: seed,

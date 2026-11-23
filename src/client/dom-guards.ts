@@ -10,7 +10,17 @@
  * No React in here on purpose: the behaviour is testable with plain jsdom.
  */
 
-export type WindowListener = [string, EventListenerOrEventListenerObject, boolean | AddEventListenerOptions | undefined]
+/**
+ * The fourth slot records where the handler was registered. x-data-spreadsheet
+ * binds `xclickoutside` on `document.body`, not on `window`; recording only the
+ * type/listener made unmount remove it from the wrong target and leak it.
+ */
+export type WindowListener = [
+  string,
+  EventListenerOrEventListenerObject,
+  boolean | AddEventListenerOptions | undefined,
+  ('window' | 'body')?,
+]
 
 /** Anything a person types into — the grid's global shortcuts must stay out of it. */
 export const TYPING_SELECTOR = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
@@ -23,25 +33,38 @@ export const TYPING_SELECTOR = 'input, textarea, select, [contenteditable]:not([
  */
 export function captureWindowListeners<T>(build: () => T): { value: T; listeners: WindowListener[] } {
   const listeners: WindowListener[] = []
-  const native = window.addEventListener
-  const patched = function (
-    this: Window,
-    type: string,
-    listener: EventListenerOrEventListenerObject,
-    options?: boolean | AddEventListenerOptions,
-  ): void {
-    listeners.push([type, listener, options])
-    native.call(this, type, listener, options)
+  const windowNative = window.addEventListener
+  const bodyNative = document.body.addEventListener
+  const patch = <T extends EventTarget>(target: T, native: T['addEventListener'], source: 'window' | 'body'): void => {
+    ;(target as { addEventListener: unknown }).addEventListener = function (
+      this: T,
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ): void {
+      listeners.push([type, listener, options, source])
+      native.call(this, type, listener, options)
+    }
   }
-  window.addEventListener = patched as typeof window.addEventListener
+  patch(window, windowNative, 'window')
+  patch(document.body, bodyNative, 'body')
   try {
     return { value: build(), listeners }
   } catch (error) {
     // A half-built grid still managed to register handlers; do not leave them.
-    for (const [type, listener, options] of listeners) window.removeEventListener(type, listener, options)
+    removeCapturedListeners(listeners)
     throw error
   } finally {
-    window.addEventListener = native
+    window.addEventListener = windowNative
+    document.body.addEventListener = bodyNative
+  }
+}
+
+/** Remove captured handlers from the target they were actually added to. */
+export function removeCapturedListeners(listeners: WindowListener[]): void {
+  for (const [type, listener, options, source] of listeners) {
+    const target: EventTarget = source === 'body' ? document.body : window
+    target.removeEventListener(type, listener, options)
   }
 }
 
@@ -57,8 +80,10 @@ export function captureWindowListeners<T>(build: () => T): { value: T; listeners
  */
 export function scopeGlobalTypingToGrid(listeners: WindowListener[], root: HTMLElement): void {
   for (let index = 0; index < listeners.length; index += 1) {
-    const [type, listener, options] = listeners[index]!
-    if (type !== 'keydown' && type !== 'paste') continue
+    const [type, listener, options, source] = listeners[index]!
+    // Body handlers (clickoutside) stay where they are; only global keyboard
+    // handlers on window need the text-field guard.
+    if (source === 'body' || (type !== 'keydown' && type !== 'paste')) continue
     window.removeEventListener(type, listener, options)
     const guarded = (event: Event): void => {
       const target = event.target

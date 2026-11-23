@@ -3,8 +3,8 @@ export interface PreservedContent {
     parts: Record<string, Uint8Array>;
     /** `<pivotCaches>` from the original workbook.xml, if any. */
     pivotCaches?: string;
-    /** The `pivotCacheDefinition` relationship from the original workbook rels. */
-    cacheRelationship?: string;
+    /** Every `pivotCacheDefinition` relationship from the original workbook rels. */
+    cacheRelationships: string[];
     /** Sheet name → `pivotTable` relationships declared for that sheet. */
     sheetRelationships: Map<string, string[]>;
     /** Sheet name → the `<tableParts>` element the worksheet carried, if any. */

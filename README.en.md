@@ -107,13 +107,16 @@ agent cycle.
 
 ### Step 1: see what it does (no `dsh` install)
 
+Requires **Node ≥ 24.9** — tests execute TypeScript through Node's built-in type stripping.
+No older version will run them.
+
 ```sh
 git clone https://github.com/hccccc01333/dsh-excel-chat && cd dsh-excel-chat
 npm install && npm run demo
 ```
 
 `npm run demo` runs the whole loop on a copy of the sample workbook and prints the engine's
-real output. The sample ships with Chinese data and headers, and the demo prints in the
+real output (the block below is an excerpt). The sample ships with Chinese data and headers, and the demo prints in the
 workbook's language, so the output below is verbatim:
 
 ```text
@@ -212,10 +215,10 @@ Grouped by **what you want to do**, not by source module.
 
 | Tool | What it does |
 |---|---|
-| `excel_operate` | Fine-grained Excel operations — **77 kinds**: values, row and column edits, sorting, report templates, pivot tables, joins, conditional formatting, and most other formatting and structure operations. The full inventory is in the fold below. |
+| `excel_operate` | Fine-grained Excel operations — **80 kinds**: values, row and column edits, sorting, report templates, pivot tables, joins, conditional formatting, and most other formatting and structure operations. The full inventory is in the fold below. |
 
 <details>
-<summary><b><code>excel_operate</code>: the 77 operations (click)</b></summary>
+<summary><b><code>excel_operate</code>: the 80 operations (click)</b></summary>
 
 Fine-grained Excel operations: set values, fill / series, insert and delete rows and columns, copy / move / transpose / values-only paste, format painter (copyStyle), formula-to-value (freezeFormulas), unique values (uniqueValues), rank column (rankColumn), sorting (multi-key / by fill or font colour / custom list), the `report` one-shot template (sort + subtotals + dynamic SUMIFS + filter + style + freeze + number format), subtotals, dynamic pivot-style summaries, two-dimensional crosstabs (crosstab), exact keyed backfill from a second table (joinSheets — VLOOKUP without formulas), advanced filters, styling (size / font / border / strikethrough / rotation / indent), data validation, conditional formatting (data bars / colour scales / icon sets), autofilter, structured tables, page setup, headers and footers (headerFooter), manual page breaks (rowPageBreaks), print titles (printTitles), defined names, freeze and unfreeze panes, zoom (setZoom), gridline toggle (showGridLines), formula view (showFormulas), hidden rows and columns (hideRows/hideColumns), row and column grouping (groupRows/groupColumns), content-based column widths (autoFitColumnWidths), hyperlinks (internal and external URLs), cell comments (addComment), per-row trend sparklines (addSparklines), embedded images (insertImage — png/jpeg/gif with explicit pixel size, implemented at the XML layer and cross-platform without Excel), CSV import and export (importCsv/exportCsv, export guards against formula injection by default), find and replace, sheet protection (fine-grained permissions), mail merge, sheet management (add / rename / delete / duplicate / hide / tab colour / reorder via moveSheet), document properties and recalculate-on-open (setWorkbookProperties), merge, unmerge all (unmergeAll), data cleaning (dedupe / fill missing / remove empty rows and columns / trim / case conversion / fullwidth-to-halfwidth / split columns by delimiter or fixed width / range clearing via clearRange), whole-row conditional highlighting (highlightRows) and two-table fuzzy matching (fuzzyMatch); formulas are re-validated afterwards and an audit log is written
 
@@ -252,9 +255,11 @@ Fine-grained Excel operations: set values, fill / series, insert and delete rows
 
 ## Benchmarks and reliability
 
-Depth and reliability: on a self-built evaluation corpus of 144 workplace tasks (ExcelBench
-lite), goal mode with glm-5.3-flash reaches a measured task success rate of 86% (DeepSeek
-baseline 52%). **The per-run results table is [docs/benchmark-results.md](docs/benchmark-results.md)**
+Depth and reliability: the self-built ExcelBench lite corpus now has 144 workplace tasks,
+covering 73 of 77 operations. **On the current corpus the measured task success rate is
+88.9% (`step-5-preview-free`).** The earlier 86% (glm-5.3-flash) and 52% (DeepSeek baseline)
+came from an easier 100-task corpus and **are not comparable** — they are kept as history only.
+**The per-run results table is [docs/benchmark-results.md](docs/benchmark-results.md)**
 — generated from raw run output, and you can run a row yourself. The metrics and failure
 attribution are in
 [docs/benchmark.md](docs/benchmark.md). The design and measurements of the editable Excel
@@ -281,10 +286,10 @@ The tool accepts either `cells` (a map) or `path` (an absolute `.xlsx` path) —
   — are pinned by tests in `tests/formula.test.ts` rather than left to chance.
 - Whole-column references (`Sales!$H:$H`) do not produce cell-level dependency edges.
 - Range edges are enumerated only up to 10,000 cells; larger ranges contribute start/end edges only.
-- **The web panel edits the first sheet only.** The grid library's edit event carries a row
-  and a column but no sheet identity, and its instance exposes only the sheet it was built
-  with. An edit made while another sheet is on screen is therefore reported against the
-  first one. Everything reachable through the tools and the CLI is unaffected.
+- **The web panel edits the sheet on screen.** The grid library's edit event carries no
+  sheet identity, so the address comes from the grid's active tab. A tab renamed, added or
+  deleted inside the grid no longer maps to a sheet in the file: the edit is refused with an
+  explanation rather than silently written to a guessed sheet. Tools and the CLI are unaffected.
 - **Undo restores the file but not the panel.** `/excel-undo` puts the workbook back, and
   the grid goes on showing the pre-undo data until the file is read again. A command result
   carries `kind`, `text` and `sourceEventSeq` and nothing else, so the panel has no channel

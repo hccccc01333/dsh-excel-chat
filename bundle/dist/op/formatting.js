@@ -2,6 +2,16 @@ import { numberToColumn } from '../formula.js';
 import { parseRange } from './core.js';
 export function applyDataValidation(workbook, options) {
     const parsed = parseRange(workbook, options.range);
+    if (options.remove) {
+        // ExcelJS's remove() leaves an undefined key that the writer still emits.
+        const model = parsed.sheet.dataValidations.model;
+        for (let row = parsed.startRow; row <= parsed.endRow; row += 1) {
+            for (let col = parsed.startCol; col <= parsed.endCol; col += 1) {
+                delete model[`${numberToColumn(col)}${row}`];
+            }
+        }
+        return;
+    }
     const validation = {
         type: options.type,
         operator: options.operator,
@@ -31,10 +41,21 @@ export function applyDataValidation(workbook, options) {
     }
 }
 export function looksLikeRange(value) {
-    return /^[A-Za-z]{1,3}\d+:[A-Za-z]{1,3}\d+$/.test(value) || /[!$]/.test(value);
+    const text = value.trim();
+    // INDIRECT/OFFSET/INDEX build a range at runtime. Quoting them turns the
+    // formula into a literal string, so a dependent dropdown never populates.
+    if (/^(INDIRECT|OFFSET|INDEX)\s*\(/i.test(text))
+        return true;
+    if (/^["']/.test(text))
+        return true;
+    return /^[A-Za-z]{1,3}\d+:[A-Za-z]{1,3}\d+$/.test(text) || /[!$]/.test(text);
 }
 export function applyConditionalFormatting(workbook, range, rules) {
     const parsed = parseRange(workbook, range);
+    // Excel evaluates a conditional-format expression relative to the TOP-LEFT
+    // cell of `ref`. Hardcoding A1 made every rule on a range starting elsewhere
+    // test the wrong cell (e.g. C5:C10 blanks were decided by A1).
+    const anchor = `${numberToColumn(parsed.startCol)}${parsed.startRow}`;
     const mapped = rules.map((rule) => {
         // A dxf paints the background, not the foreground — see excelStylePatch.
         const style = rule.style ? excelStylePatch(rule.style, {}, 'bgColor') : undefined;
@@ -56,7 +77,7 @@ export function applyConditionalFormatting(workbook, range, rules) {
                 type: 'containsText',
                 operator: 'containsText',
                 text: rule.text,
-                formulae: [`NOT(ISERROR(SEARCH("${rule.text}",A1)))`],
+                formulae: [`NOT(ISERROR(SEARCH("${rule.text}",${anchor})))`],
                 style,
             };
         }
@@ -65,25 +86,27 @@ export function applyConditionalFormatting(workbook, range, rules) {
                 throw new Error('notContainsText conditional formatting requires text');
             return {
                 type: 'expression',
-                formulae: [`ISERROR(SEARCH("${rule.text}",A1))`],
+                formulae: [`ISERROR(SEARCH("${rule.text}",${anchor}))`],
                 style,
             };
         }
         if (rule.type === 'blanks') {
-            return { type: 'expression', formulae: ['ISBLANK(A1)'], style };
+            return { type: 'expression', formulae: [`ISBLANK(${anchor})`], style };
         }
         if (rule.type === 'noBlanks') {
-            return { type: 'expression', formulae: ['NOT(ISBLANK(A1))'], style };
+            return { type: 'expression', formulae: [`NOT(ISBLANK(${anchor}))`], style };
         }
         if (rule.type === 'errors') {
-            return { type: 'expression', formulae: ['ISERROR(A1)'], style };
+            return { type: 'expression', formulae: [`ISERROR(${anchor})`], style };
         }
         if (rule.type === 'noErrors') {
-            return { type: 'expression', formulae: ['NOT(ISERROR(A1))'], style };
+            return { type: 'expression', formulae: [`NOT(ISERROR(${anchor}))`], style };
         }
         if (rule.type === 'duplicateValues' || rule.type === 'uniqueValues') {
             const range = `$${numberToColumn(parsed.startCol)}$${parsed.startRow}:$${numberToColumn(parsed.endCol)}$${parsed.endRow}`;
-            const formula = rule.type === 'duplicateValues' ? `COUNTIF(${range},A1)>1` : `COUNTIF(${range},A1)=1`;
+            const formula = rule.type === 'duplicateValues'
+                ? `COUNTIF(${range},${anchor})>1`
+                : `COUNTIF(${range},${anchor})=1`;
             return { type: 'expression', formulae: [formula], style };
         }
         if (rule.type === 'aboveAverage') {

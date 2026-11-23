@@ -161,6 +161,19 @@ test('empty-gap repair preserves sheet id casing', () => {
   assert.equal(repairs[0]!.newValue, '=B4-C4')
 })
 
+test('empty-gap repair shifts references after a string literal as well', () => {
+  // The scanner used to replace the literal with one space, so the reference
+  // following it was rewritten at the wrong offset (C3 stayed C2).
+  const cells = {
+    D2: '=IF(B2>0,"ok",C2)',
+    D4: '=IF(B4>0,"ok",C4)',
+  }
+  const repairs = generateRepairs(cells, validate(cells))
+  assert.equal(repairs.length, 1)
+  assert.equal(repairs[0]!.id, 'D3')
+  assert.equal(repairs[0]!.newValue, '=IF(B3>0,"ok",C3)')
+})
+
 test('repairWorkbookFile fills an empty gap on disk and re-validates clean', async () => {
   const workbook = new ExcelJS.Workbook()
   const sheet = workbook.addWorksheet('Sales')

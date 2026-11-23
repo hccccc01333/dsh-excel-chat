@@ -269,7 +269,7 @@ export function applyAggregateReport(
   const lastData = parsed.endRow
   const groupRange = absoluteColumnRef(sourceSheet, numberToColumn(groupCol), firstData, lastData)
 
-  const groupValues: string[] = []
+  const groupValues: Array<{ key: string; value: ExcelJS.CellValue }> = []
   const seen = new Set<string>()
   for (let row = firstData; row <= lastData; row++) {
     // Skip subtotal rows. `report` inserts them into the source before building
@@ -285,7 +285,7 @@ export function applyAggregateReport(
     const key = raw === null || raw === undefined ? '' : String(raw)
     if (!seen.has(key)) {
       seen.add(key)
-      groupValues.push(key)
+      groupValues.push({ key, value: raw })
     }
   }
 
@@ -315,7 +315,10 @@ export function applyAggregateReport(
   for (let index = 0; index < groupValues.length; index++) {
     const row = 2 + index
     const groupCell = output.getCell(`A${row}`)
-    groupCell.value = groupValues[index]
+    // Write the original typed value: turning a date group into `String(Date)`
+    // produced a label the SUMIFS criteria could never match, so every metric
+    // came back zero.
+    groupCell.value = groupValues[index]!.value
     options.metrics.forEach((metric, metricIndex) => {
       const metricCol = columnToNumber(metric.column)
       const metricRange = absoluteColumnRef(sourceSheet, numberToColumn(metricCol), firstData, lastData)

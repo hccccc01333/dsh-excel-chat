@@ -113,6 +113,16 @@ export function guardedContext(host: Context): { ctx: Context; report: Registrat
 
   const ctx = {
     get: (key: string) => host.get(key),
+    // Needed for optional service dependencies: cordis parks the callback until
+    // the service appears. Without forwarding it, a late `commands` service
+    // silently loses the three slash commands.
+    inject: (deps: string[], callback: (inner: Context) => void) => {
+      // Some in-process hosts are minimal facades with no `inject`. They also
+      // have no late-arriving services, so skipping is the faithful behaviour.
+      const inject = (host as unknown as { inject?: (d: never, cb: never) => unknown }).inject
+      if (typeof inject !== 'function') return
+      return inject.call(host, deps as never, callback as never)
+    },
     effect: (callback: () => unknown, label?: string) =>
       host.effect(() => {
         try {
