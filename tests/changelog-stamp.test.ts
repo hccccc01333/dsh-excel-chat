@@ -17,10 +17,14 @@ test('stampChangelog dates the notes and restores an empty Unreleased section', 
   assert.equal(body.replace(/<!--[\s\S]*?-->/g, '').trim(), '')
 })
 
-test('the checked-in changelog has a non-empty Unreleased section', () => {
+test('the checked-in changelog has release notes', () => {
   const changelog = readFileSync(new URL('CHANGELOG.md', ROOT), 'utf8')
   assert.match(changelog, /^# Changelog\n/m)
   assert.match(changelog, /^## Unreleased[ \t]*$/m)
-  const body = changelog.split(/^## Unreleased[ \t]*$/m)[1]!.split(/^## /m)[0]
-  assert.ok(body.replace(/<!--[\s\S]*?-->/g, '').trim().length > 0)
+  const unreleased = changelog.split(/^## Unreleased[ \t]*$/m)[1]!.split(/^## /m)[0]
+  // release.mjs stamps the notes into a version section before it runs the
+  // tests, so Unreleased is legitimately empty in that intermediate state.
+  const newestRelease = changelog.split(/^## v\d+\.\d+\.\d+[^\n]*$/m)[1]?.split(/^## /m)[0] ?? ''
+  const notes = `${unreleased}\n${newestRelease}`.replace(/<!--[\s\S]*?-->/g, '').trim()
+  assert.ok(notes.length > 0)
 })
