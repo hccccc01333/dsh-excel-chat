@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+<!-- Write user-visible changes here before the next release. -->
+
+## v0.45.0 — 2026-11-23
+
 <!-- 在这里写下一条条对用户可见的改动。发版脚本会去掉本注释并要求本节非空。 -->
 
 - **含字符串的公式，插入/删除行后引用不再错位。** 扫描器此前把字符串字面量换成
